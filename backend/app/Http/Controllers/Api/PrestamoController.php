@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SimularPrestamoRequest;
 use App\Http\Requests\StorePrestamoRequest;
+use App\Models\ConfiguracionGlobal;
 use App\Models\Prestamo;
 use App\Services\AuditoriaLogger;
 use App\Services\PrestamoCalculator;
@@ -35,7 +36,7 @@ class PrestamoController extends Controller
                 'plazo_cuotas' => $datos['plazo_cuotas'],
                 'fecha_inicio' => $datos['fecha_inicio'],
                 'estado' => 'activo',
-                'politica_mora' => $datos['politica_mora'] ?? 'mantener',
+                'politica_mora' => $datos['politica_mora'] ?? ConfiguracionGlobal::obtener('politica_mora_default', 'mantener'),
             ]);
 
             foreach ($datos['extras'] ?? [] as $extra) {

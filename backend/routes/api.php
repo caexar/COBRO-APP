@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AdminConfiguracionController;
+use App\Http\Controllers\Api\Admin\AdminResumenController;
+use App\Http\Controllers\Api\Admin\AdminUsuarioController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\PagoController;
 use App\Http\Controllers\Api\PrestamoController;
@@ -29,5 +32,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('prestamos/{prestamo}/pagos', [PrestamoController::class, 'pagos']);
 
         Route::post('pagos', [PagoController::class, 'store']);
+    });
+
+    Route::middleware('role:admin')->prefix('admin')->group(function () {
+        Route::get('usuarios', [AdminUsuarioController::class, 'index']);
+        Route::post('usuarios', [AdminUsuarioController::class, 'store']);
+        Route::put('usuarios/{usuario}', [AdminUsuarioController::class, 'update']);
+        Route::put('usuarios/{usuario}/desactivar', [AdminUsuarioController::class, 'desactivar']);
+        Route::get('usuarios/{usuario}/detalle', [AdminUsuarioController::class, 'detalle']);
+
+        Route::get('resumen', [AdminResumenController::class, 'index']);
+
+        Route::get('configuracion', [AdminConfiguracionController::class, 'index']);
+        Route::put('configuracion', [AdminConfiguracionController::class, 'update']);
     });
 });

@@ -30,9 +30,13 @@ No usar variaciones como `cobro-app`, `cobroApp`, `CobroDiario`, etc. en identif
 - Todas las rutas de negocio (`clientes`, `prestamos`, `pagos`) están protegidas con
   `auth:sanctum` + middleware `role:cobrador`: **solo el rol `cobrador` puede usarlas**, y
   siempre filtradas por `usuario_id` del cobrador autenticado.
-- `admin` tiene sus propios endpoints (fase pendiente); no reutiliza estas rutas para
-  editar datos operativos. `ClientePolicy` y `PrestamoPolicy` (`app/Policies/`) ya
-  contemplan que `admin` puede leer (`view`/`viewAny`) pero no crear/editar/eliminar.
+- `admin` tiene sus propios endpoints bajo `/api/admin/*` (middleware `role:admin`), en
+  `App\Http\Controllers\Api\Admin\*`; no reutiliza las rutas de cobrador para editar datos
+  operativos. `ClientePolicy` y `PrestamoPolicy` (`app/Policies/`) contemplan que `admin`
+  puede leer (`view`/`viewAny`) pero no crear/editar/eliminar clientes/préstamos — el CRUD de
+  esos recursos sigue siendo exclusivo del cobrador dueño.
+- Las rutas `/api/admin/*` no usan Policies de objeto (no hay "dueño" que proteger: el admin
+  ve/gestiona todos los cobradores) — la única barrera es el middleware `role:admin`.
 
 ## Reglas de negocio de préstamos, cuotas y pagos
 
@@ -100,6 +104,59 @@ setea vía `PUT /api/prestamos/{id}/anular` y bloquea nuevos pagos.
 
 ### Auditoría
 
-`crear_prestamo`, `registrar_pago` y `anular_prestamo` dejan registro en `auditoria` vía
-`App\Services\AuditoriaLogger`. Cualquier acción nueva que el negocio considere "relevante"
-debe usar ese mismo servicio en lugar de escribir en el modelo `Auditoria` directamente.
+`crear_prestamo`, `registrar_pago`, `anular_prestamo`, y del lado admin `crear_usuario`,
+`actualizar_usuario`, `desactivar_usuario`, `actualizar_configuracion` dejan registro en
+`auditoria` vía `App\Services\AuditoriaLogger`. Cualquier acción nueva que el negocio
+considere "relevante" debe usar ese mismo servicio en lugar de escribir en el modelo
+`Auditoria` directamente. Nunca se registra un PIN en texto plano en `auditoria` (ver
+`actualizar_configuracion`, que solo guarda si el PIN maestro cambió, no su valor).
+
+## Administración: usuarios, resumen y configuración global
+
+### PIN maestro: individual vs. global
+
+Existen **dos** niveles de PIN maestro, coexistiendo a propósito (decisión explícita, no
+descuido):
+- `users.pin_maestro_hash` (por cobrador, nullable): lo gestiona el admin vía
+  `PUT /api/admin/usuarios/{id}` (campo `pin_maestro`; enviarlo como `null` lo limpia).
+- `configuracion_global` (clave `pin_maestro_hash`, gestionada vía
+  `PUT /api/admin/configuracion`): PIN maestro **global**, usado como respaldo cuando un
+  cobrador no tiene el suyo propio.
+
+La app (móvil, fase pendiente) debe intentar primero el PIN maestro individual del cobrador
+y, si no existe, caer al global. Ninguno de los dos se expone nunca vía API en texto plano ni
+como hash (`GET` solo devuelve `pin_maestro_configurado: true/false`).
+
+### Usuarios (admin)
+
+- `POST /api/admin/usuarios` puede crear tanto `cobrador` como `admin` (campo `rol` libre).
+- `pin` es opcional al crear un usuario; si se omite, queda `0000` por defecto (debilidad
+  intencional temporal — el usuario debería cambiarlo desde la app apenas entre).
+- `PUT /api/admin/usuarios/{id}` **no acepta `activo`** — ese campo solo cambia vía
+  `PUT /api/admin/usuarios/{id}/desactivar`, que además nunca borra el registro (ni soft
+  delete) y no deja que un admin se desactive a sí mismo. **No existe (todavía) un endpoint
+  para reactivar** un usuario desactivado — si se necesita, hay que agregarlo explícitamente.
+
+### Resumen consolidado (`GET /api/admin/resumen`)
+
+- `capital_prestado` excluye préstamos con `estado = anulado`.
+- `total_cobrado` es la suma de `pagos.monto_aplicado` (no `monto_abonado` — así excedentes
+  registrados como `cobro_extra` no inflan el total cobrado más allá de lo que realmente
+  redujo deuda).
+- `cartera_en_mora` es el saldo **pendiente real** de las cuotas en `estado = en_mora`
+  (`monto_esperado` menos lo ya aplicado a esa cuota), no el monto bruto de la cuota.
+- Se calcula por cobrador y como total global; incluye cobradores sin actividad (con ceros).
+
+### Configuración global (`configuracion_global`)
+
+Tabla clave/valor genérica; el admin gestiona 3 claves conocidas vía
+`GET`/`PUT /api/admin/configuracion`:
+- `tasas_interes_default`: array JSON de tasas sugeridas (ej. `[10,20,30,40]`) — **no se
+  valida** `porcentaje_interes` de un préstamo contra esta lista, es solo un valor de UI.
+- `politica_mora_default`: si `POST /api/prestamos` no envía `politica_mora`, se usa este
+  valor (lookup vía `ConfiguracionGlobal::obtener('politica_mora_default', 'mantener')` en
+  `PrestamoController::store`) en lugar de un default hardcodeado.
+- `pin_maestro_hash`: ver sección de PIN maestro arriba.
+
+`ConfiguracionGlobal::obtener()`/`::guardar()` son los helpers para leer/escribir por clave;
+usarlos en vez de consultar la tabla directamente.
