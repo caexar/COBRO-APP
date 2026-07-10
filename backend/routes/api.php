@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('usuarios', [AdminUsuarioController::class, 'store']);
         Route::put('usuarios/{usuario}', [AdminUsuarioController::class, 'update']);
         Route::put('usuarios/{usuario}/desactivar', [AdminUsuarioController::class, 'desactivar']);
+        Route::put('usuarios/{usuario}/reactivar', [AdminUsuarioController::class, 'reactivar']);
         Route::get('usuarios/{usuario}/detalle', [AdminUsuarioController::class, 'detalle']);
 
         Route::get('resumen', [AdminResumenController::class, 'index']);

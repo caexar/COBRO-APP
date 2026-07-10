@@ -103,6 +103,26 @@ class AdminUsuarioController extends Controller
         return response()->json(['data' => $usuario]);
     }
 
+    public function reactivar(Request $request, User $usuario): JsonResponse
+    {
+        if ($usuario->activo) {
+            return response()->json(['message' => 'Este usuario ya está activo.'], 422);
+        }
+
+        $usuario->update(['activo' => true]);
+
+        $this->auditoria->registrar(
+            usuario: $request->user(),
+            accion: 'reactivar_usuario',
+            entidad: 'User',
+            entidadId: $usuario->id,
+            datosAnteriores: ['activo' => false],
+            datosNuevos: ['activo' => true],
+        );
+
+        return response()->json(['data' => $usuario]);
+    }
+
     public function detalle(User $usuario): JsonResponse
     {
         if ($usuario->rol !== 'cobrador') {

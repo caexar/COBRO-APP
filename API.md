@@ -327,8 +327,7 @@ por el modelo). Deja registro en `auditoria` (`accion = crear_usuario`).
 Edita un usuario existente. Todos los campos son opcionales (`sometimes`): `nombre`, `email`,
 `password`, `rol`, `pin`, `pin_maestro` (enviar `pin_maestro: null` limpia el PIN maestro
 individual, quedando el global como respaldo). **No permite tocar `activo`** — eso es
-exclusivo de `PUT /admin/usuarios/{id}/desactivar`, así que no hay forma de reactivar un
-usuario todavía por API (queda pendiente si se necesita).
+exclusivo de `PUT /admin/usuarios/{id}/desactivar` y `PUT /admin/usuarios/{id}/reactivar`.
 
 **Respuesta 200**: el usuario actualizado. Deja registro en `auditoria`
 (`accion = actualizar_usuario`).
@@ -343,6 +342,15 @@ desactivarse a sí mismo (422).
 
 Deja registro en `auditoria` (`accion = desactivar_usuario`). Un usuario inactivo no puede
 hacer `POST /login` (422 `"Esta cuenta se encuentra inactiva."`).
+
+### PUT /admin/usuarios/{usuario}/reactivar
+
+Marca `activo = true`. Mismas protecciones que `desactivar` (solo admin, auditoría).
+
+**Respuesta 200**: el usuario con `activo: true`.
+**Error 422**: `"Este usuario ya está activo."`
+
+Deja registro en `auditoria` (`accion = reactivar_usuario`).
 
 ### GET /admin/usuarios/{usuario}/detalle
 
@@ -435,6 +443,7 @@ en `auditoria` (`accion = actualizar_configuracion`), solo si cambió o no.
 | POST | `/admin/usuarios` | admin | auditoría |
 | PUT | `/admin/usuarios/{usuario}` | admin | auditoría, no toca `activo` |
 | PUT | `/admin/usuarios/{usuario}/desactivar` | admin | auditoría, nunca elimina |
+| PUT | `/admin/usuarios/{usuario}/reactivar` | admin | auditoría |
 | GET | `/admin/usuarios/{usuario}/detalle` | admin | solo lectura |
 | GET | `/admin/resumen` | admin | consolidado global + por cobrador |
 | GET | `/admin/configuracion` | admin | — |

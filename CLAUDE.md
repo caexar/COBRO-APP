@@ -133,9 +133,9 @@ como hash (`GET` solo devuelve `pin_maestro_configurado: true/false`).
 - `pin` es opcional al crear un usuario; si se omite, queda `0000` por defecto (debilidad
   intencional temporal — el usuario debería cambiarlo desde la app apenas entre).
 - `PUT /api/admin/usuarios/{id}` **no acepta `activo`** — ese campo solo cambia vía
-  `PUT /api/admin/usuarios/{id}/desactivar`, que además nunca borra el registro (ni soft
-  delete) y no deja que un admin se desactive a sí mismo. **No existe (todavía) un endpoint
-  para reactivar** un usuario desactivado — si se necesita, hay que agregarlo explícitamente.
+  `PUT /api/admin/usuarios/{id}/desactivar` (nunca borra el registro, ni soft delete, y no
+  deja que un admin se desactive a sí mismo) y `PUT /api/admin/usuarios/{id}/reactivar`
+  (mismas protecciones: solo admin, auditoría).
 
 ### Resumen consolidado (`GET /api/admin/resumen`)
 
