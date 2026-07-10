@@ -75,4 +75,17 @@ class Prestamo extends Model
     {
         return $this->hasMany(Pago::class, 'prestamo_id');
     }
+
+    /**
+     * Monto total a pagar del préstamo: capital + interés + extras.
+     * No se persiste como columna; se deriva de monto_capital, porcentaje_interes y los extras.
+     */
+    public function montoTotal(): float
+    {
+        $capital = (float) $this->monto_capital;
+        $interes = round($capital * ((float) $this->porcentaje_interes / 100), 2);
+        $extras = round($this->extras()->sum('valor'), 2);
+
+        return round($capital + $interes + $extras, 2);
+    }
 }

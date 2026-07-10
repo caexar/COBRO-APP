@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'prestamo_id',
     'cuota_id',
     'monto_abonado',
+    'monto_aplicado',
     'fecha_pago',
     'dias_mora',
     'saldo_restante_despues',
@@ -26,6 +27,7 @@ class Pago extends Model
     {
         return [
             'monto_abonado' => 'decimal:2',
+            'monto_aplicado' => 'decimal:2',
             'fecha_pago' => 'date',
             'saldo_restante_despues' => 'decimal:2',
         ];
