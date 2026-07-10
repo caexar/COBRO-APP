@@ -1,0 +1,78 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+#[Fillable([
+    'cliente_id',
+    'usuario_id',
+    'monto_capital',
+    'porcentaje_interes',
+    'frecuencia_pago',
+    'dias_personalizado',
+    'plazo_cuotas',
+    'fecha_inicio',
+    'estado',
+    'politica_mora',
+])]
+class Prestamo extends Model
+{
+    use SoftDeletes;
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'monto_capital' => 'decimal:2',
+            'porcentaje_interes' => 'decimal:2',
+            'fecha_inicio' => 'date',
+        ];
+    }
+
+    /**
+     * @return BelongsTo<Cliente, Prestamo>
+     */
+    public function cliente(): BelongsTo
+    {
+        return $this->belongsTo(Cliente::class, 'cliente_id');
+    }
+
+    /**
+     * @return BelongsTo<User, Prestamo>
+     */
+    public function usuario(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    /**
+     * @return HasMany<PrestamoExtra>
+     */
+    public function extras(): HasMany
+    {
+        return $this->hasMany(PrestamoExtra::class, 'prestamo_id');
+    }
+
+    /**
+     * @return HasMany<Cuota>
+     */
+    public function cuotas(): HasMany
+    {
+        return $this->hasMany(Cuota::class, 'prestamo_id');
+    }
+
+    /**
+     * @return HasMany<Pago>
+     */
+    public function pagos(): HasMany
+    {
+        return $this->hasMany(Pago::class, 'prestamo_id');
+    }
+}
