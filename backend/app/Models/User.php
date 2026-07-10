@@ -10,13 +10,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['nombre', 'email', 'password', 'rol', 'pin_hash', 'pin_maestro_hash', 'activo'])]
 #[Hidden(['password', 'pin_hash', 'pin_maestro_hash', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     /**
      * Get the attributes that should be cast.
@@ -53,5 +54,15 @@ class User extends Authenticatable
     public function auditorias(): HasMany
     {
         return $this->hasMany(Auditoria::class, 'usuario_id');
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->rol === 'admin';
+    }
+
+    public function isCobrador(): bool
+    {
+        return $this->rol === 'cobrador';
     }
 }
