@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/formato_dinero.dart';
-import '../../pagos/presentation/registrar_pago_screen.dart';
 import '../data/prestamos_repository.dart';
+import 'prestamo_detalle_screen.dart';
 
 /// Préstamos activos/en mora del cobrador, con buscador por nombre o cédula
 /// del cliente (mismo criterio flexible que el buscador de clientes). Tocar
-/// un préstamo lleva directo a "Registrar pago", sin pasos intermedios.
+/// un préstamo lleva al detalle del préstamo (mismo flujo que al crear uno
+/// nuevo), desde donde el cobrador puede registrar el pago.
 class CobrosPendientesScreen extends StatefulWidget {
   const CobrosPendientesScreen({super.key});
 
@@ -43,11 +44,11 @@ class _CobrosPendientesScreenState extends State<CobrosPendientesScreen> {
     });
   }
 
-  Future<void> _irARegistrarPago(PrestamoResumen resumen) async {
-    final guardado = await Navigator.of(
+  Future<void> _irADetalle(PrestamoResumen resumen) async {
+    await Navigator.of(
       context,
-    ).push<bool>(MaterialPageRoute(builder: (_) => RegistrarPagoScreen(prestamoId: resumen.prestamo.id)));
-    if (guardado == true) _cargar();
+    ).push(MaterialPageRoute(builder: (_) => PrestamoDetalleScreen(prestamoId: resumen.prestamo.id)));
+    _cargar();
   }
 
   @override
@@ -95,7 +96,7 @@ class _CobrosPendientesScreenState extends State<CobrosPendientesScreen> {
                         separatorBuilder: (context, indice) => const Divider(height: 1),
                         itemBuilder: (context, indice) {
                           final resumen = _prestamos[indice];
-                          return _PrestamoTile(resumen: resumen, onTap: () => _irARegistrarPago(resumen));
+                          return _PrestamoTile(resumen: resumen, onTap: () => _irADetalle(resumen));
                         },
                       ),
                     ),
@@ -115,11 +116,16 @@ class _PrestamoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final referencia = resumen.prestamo.referencia;
+    final titulo = (referencia != null && referencia.isNotEmpty)
+        ? '${resumen.cliente.nombre} — $referencia'
+        : resumen.cliente.nombre;
+
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       title: Text(
-        resumen.cliente.nombre,
+        titulo,
         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
       ),
       subtitle: Text('Saldo pendiente: ${formatearMoneda(resumen.saldoPendiente)}', style: const TextStyle(fontSize: 15)),

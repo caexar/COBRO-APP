@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'cliente_id',
+    'referencia',
     'usuario_id',
     'monto_capital',
     'porcentaje_interes',

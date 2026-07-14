@@ -27,6 +27,7 @@ class StorePrestamoRequest extends FormRequest
                     fn ($query) => $query->where('usuario_id', $usuarioId)->whereNull('deleted_at')
                 ),
             ],
+            'referencia' => ['nullable', 'string', 'max:255'],
             'monto_capital' => ['required', 'numeric', 'min:0.01'],
             'porcentaje_interes' => ['required', 'numeric', 'min:0'],
             'extras' => ['nullable', 'array'],

@@ -815,6 +815,17 @@ class $PrestamosTable extends Prestamos
       'REFERENCES clientes (id)',
     ),
   );
+  static const VerificationMeta _referenciaMeta = const VerificationMeta(
+    'referencia',
+  );
+  @override
+  late final GeneratedColumn<String> referencia = GeneratedColumn<String>(
+    'referencia',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _usuarioIdMeta = const VerificationMeta(
     'usuarioId',
   );
@@ -970,6 +981,7 @@ class $PrestamosTable extends Prestamos
     id,
     servidorId,
     clienteId,
+    referencia,
     usuarioId,
     montoCapital,
     porcentajeInteres,
@@ -1012,6 +1024,12 @@ class $PrestamosTable extends Prestamos
       );
     } else if (isInserting) {
       context.missing(_clienteIdMeta);
+    }
+    if (data.containsKey('referencia')) {
+      context.handle(
+        _referenciaMeta,
+        referencia.isAcceptableOrUnknown(data['referencia']!, _referenciaMeta),
+      );
     }
     if (data.containsKey('usuario_id')) {
       context.handle(
@@ -1154,6 +1172,10 @@ class $PrestamosTable extends Prestamos
         DriftSqlType.int,
         data['${effectivePrefix}cliente_id'],
       )!,
+      referencia: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}referencia'],
+      ),
       usuarioId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}usuario_id'],
@@ -1219,6 +1241,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
   final int id;
   final int? servidorId;
   final int clienteId;
+  final String? referencia;
   final int usuarioId;
   final double montoCapital;
   final double porcentajeInteres;
@@ -1236,6 +1259,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
     required this.id,
     this.servidorId,
     required this.clienteId,
+    this.referencia,
     required this.usuarioId,
     required this.montoCapital,
     required this.porcentajeInteres,
@@ -1258,6 +1282,9 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
       map['servidor_id'] = Variable<int>(servidorId);
     }
     map['cliente_id'] = Variable<int>(clienteId);
+    if (!nullToAbsent || referencia != null) {
+      map['referencia'] = Variable<String>(referencia);
+    }
     map['usuario_id'] = Variable<int>(usuarioId);
     map['monto_capital'] = Variable<double>(montoCapital);
     map['porcentaje_interes'] = Variable<double>(porcentajeInteres);
@@ -1287,6 +1314,9 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
           ? const Value.absent()
           : Value(servidorId),
       clienteId: Value(clienteId),
+      referencia: referencia == null && nullToAbsent
+          ? const Value.absent()
+          : Value(referencia),
       usuarioId: Value(usuarioId),
       montoCapital: Value(montoCapital),
       porcentajeInteres: Value(porcentajeInteres),
@@ -1318,6 +1348,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
       id: serializer.fromJson<int>(json['id']),
       servidorId: serializer.fromJson<int?>(json['servidorId']),
       clienteId: serializer.fromJson<int>(json['clienteId']),
+      referencia: serializer.fromJson<String?>(json['referencia']),
       usuarioId: serializer.fromJson<int>(json['usuarioId']),
       montoCapital: serializer.fromJson<double>(json['montoCapital']),
       porcentajeInteres: serializer.fromJson<double>(json['porcentajeInteres']),
@@ -1340,6 +1371,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
       'id': serializer.toJson<int>(id),
       'servidorId': serializer.toJson<int?>(servidorId),
       'clienteId': serializer.toJson<int>(clienteId),
+      'referencia': serializer.toJson<String?>(referencia),
       'usuarioId': serializer.toJson<int>(usuarioId),
       'montoCapital': serializer.toJson<double>(montoCapital),
       'porcentajeInteres': serializer.toJson<double>(porcentajeInteres),
@@ -1360,6 +1392,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
     int? id,
     Value<int?> servidorId = const Value.absent(),
     int? clienteId,
+    Value<String?> referencia = const Value.absent(),
     int? usuarioId,
     double? montoCapital,
     double? porcentajeInteres,
@@ -1377,6 +1410,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
     id: id ?? this.id,
     servidorId: servidorId.present ? servidorId.value : this.servidorId,
     clienteId: clienteId ?? this.clienteId,
+    referencia: referencia.present ? referencia.value : this.referencia,
     usuarioId: usuarioId ?? this.usuarioId,
     montoCapital: montoCapital ?? this.montoCapital,
     porcentajeInteres: porcentajeInteres ?? this.porcentajeInteres,
@@ -1400,6 +1434,9 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
           ? data.servidorId.value
           : this.servidorId,
       clienteId: data.clienteId.present ? data.clienteId.value : this.clienteId,
+      referencia: data.referencia.present
+          ? data.referencia.value
+          : this.referencia,
       usuarioId: data.usuarioId.present ? data.usuarioId.value : this.usuarioId,
       montoCapital: data.montoCapital.present
           ? data.montoCapital.value
@@ -1442,6 +1479,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
           ..write('id: $id, ')
           ..write('servidorId: $servidorId, ')
           ..write('clienteId: $clienteId, ')
+          ..write('referencia: $referencia, ')
           ..write('usuarioId: $usuarioId, ')
           ..write('montoCapital: $montoCapital, ')
           ..write('porcentajeInteres: $porcentajeInteres, ')
@@ -1464,6 +1502,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
     id,
     servidorId,
     clienteId,
+    referencia,
     usuarioId,
     montoCapital,
     porcentajeInteres,
@@ -1485,6 +1524,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
           other.id == this.id &&
           other.servidorId == this.servidorId &&
           other.clienteId == this.clienteId &&
+          other.referencia == this.referencia &&
           other.usuarioId == this.usuarioId &&
           other.montoCapital == this.montoCapital &&
           other.porcentajeInteres == this.porcentajeInteres &&
@@ -1504,6 +1544,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
   final Value<int> id;
   final Value<int?> servidorId;
   final Value<int> clienteId;
+  final Value<String?> referencia;
   final Value<int> usuarioId;
   final Value<double> montoCapital;
   final Value<double> porcentajeInteres;
@@ -1521,6 +1562,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
     this.clienteId = const Value.absent(),
+    this.referencia = const Value.absent(),
     this.usuarioId = const Value.absent(),
     this.montoCapital = const Value.absent(),
     this.porcentajeInteres = const Value.absent(),
@@ -1539,6 +1581,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
     required int clienteId,
+    this.referencia = const Value.absent(),
     required int usuarioId,
     required double montoCapital,
     required double porcentajeInteres,
@@ -1563,6 +1606,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
     Expression<int>? id,
     Expression<int>? servidorId,
     Expression<int>? clienteId,
+    Expression<String>? referencia,
     Expression<int>? usuarioId,
     Expression<double>? montoCapital,
     Expression<double>? porcentajeInteres,
@@ -1581,6 +1625,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
       if (id != null) 'id': id,
       if (servidorId != null) 'servidor_id': servidorId,
       if (clienteId != null) 'cliente_id': clienteId,
+      if (referencia != null) 'referencia': referencia,
       if (usuarioId != null) 'usuario_id': usuarioId,
       if (montoCapital != null) 'monto_capital': montoCapital,
       if (porcentajeInteres != null) 'porcentaje_interes': porcentajeInteres,
@@ -1601,6 +1646,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
     Value<int>? id,
     Value<int?>? servidorId,
     Value<int>? clienteId,
+    Value<String?>? referencia,
     Value<int>? usuarioId,
     Value<double>? montoCapital,
     Value<double>? porcentajeInteres,
@@ -1619,6 +1665,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
       id: id ?? this.id,
       servidorId: servidorId ?? this.servidorId,
       clienteId: clienteId ?? this.clienteId,
+      referencia: referencia ?? this.referencia,
       usuarioId: usuarioId ?? this.usuarioId,
       montoCapital: montoCapital ?? this.montoCapital,
       porcentajeInteres: porcentajeInteres ?? this.porcentajeInteres,
@@ -1646,6 +1693,9 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
     }
     if (clienteId.present) {
       map['cliente_id'] = Variable<int>(clienteId.value);
+    }
+    if (referencia.present) {
+      map['referencia'] = Variable<String>(referencia.value);
     }
     if (usuarioId.present) {
       map['usuario_id'] = Variable<int>(usuarioId.value);
@@ -1695,6 +1745,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
           ..write('id: $id, ')
           ..write('servidorId: $servidorId, ')
           ..write('clienteId: $clienteId, ')
+          ..write('referencia: $referencia, ')
           ..write('usuarioId: $usuarioId, ')
           ..write('montoCapital: $montoCapital, ')
           ..write('porcentajeInteres: $porcentajeInteres, ')
@@ -4658,6 +4709,7 @@ typedef $$PrestamosTableCreateCompanionBuilder =
       Value<int> id,
       Value<int?> servidorId,
       required int clienteId,
+      Value<String?> referencia,
       required int usuarioId,
       required double montoCapital,
       required double porcentajeInteres,
@@ -4677,6 +4729,7 @@ typedef $$PrestamosTableUpdateCompanionBuilder =
       Value<int> id,
       Value<int?> servidorId,
       Value<int> clienteId,
+      Value<String?> referencia,
       Value<int> usuarioId,
       Value<double> montoCapital,
       Value<double> porcentajeInteres,
@@ -4788,6 +4841,11 @@ class $$PrestamosTableFilterComposer
 
   ColumnFilters<int> get servidorId => $composableBuilder(
     column: $table.servidorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get referencia => $composableBuilder(
+    column: $table.referencia,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4974,6 +5032,11 @@ class $$PrestamosTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get referencia => $composableBuilder(
+    column: $table.referencia,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get usuarioId => $composableBuilder(
     column: $table.usuarioId,
     builder: (column) => ColumnOrderings(column),
@@ -5077,6 +5140,11 @@ class $$PrestamosTableAnnotationComposer
 
   GeneratedColumn<int> get servidorId => $composableBuilder(
     column: $table.servidorId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get referencia => $composableBuilder(
+    column: $table.referencia,
     builder: (column) => column,
   );
 
@@ -5274,6 +5342,7 @@ class $$PrestamosTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int?> servidorId = const Value.absent(),
                 Value<int> clienteId = const Value.absent(),
+                Value<String?> referencia = const Value.absent(),
                 Value<int> usuarioId = const Value.absent(),
                 Value<double> montoCapital = const Value.absent(),
                 Value<double> porcentajeInteres = const Value.absent(),
@@ -5291,6 +5360,7 @@ class $$PrestamosTableTableManager
                 id: id,
                 servidorId: servidorId,
                 clienteId: clienteId,
+                referencia: referencia,
                 usuarioId: usuarioId,
                 montoCapital: montoCapital,
                 porcentajeInteres: porcentajeInteres,
@@ -5310,6 +5380,7 @@ class $$PrestamosTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int?> servidorId = const Value.absent(),
                 required int clienteId,
+                Value<String?> referencia = const Value.absent(),
                 required int usuarioId,
                 required double montoCapital,
                 required double porcentajeInteres,
@@ -5327,6 +5398,7 @@ class $$PrestamosTableTableManager
                 id: id,
                 servidorId: servidorId,
                 clienteId: clienteId,
+                referencia: referencia,
                 usuarioId: usuarioId,
                 montoCapital: montoCapital,
                 porcentajeInteres: porcentajeInteres,

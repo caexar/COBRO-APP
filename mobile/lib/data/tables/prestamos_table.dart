@@ -12,6 +12,7 @@ class Prestamos extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get servidorId => integer().nullable().unique()();
   IntColumn get clienteId => integer().references(Clientes, #id)();
+  TextColumn get referencia => text().nullable()();
   IntColumn get usuarioId => integer()();
   RealColumn get montoCapital => real()();
   RealColumn get porcentajeInteres => real()();

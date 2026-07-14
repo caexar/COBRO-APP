@@ -28,6 +28,7 @@ class PrestamoController extends Controller
         $prestamo = DB::transaction(function () use ($datos, $resultado, $request) {
             $prestamo = Prestamo::create([
                 'cliente_id' => $datos['cliente_id'],
+                'referencia' => $datos['referencia'] ?? null,
                 'usuario_id' => $request->user()->id,
                 'monto_capital' => $datos['monto_capital'],
                 'porcentaje_interes' => $datos['porcentaje_interes'],

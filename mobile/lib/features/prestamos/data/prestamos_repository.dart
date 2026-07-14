@@ -118,6 +118,7 @@ class PrestamosRepository {
   /// [PrestamoCalculator]) y encola el alta para la próxima sincronización.
   Future<int> crear({
     required int clienteId,
+    String? referencia,
     required double montoCapital,
     required double porcentajeInteres,
     List<ExtraPrestamo> extras = const [],
@@ -142,6 +143,7 @@ class PrestamosRepository {
     final prestamoId = await _prestamosDao.insertar(
       PrestamosCompanion.insert(
         clienteId: clienteId,
+        referencia: Value(referencia),
         usuarioId: usuarioId,
         montoCapital: montoCapital,
         porcentajeInteres: porcentajeInteres,
@@ -176,6 +178,7 @@ class PrestamosRepository {
       tipoOperacion: 'crear',
       payload: jsonEncode({
         'cliente_id': clienteId,
+        'referencia': referencia,
         'monto_capital': montoCapital,
         'porcentaje_interes': porcentajeInteres,
         'extras': extras.map((extra) => {'concepto': extra.concepto, 'valor': extra.valor}).toList(),

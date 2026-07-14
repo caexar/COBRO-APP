@@ -187,6 +187,7 @@ Igual que `simular`, pero persiste el préstamo, sus extras y sus cuotas. Requie
 ```json
 {
   "cliente_id": 1,
+  "referencia": "Préstamo moto",
   "monto_capital": 100000,
   "porcentaje_interes": 20,
   "extras": [{ "concepto": "papeleria", "valor": 5000 }],
@@ -197,6 +198,9 @@ Igual que `simular`, pero persiste el préstamo, sus extras y sus cuotas. Requie
   "politica_mora": "siguiente_pago"
 }
 ```
+- `referencia`: opcional, texto libre (máx. 255) para que el cobrador distinga préstamos
+  cuando un mismo cliente tiene más de uno activo (ej. "Préstamo moto"). No participa en el
+  cálculo, es solo informativo.
 - `politica_mora`: `mantener` | `siguiente_pago` | `sumar_total` (nullable, default `mantener`).
 
 **Respuesta 201**: el préstamo creado con `extras` y `cuotas` cargadas.

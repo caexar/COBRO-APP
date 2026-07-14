@@ -20,6 +20,7 @@ class PrestamoFormScreen extends StatefulWidget {
 
 class _PrestamoFormScreenState extends State<PrestamoFormScreen> {
   final _repository = PrestamosRepository();
+  final _referenciaController = TextEditingController();
 
   Cliente? _cliente;
   DatosPrestamoFormulario? _datos;
@@ -29,6 +30,12 @@ class _PrestamoFormScreenState extends State<PrestamoFormScreen> {
   void initState() {
     super.initState();
     _cliente = widget.clienteInicial;
+  }
+
+  @override
+  void dispose() {
+    _referenciaController.dispose();
+    super.dispose();
   }
 
   Future<void> _elegirCliente() async {
@@ -44,8 +51,10 @@ class _PrestamoFormScreenState extends State<PrestamoFormScreen> {
     setState(() => _guardando = true);
 
     try {
+      final referencia = _referenciaController.text.trim();
       final prestamoId = await _repository.crear(
         clienteId: cliente.id,
+        referencia: referencia.isEmpty ? null : referencia,
         montoCapital: datos.montoCapital,
         porcentajeInteres: datos.porcentajeInteres,
         extras: datos.extras,
@@ -88,6 +97,15 @@ class _PrestamoFormScreenState extends State<PrestamoFormScreen> {
                       color: cliente == null ? Theme.of(context).colorScheme.outline : null,
                     ),
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _referenciaController,
+                decoration: const InputDecoration(
+                  labelText: 'Referencia (opcional)',
+                  hintText: 'Ej. "Préstamo moto", "Segundo préstamo"',
+                  border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 24),

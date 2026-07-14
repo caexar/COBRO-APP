@@ -88,6 +88,13 @@ class _PrestamoDetalleScreenState extends State<PrestamoDetalleScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (detalle.prestamo.referencia != null && detalle.prestamo.referencia!.isNotEmpty) ...[
+                            Text(
+                              detalle.prestamo.referencia!,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                           _FilaResumen(etiqueta: 'Capital', valor: formatearMoneda(detalle.prestamo.montoCapital)),
                           _FilaResumen(
                             etiqueta: 'Interés (${detalle.prestamo.porcentajeInteres.toStringAsFixed(0)}%)',

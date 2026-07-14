@@ -58,6 +58,7 @@ void main() {
     expect(detalle.prestamo.montoCapital, 100000);
     expect(detalle.prestamo.estado, 'activo');
     expect(detalle.prestamo.sincronizado, isFalse);
+    expect(detalle.prestamo.referencia, isNull);
 
     expect(detalle.montoInteres, 20000);
     expect(detalle.montoExtras, 5000);
@@ -75,6 +76,27 @@ void main() {
     // 1 del cliente creado + 1 del préstamo creado.
     expect(pendientes.where((p) => p.tabla == 'prestamos' && p.tipoOperacion == 'crear'), hasLength(1));
     expect(pendientes.firstWhere((p) => p.tabla == 'prestamos').registroId, prestamoId);
+  });
+
+  test('guarda la referencia opcional y la incluye en el payload encolado', () async {
+    final clienteId = await crearClientePrueba();
+
+    final prestamoId = await prestamosRepository.crear(
+      clienteId: clienteId,
+      referencia: 'Préstamo moto',
+      montoCapital: 10000,
+      porcentajeInteres: 0,
+      frecuenciaPago: 'diario',
+      plazoCuotas: 2,
+      fechaInicio: DateTime(2026, 1, 1),
+    );
+
+    final detalle = await prestamosRepository.obtenerDetalle(prestamoId);
+    expect(detalle.prestamo.referencia, 'Préstamo moto');
+
+    final pendientes = await db.cambiosPendientesDao.obtenerPendientes();
+    final cambioPrestamo = pendientes.firstWhere((p) => p.tabla == 'prestamos' && p.registroId == prestamoId);
+    expect(cambioPrestamo.payload, contains('Préstamo moto'));
   });
 
   test('el resultado guardado coincide con PrestamoCalculator usado directamente', () async {
