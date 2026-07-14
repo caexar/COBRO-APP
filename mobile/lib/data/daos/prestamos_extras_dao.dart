@@ -19,8 +19,11 @@ class PrestamosExtrasDao extends DatabaseAccessor<AppDatabase> with _$PrestamosE
 
   Future<int> insertar(PrestamosExtrasCompanion extra) => into(prestamosExtras).insert(extra);
 
-  Future<bool> actualizar(PrestamosExtrasCompanion extra) =>
-      update(prestamosExtras).replace(extra);
+  /// Actualización parcial (ver nota en ClientesDao.actualizar). Requiere
+  /// que `extra.id` esté seteado.
+  Future<int> actualizar(PrestamosExtrasCompanion extra) {
+    return (update(prestamosExtras)..where((tbl) => tbl.id.equals(extra.id.value))).write(extra);
+  }
 
   Future<int> eliminar(int id) =>
       (delete(prestamosExtras)..where((tbl) => tbl.id.equals(id))).go();

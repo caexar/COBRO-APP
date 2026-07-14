@@ -33,7 +33,11 @@ class PrestamosDao extends DatabaseAccessor<AppDatabase> with _$PrestamosDaoMixi
 
   Future<int> insertar(PrestamosCompanion prestamo) => into(prestamos).insert(prestamo);
 
-  Future<bool> actualizar(PrestamosCompanion prestamo) => update(prestamos).replace(prestamo);
+  /// Actualización parcial (ver nota en ClientesDao.actualizar sobre por qué
+  /// no se usa `.replace()`). Requiere que `prestamo.id` esté seteado.
+  Future<int> actualizar(PrestamosCompanion prestamo) {
+    return (update(prestamos)..where((tbl) => tbl.id.equals(prestamo.id.value))).write(prestamo);
+  }
 
   /// El backend nunca borra un préstamo: solo cambia su estado a "anulado".
   Future<int> anular(int id) {

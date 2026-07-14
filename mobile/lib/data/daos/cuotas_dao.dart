@@ -26,5 +26,9 @@ class CuotasDao extends DatabaseAccessor<AppDatabase> with _$CuotasDaoMixin {
 
   Future<int> insertar(CuotasCompanion cuota) => into(cuotas).insert(cuota);
 
-  Future<bool> actualizar(CuotasCompanion cuota) => update(cuotas).replace(cuota);
+  /// Actualización parcial (ver nota en ClientesDao.actualizar). Requiere
+  /// que `cuota.id` esté seteado.
+  Future<int> actualizar(CuotasCompanion cuota) {
+    return (update(cuotas)..where((tbl) => tbl.id.equals(cuota.id.value))).write(cuota);
+  }
 }

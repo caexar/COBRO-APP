@@ -219,9 +219,36 @@ usarlos en vez de consultar la tabla directamente.
   requeridas sin default estén presentes en el companion (lanza `InvalidDataException` si
   falta alguna), no es un update parcial pese al nombre. Para actualizar solo algunos campos
   usar `(update(tabla)..where((t) => t.id.equals(id))).write(companion)` (ver
-  `ClientesDao.actualizar`). Aplica el mismo cuidado a los próximos DAOs (préstamos, cuotas,
-  pagos).
+  `ClientesDao.actualizar`). Ya se corrigió el mismo patrón en `PrestamosDao`,
+  `PrestamosExtrasDao`, `CuotasDao` y `PagosDao` — cualquier DAO nuevo que necesite
+  `actualizar()` debe seguir ese mismo patrón de `.write()`, no `.replace()`.
 - Test de referencia: `test/features/clientes/clientes_repository_test.dart` corre contra
   Drift en memoria (`AppDatabase.paraPruebas(NativeDatabase.memory())`) con un
   `SecureStorageService` de prueba (subclase que fija `leerUsuarioId()`), sin tocar
   `flutter_secure_storage` real. Buen patrón a copiar para testear futuros repositorios.
+
+## App móvil: préstamos (`mobile/lib/features/prestamos`)
+
+- `PrestamoCalculator` (`data/prestamo_calculator.dart`) es una réplica **exacta** en Dart de
+  `App\Services\PrestamoCalculator` del backend: mismo interés simple, mismo reparto de
+  cuotas (última cuota absorbe el residuo de redondeo) y mismas fechas por frecuencia,
+  incluyendo `_sumarMesesSinOverflow` (equivalente a `Carbon::addMonthsNoOverflow`). **Si la
+  fórmula cambia en el backend, hay que replicar el cambio aquí también** — no hay forma
+  automática de mantenerlos sincronizados. Cubierto por
+  `test/features/prestamos/prestamo_calculator_test.dart` con los mismos valores usados para
+  verificar el backend (100000 capital, 20%, 5000 extras, 10 cuotas diarias → total 125000).
+- `PrestamoCalculadoraFormulario` (`presentation/`) es el widget de UI compartido entre
+  "Nuevo préstamo" (`prestamo_form_screen.dart`) y "Simular préstamo"
+  (`simular_prestamo_screen.dart`): captura capital/interés/extras/frecuencia/plazo/fecha y
+  recalcula en tiempo real (sin botón "calcular"), avisando al padre vía
+  `onDatosValidosCambiados` (callback con `null` mientras falten datos). El simulador no le
+  pasa nada más; el formulario real además pide un cliente (bottom sheet
+  `seleccionar_cliente_sheet.dart`, sobre `ClientesRepository`) y usa esos datos para guardar.
+- `PrestamosRepository.crear()` calcula con `PrestamoCalculator`, inserta el préstamo, sus
+  `PrestamosExtra` y todas sus `Cuota` (estado inicial `pendiente`) en una sola operación, y
+  encola **una sola fila** en `cambios_pendientes` para el préstamo (no una por cuota/extra) —
+  el payload JSON lleva todo lo necesario para que la sincronización recree el mismo cálculo
+  del lado del servidor.
+- Los botones rápidos de interés (10/20/30/40%) están hardcodeados a propósito, tal como se
+  pidió — no se leen de `configuracion_global.tasas_interes_default` (eso sigue siendo solo
+  informativo para el panel admin).

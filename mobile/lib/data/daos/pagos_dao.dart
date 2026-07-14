@@ -22,5 +22,9 @@ class PagosDao extends DatabaseAccessor<AppDatabase> with _$PagosDaoMixin {
 
   Future<int> insertar(PagosCompanion pago) => into(pagos).insert(pago);
 
-  Future<bool> actualizar(PagosCompanion pago) => update(pagos).replace(pago);
+  /// Actualización parcial (ver nota en ClientesDao.actualizar). Requiere
+  /// que `pago.id` esté seteado.
+  Future<int> actualizar(PagosCompanion pago) {
+    return (update(pagos)..where((tbl) => tbl.id.equals(pago.id.value))).write(pago);
+  }
 }
