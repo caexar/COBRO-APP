@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/formato_dinero.dart';
+import '../../pagos/data/pagos_repository.dart';
 import '../../pagos/presentation/historial_pagos_screen.dart';
 import '../../pagos/presentation/registrar_pago_screen.dart';
 import '../data/prestamos_repository.dart';
@@ -18,7 +19,9 @@ class PrestamoDetalleScreen extends StatefulWidget {
 
 class _PrestamoDetalleScreenState extends State<PrestamoDetalleScreen> {
   final _repository = PrestamosRepository();
+  final _pagosRepository = PagosRepository();
   PrestamoDetalle? _detalle;
+  double _totalPagado = 0;
 
   @override
   void initState() {
@@ -28,8 +31,13 @@ class _PrestamoDetalleScreenState extends State<PrestamoDetalleScreen> {
 
   Future<void> _cargar() async {
     final detalle = await _repository.obtenerDetalle(widget.prestamoId);
+    final pagos = await _pagosRepository.listarPorPrestamo(widget.prestamoId);
+    final totalPagado = pagos.fold<double>(0, (acumulado, pago) => acumulado + pago.montoAplicado);
     if (!mounted) return;
-    setState(() => _detalle = detalle);
+    setState(() {
+      _detalle = detalle;
+      _totalPagado = totalPagado;
+    });
   }
 
   Future<void> _registrarPago() async {
@@ -89,8 +97,15 @@ class _PrestamoDetalleScreenState extends State<PrestamoDetalleScreen> {
                             _FilaResumen(etiqueta: 'Extras', valor: formatearMoneda(detalle.montoExtras)),
                           const Divider(),
                           _FilaResumen(
-                            etiqueta: 'Total a pagar',
+                            etiqueta: 'Total original de la deuda',
                             valor: formatearMoneda(detalle.montoTotal),
+                          ),
+                          _FilaResumen(etiqueta: 'Total pagado', valor: formatearMoneda(_totalPagado)),
+                          _FilaResumen(
+                            etiqueta: 'Saldo pendiente',
+                            valor: formatearMoneda(
+                              (detalle.montoTotal - _totalPagado) < 0 ? 0 : detalle.montoTotal - _totalPagado,
+                            ),
                             destacado: true,
                           ),
                           const SizedBox(height: 4),

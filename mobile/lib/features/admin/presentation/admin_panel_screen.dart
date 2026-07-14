@@ -8,15 +8,24 @@ import 'admin_usuarios_list_screen.dart';
 /// configuración. El admin no tiene acceso a las pantallas de cobrador
 /// (clientes/préstamos/pagos) — ver `AppEntryPoint`.
 class AdminPanelScreen extends StatelessWidget {
-  const AdminPanelScreen({super.key, required this.onCerrarSesion});
+  const AdminPanelScreen({super.key, required this.onCerrarSesion, required this.nombre});
 
   final VoidCallback onCerrarSesion;
+  final String nombre;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CobroApp · Admin'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('CobroApp · Admin'),
+            if (nombre.isNotEmpty)
+              Text('$nombre · Administrador', style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.logout), tooltip: 'Cerrar sesión', onPressed: onCerrarSesion),
         ],

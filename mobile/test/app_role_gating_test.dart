@@ -20,6 +20,9 @@ class _AuthRepositoryFalso extends AuthRepository {
   Future<String?> rolUsuarioActual() async => rol;
 
   @override
+  Future<String?> nombreUsuarioActual() async => 'Ana Cobradora';
+
+  @override
   Future<void> sincronizarPinMaestro() async {}
 
   @override
@@ -69,6 +72,7 @@ void main() {
     expect(find.byType(DashboardPlaceholderScreen), findsNothing);
     expect(find.text('Clientes'), findsNothing);
     expect(find.text('Usuarios cobradores'), findsOneWidget);
+    expect(find.text('Ana Cobradora · Administrador'), findsOneWidget);
   });
 
   testWidgets('un usuario cobrador sí ve el dashboard con Clientes/Préstamos', (tester) async {
@@ -86,5 +90,6 @@ void main() {
     expect(find.byType(DashboardPlaceholderScreen), findsOneWidget);
     expect(find.byType(AdminPanelScreen), findsNothing);
     expect(find.text('Clientes'), findsOneWidget);
+    expect(find.text('Ana Cobradora · Cobrador'), findsOneWidget);
   });
 }

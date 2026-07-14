@@ -48,6 +48,7 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
   bool _bloqueoConfigurado = false;
   bool _desbloqueada = false;
   String? _rol;
+  String? _nombre;
 
   @override
   void initState() {
@@ -77,12 +78,14 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
     final haySesion = await _authRepository.haySesionActiva();
     final bloqueoConfigurado = await _bloqueoRepository.tieneBloqueoConfigurado();
     final rol = haySesion ? await _authRepository.rolUsuarioActual() : null;
+    final nombre = haySesion ? await _authRepository.nombreUsuarioActual() : null;
 
     if (!mounted) return;
     setState(() {
       _haySesion = haySesion;
       _bloqueoConfigurado = bloqueoConfigurado;
       _rol = rol;
+      _nombre = nombre;
       _cargandoInicial = false;
     });
 
@@ -94,12 +97,14 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
   Future<void> _alIniciarSesionExitoso() async {
     final bloqueoConfigurado = await _bloqueoRepository.tieneBloqueoConfigurado();
     final rol = await _authRepository.rolUsuarioActual();
+    final nombre = await _authRepository.nombreUsuarioActual();
     if (!mounted) return;
 
     setState(() {
       _haySesion = true;
       _bloqueoConfigurado = bloqueoConfigurado;
       _rol = rol;
+      _nombre = nombre;
       // Si ya tenía el bloqueo configurado de una sesión anterior en este
       // mismo dispositivo, igual debe pasar por la pantalla de bloqueo.
       _desbloqueada = false;
@@ -124,6 +129,7 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
       _haySesion = false;
       _desbloqueada = false;
       _rol = null;
+      _nombre = null;
     });
   }
 
@@ -155,9 +161,9 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
     // Las pantallas de cobrador (clientes, préstamos, pagos) son exclusivas
     // de ese rol; un admin ve su propio panel.
     if (_rol == 'admin') {
-      return AdminPanelScreen(onCerrarSesion: _cerrarSesion);
+      return AdminPanelScreen(onCerrarSesion: _cerrarSesion, nombre: _nombre ?? '');
     }
 
-    return DashboardPlaceholderScreen(onCerrarSesion: _cerrarSesion);
+    return DashboardPlaceholderScreen(onCerrarSesion: _cerrarSesion, nombre: _nombre ?? '');
   }
 }

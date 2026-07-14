@@ -1,6 +1,7 @@
 import 'package:cobro_app/core/storage/secure_storage_service.dart';
 import 'package:cobro_app/data/app_database.dart';
 import 'package:cobro_app/features/clientes/data/clientes_repository.dart';
+import 'package:cobro_app/features/pagos/data/pagos_repository.dart';
 import 'package:cobro_app/features/prestamos/data/prestamo_calculator.dart';
 import 'package:cobro_app/features/prestamos/data/prestamos_repository.dart';
 import 'package:drift/native.dart';
@@ -15,12 +16,14 @@ void main() {
   late AppDatabase db;
   late ClientesRepository clientesRepository;
   late PrestamosRepository prestamosRepository;
+  late PagosRepository pagosRepository;
 
   setUp(() async {
     db = AppDatabase.paraPruebas(NativeDatabase.memory());
     final secureStorage = _SecureStorageFalso();
     clientesRepository = ClientesRepository(database: db, secureStorage: secureStorage);
     prestamosRepository = PrestamosRepository(database: db, secureStorage: secureStorage);
+    pagosRepository = PagosRepository(database: db, prestamosRepository: prestamosRepository);
   });
 
   tearDown(() async {
@@ -134,5 +137,111 @@ void main() {
 
     expect(prestamosCliente1, hasLength(1));
     expect(prestamosCliente1.first.montoCapital, 10000);
+  });
+
+  group('listarPendientes', () {
+    test('incluye préstamos activos y en mora, excluye los ya pagados', () async {
+      final cliente1 = await crearClientePrueba();
+      final cliente2 = await clientesRepository.crear(
+        nombre: 'Maria Gomez',
+        cedula: '654321',
+        telefono: '3009999999',
+        direccion: 'Otra direccion',
+      );
+
+      // Préstamo activo (queda pendiente).
+      await prestamosRepository.crear(
+        clienteId: cliente1,
+        montoCapital: 10000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 2,
+        fechaInicio: DateTime(2026, 1, 1),
+      );
+
+      // Préstamo que se paga por completo: no debe aparecer en la lista.
+      final prestamoPagadoId = await prestamosRepository.crear(
+        clienteId: cliente2,
+        montoCapital: 5000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 1,
+        fechaInicio: DateTime(2026, 1, 1),
+      );
+      await pagosRepository.registrar(
+        prestamoId: prestamoPagadoId,
+        montoAbonado: 5000,
+        fechaPago: DateTime(2026, 1, 2),
+      );
+
+      final pendientes = await prestamosRepository.listarPendientes();
+
+      expect(pendientes, hasLength(1));
+      expect(pendientes.first.cliente.nombre, 'Juan Perez');
+      expect(pendientes.first.saldoPendiente, 10000);
+      expect(pendientes.first.enMora, isFalse);
+    });
+
+    test('marca enMora cuando el préstamo quedó en mora tras un pago incompleto', () async {
+      final clienteId = await crearClientePrueba();
+      final prestamoId = await prestamosRepository.crear(
+        clienteId: clienteId,
+        montoCapital: 10000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 1,
+        fechaInicio: DateTime(2026, 1, 1),
+        politicaMora: 'mantener',
+      );
+
+      // Pago tardío e incompleto: con política "mantener" la cuota queda en_mora.
+      await pagosRepository.registrar(
+        prestamoId: prestamoId,
+        montoAbonado: 4000,
+        fechaPago: DateTime(2026, 1, 10),
+        politicaMora: 'mantener',
+      );
+
+      final pendientes = await prestamosRepository.listarPendientes();
+
+      expect(pendientes, hasLength(1));
+      expect(pendientes.first.enMora, isTrue);
+      expect(pendientes.first.saldoPendiente, 6000);
+    });
+
+    test('busqueda filtra por nombre o cédula igual que ClientesRepository.buscar', () async {
+      final cliente1 = await crearClientePrueba(); // Juan Perez, cédula 123456
+      final cliente2 = await clientesRepository.crear(
+        nombre: 'Maria Gomez',
+        cedula: '654321',
+        telefono: '3009999999',
+        direccion: 'Otra direccion',
+      );
+
+      await prestamosRepository.crear(
+        clienteId: cliente1,
+        montoCapital: 10000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 2,
+        fechaInicio: DateTime(2026, 1, 1),
+      );
+      await prestamosRepository.crear(
+        clienteId: cliente2,
+        montoCapital: 20000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 2,
+        fechaInicio: DateTime(2026, 1, 1),
+      );
+
+      final porNombre = await prestamosRepository.listarPendientes(busqueda: 'Maria');
+      expect(porNombre, hasLength(1));
+      expect(porNombre.first.cliente.nombre, 'Maria Gomez');
+
+      final porCedula = await prestamosRepository.listarPendientes(busqueda: '123456');
+      expect(porCedula, hasLength(1));
+      expect(porCedula.first.cliente.nombre, 'Juan Perez');
+    });
   });
 }

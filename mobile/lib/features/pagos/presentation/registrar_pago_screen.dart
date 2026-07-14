@@ -25,11 +25,34 @@ class _RegistrarPagoScreenState extends State<RegistrarPagoScreen> {
   DateTime _fechaPago = DateTime.now();
   bool _guardando = false;
   String? _error;
+  Cuota? _cuotaReferencia;
+
+  @override
+  void initState() {
+    super.initState();
+    _montoController.addListener(_alCambiarMonto);
+    _cargarCuotaReferencia();
+  }
 
   @override
   void dispose() {
+    _montoController.removeListener(_alCambiarMonto);
     _montoController.dispose();
     super.dispose();
+  }
+
+  // El botón "Registrar pago" depende del monto ingresado; sin este listener
+  // la pantalla solo se redibuja cuando algo más llama a setState (ej. elegir
+  // fecha), así que el botón parecía quedar bloqueado hasta tocar la fecha
+  // aunque el monto ya fuera válido.
+  void _alCambiarMonto() => setState(() {});
+
+  Future<void> _cargarCuotaReferencia() async {
+    final detalle = await _prestamosRepository.obtenerDetalle(widget.prestamoId);
+    final pendiente = detalle.cuotas.where((c) => c.estado != 'pagada').toList()
+      ..sort((a, b) => a.numeroCuota.compareTo(b.numeroCuota));
+    if (!mounted || pendiente.isEmpty) return;
+    setState(() => _cuotaReferencia = pendiente.first);
   }
 
   Future<void> _elegirFecha() async {
@@ -238,6 +261,13 @@ class _RegistrarPagoScreenState extends State<RegistrarPagoScreen> {
                   prefixText: r'$ ',
                 ),
               ),
+              if (_cuotaReferencia != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Cuota ${_cuotaReferencia!.numeroCuota}: ${formatearMoneda(_cuotaReferencia!.montoEsperado)}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+                ),
+              ],
               const SizedBox(height: 20),
               InkWell(
                 onTap: _elegirFecha,
