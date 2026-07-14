@@ -39,7 +39,8 @@ mobile/**/*.xcuserstate
 
 # Flutter generated files
 mobile/lib/generated_plugin_registrant.dart
-mobile/**/*.g.dart
+# Nota: *.g.dart (Drift, etc.) SÍ se versiona a propósito -- es código
+# determinístico necesario para compilar sin correr build_runner primero.
 mobile/**/*.freezed.dart
 
 # ===== Laravel / PHP (/backend) =====
