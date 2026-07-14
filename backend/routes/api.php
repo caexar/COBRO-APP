@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Admin\AdminResumenController;
 use App\Http\Controllers\Api\Admin\AdminUsuarioController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\PagoController;
+use App\Http\Controllers\Api\PinMaestroController;
 use App\Http\Controllers\Api\PrestamoController;
 use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Http\Request;
@@ -32,6 +33,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('prestamos/{prestamo}/pagos', [PrestamoController::class, 'pagos']);
 
         Route::post('pagos', [PagoController::class, 'store']);
+
+        Route::get('pin-maestro', [PinMaestroController::class, 'index']);
     });
 
     Route::middleware('role:admin')->prefix('admin')->group(function () {

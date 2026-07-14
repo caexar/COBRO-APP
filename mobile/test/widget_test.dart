@@ -1,30 +1,18 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:cobro_app/main.dart';
+import 'package:cobro_app/app.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('CobroApp muestra un indicador de carga mientras revisa la sesión guardada', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const CobroApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // No se usa pumpAndSettle: la app decide qué pantalla mostrar (login,
+    // configurar bloqueo, bloqueo o dashboard) tras leer flutter_secure_storage
+    // de forma asíncrona, que depende de un platform channel no disponible en
+    // este entorno de pruebas. Solo verificamos el estado de carga inicial.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 }

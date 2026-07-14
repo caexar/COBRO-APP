@@ -279,6 +279,35 @@ el detalle de cada pago generado.
 
 ---
 
+## PIN maestro (móvil)
+
+### GET /pin-maestro
+
+Requiere `rol = cobrador`. Devuelve los hashes de PIN maestro (bcrypt, tal como los calcula
+`Hash::make` en Laravel) para que la app móvil los guarde cifrados localmente y pueda validar
+el PIN maestro **sin conexión** hasta la próxima sincronización. Nunca devuelve el PIN en
+texto plano; ninguno de los dos campos es obligatorio (pueden venir `null`).
+
+Distinto de `GET /admin/configuracion` (que es solo para `admin` y ni siquiera expone el
+hash, solo un booleano) — este endpoint existe específicamente para que el propio cobrador,
+desde la app, pueda descargar lo que necesita para el desbloqueo de emergencia.
+
+**Respuesta 200**
+```json
+{
+  "data": {
+    "pin_maestro_individual_hash": null,
+    "pin_maestro_global_hash": "$2y$12$HVwuTsPkT5i9/MMHdq8mt.mGpoK2B9AE.3fM.fPiBVLaQaj/FMRHa"
+  }
+}
+```
+- `pin_maestro_individual_hash`: el `pin_maestro_hash` del propio cobrador autenticado
+  (`users.pin_maestro_hash`, gestionado por admin vía `PUT /admin/usuarios/{id}`).
+- `pin_maestro_global_hash`: el PIN maestro global de `configuracion_global` (gestionado vía
+  `PUT /admin/configuracion`), usado como respaldo si el cobrador no tiene uno individual.
+
+---
+
 ## Administración (`rol = admin`)
 
 Todas bajo el prefijo `/admin`, protegidas por `role:admin`. Cualquier usuario con
@@ -439,6 +468,7 @@ en `auditoria` (`accion = actualizar_configuracion`), solo si cambió o no.
 | PUT | `/prestamos/{prestamo}/anular` | cobrador | dueño, auditoría |
 | GET | `/prestamos/{prestamo}/pagos` | cobrador | dueño |
 | POST | `/pagos` | cobrador | dueño, auditoría |
+| GET | `/pin-maestro` | cobrador | hashes bcrypt para desbloqueo offline |
 | GET | `/admin/usuarios` | admin | lista cobradores |
 | POST | `/admin/usuarios` | admin | auditoría |
 | PUT | `/admin/usuarios/{usuario}` | admin | auditoría, no toca `activo` |

@@ -123,9 +123,14 @@ descuido):
   `PUT /api/admin/configuracion`): PIN maestro **global**, usado como respaldo cuando un
   cobrador no tiene el suyo propio.
 
-La app (móvil, fase pendiente) debe intentar primero el PIN maestro individual del cobrador
-y, si no existe, caer al global. Ninguno de los dos se expone nunca vía API en texto plano ni
-como hash (`GET` solo devuelve `pin_maestro_configurado: true/false`).
+`GET /api/admin/configuracion` (solo admin) nunca expone ninguno de los dos hashes, solo
+`pin_maestro_configurado: true/false`. Para que la app móvil pueda validar el PIN maestro
+**sin conexión**, existe un endpoint aparte, para cobradores, que sí entrega los hashes:
+`GET /api/pin-maestro` (`App\Http\Controllers\Api\PinMaestroController`), devuelve
+`pin_maestro_individual_hash` (del cobrador autenticado) y `pin_maestro_global_hash` (de
+`configuracion_global`), ambos nullable. La app intenta primero el individual y, si no
+coincide o no existe, cae al global (implementado en
+`mobile/lib/features/auth/data/bloqueo_repository.dart`).
 
 ### Usuarios (admin)
 
@@ -160,3 +165,33 @@ Tabla clave/valor genérica; el admin gestiona 3 claves conocidas vía
 
 `ConfiguracionGlobal::obtener()`/`::guardar()` son los helpers para leer/escribir por clave;
 usarlos en vez de consultar la tabla directamente.
+
+## App móvil: autenticación y bloqueo (`mobile/lib/features/auth`)
+
+- `AuthRepository` (login/logout) y `BloqueoRepository` (PIN personal, biometría, PIN
+  maestro) son las dos piezas de datos del módulo; las pantallas
+  (`login_screen.dart`, `bloqueo_config_screen.dart`, `bloqueo_screen.dart`) solo llaman a
+  estos repositorios, no tienen lógica propia de negocio.
+- Todo lo sensible (token de Sanctum, hash del PIN personal, hashes de PIN maestro,
+  preferencia de biometría, contador de intentos fallidos) vive en `flutter_secure_storage`
+  (`core/storage/secure_storage_service.dart`) — **nunca** en `SharedPreferences` ni en la
+  base de datos Drift.
+- El **PIN personal** (4-6 dígitos) es local al dispositivo: se hashea con `bcrypt`
+  (paquete `bcrypt`, no nativo) y **no se sincroniza con el backend** — es un concepto
+  distinto de `users.pin_hash` (que sigue siendo el PIN que gestiona el admin vía
+  `PUT /api/admin/usuarios/{id}`, sin relación con el bloqueo local de la app todavía). Si
+  más adelante se quiere unificar ambos, es una decisión de producto pendiente, no un bug.
+- El **PIN maestro** se descarga vía `GET /api/pin-maestro` (ver sección de PIN maestro más
+  arriba) y se guarda cifrado; funciona offline hasta la siguiente sincronización exitosa.
+  Ahora mismo `AuthRepository.sincronizarPinMaestro()` se llama justo después del login; el
+  próximo módulo que implemente sincronización general de datos debe llamarlo también ahí.
+- `AppEntryPoint` (`mobile/lib/app.dart`) es el único lugar que decide qué pantalla mostrar
+  (login → configurar bloqueo → bloqueo → dashboard) y el que re-exige el bloqueo cuando la
+  app vuelve de segundo plano (`WidgetsBindingObserver`). No es un router de verdad, es
+  render condicional sobre banderas de estado en memoria (`_haySesion`,
+  `_bloqueoConfigurado`, `_desbloqueada`) — si se agrega un router (go_router, etc.) más
+  adelante, esta lógica de "gate" debe migrar con cuidado de no perder el re-bloqueo al
+  volver de segundo plano.
+- `local_auth` (biometría) requiere que `MainActivity` (Android) extienda
+  `FlutterFragmentActivity`, no `FlutterActivity` (ya configurado), y `minSdk >= 23`
+  (forzado en `android/app/build.gradle.kts` con `maxOf(flutter.minSdkVersion, 23)`).
