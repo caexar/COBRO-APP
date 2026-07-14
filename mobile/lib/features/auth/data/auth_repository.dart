@@ -28,10 +28,11 @@ class AuthRepository {
     await sincronizarPinMaestro();
   }
 
-  /// Descarga los hashes de PIN maestro (individual y global) y los guarda
+  /// Descarga los hashes de PIN maestro (individual y global) y cuántos
+  /// intentos de PIN personal se toleran antes de ofrecerlo, y los guarda
   /// cifrados localmente. Debe llamarse tras cada sincronización exitosa;
-  /// si falla por falta de conexión, se conservan los últimos guardados y
-  /// el PIN maestro sigue funcionando offline hasta la próxima sincronización.
+  /// si falla por falta de conexión, se conserva lo guardado en la última
+  /// sincronización exitosa y todo sigue funcionando offline.
   Future<void> sincronizarPinMaestro() async {
     final token = await _secureStorage.leerToken();
     if (token == null) return;
@@ -39,9 +40,10 @@ class AuthRepository {
     try {
       final hashes = await _apiClient.obtenerPinMaestro(token);
       await _secureStorage.guardarPinMaestroHashes(individual: hashes.individual, global: hashes.global);
+      await _secureStorage.guardarIntentosMaximosPin(hashes.intentosPinAntesDeMaestro);
     } on ApiException {
-      // Sin conexión o error del servidor: se mantiene el PIN maestro
-      // guardado de la última sincronización exitosa.
+      // Sin conexión o error del servidor: se mantiene lo guardado de la
+      // última sincronización exitosa.
     }
   }
 
@@ -50,11 +52,16 @@ class AuthRepository {
 
     if (token != null) {
       try {
-        await _apiClient.logout(token);
-      } on ApiException {
-        // Si falla la revocación remota del token, igual cerramos la
-        // sesión localmente; el token quedará huérfano en el servidor
-        // hasta que expire por sí solo.
+        await _apiClient.logout(token).timeout(const Duration(seconds: 8));
+      } catch (_) {
+        // Cualquier fallo -- de red (sin conexión, backend caído), de
+        // tiempo de espera, o de la API -- no debe impedir cerrar la
+        // sesión localmente. Antes solo se atrapaba ApiException, así que
+        // un error de conexión (muy común: `logout()` no pasa por
+        // `_procesar()`, así que nunca lanza ApiException) se propagaba
+        // sin capturar y el botón "Cerrar sesión" parecía no hacer nada.
+        // Si falla la revocación remota, el token queda huérfano en el
+        // servidor hasta que expire por sí solo.
       }
     }
 
@@ -67,4 +74,9 @@ class AuthRepository {
   }
 
   Future<String?> nombreUsuarioActual() => _secureStorage.leerNombre();
+
+  /// 'admin' | 'cobrador' del usuario actualmente logueado (o `null` si no
+  /// hay sesión). Se usa para bloquear el acceso a pantallas exclusivas de
+  /// cobrador cuando el usuario logueado es admin.
+  Future<String?> rolUsuarioActual() => _secureStorage.leerRol();
 }

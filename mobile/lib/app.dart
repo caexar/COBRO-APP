@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'features/admin/presentation/admin_panel_screen.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/data/bloqueo_repository.dart';
 import 'features/auth/presentation/bloqueo_config_screen.dart';
@@ -27,20 +28,26 @@ class CobroApp extends StatelessWidget {
 /// dashboard) y vuelve a exigir el bloqueo cada vez que la app se abre o
 /// vuelve de segundo plano.
 class AppEntryPoint extends StatefulWidget {
-  const AppEntryPoint({super.key});
+  const AppEntryPoint({super.key, this.authRepository, this.bloqueoRepository});
+
+  /// Inyectables solo para pruebas; en la app real siempre se usan las
+  /// instancias por defecto (ver `_AppEntryPointState`).
+  final AuthRepository? authRepository;
+  final BloqueoRepository? bloqueoRepository;
 
   @override
   State<AppEntryPoint> createState() => _AppEntryPointState();
 }
 
 class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserver {
-  final _authRepository = AuthRepository();
-  final _bloqueoRepository = BloqueoRepository();
+  late final _authRepository = widget.authRepository ?? AuthRepository();
+  late final _bloqueoRepository = widget.bloqueoRepository ?? BloqueoRepository();
 
   bool _cargandoInicial = true;
   bool _haySesion = false;
   bool _bloqueoConfigurado = false;
   bool _desbloqueada = false;
+  String? _rol;
 
   @override
   void initState() {
@@ -69,11 +76,13 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
   Future<void> _evaluarEstadoInicial() async {
     final haySesion = await _authRepository.haySesionActiva();
     final bloqueoConfigurado = await _bloqueoRepository.tieneBloqueoConfigurado();
+    final rol = haySesion ? await _authRepository.rolUsuarioActual() : null;
 
     if (!mounted) return;
     setState(() {
       _haySesion = haySesion;
       _bloqueoConfigurado = bloqueoConfigurado;
+      _rol = rol;
       _cargandoInicial = false;
     });
 
@@ -84,11 +93,13 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
 
   Future<void> _alIniciarSesionExitoso() async {
     final bloqueoConfigurado = await _bloqueoRepository.tieneBloqueoConfigurado();
+    final rol = await _authRepository.rolUsuarioActual();
     if (!mounted) return;
 
     setState(() {
       _haySesion = true;
       _bloqueoConfigurado = bloqueoConfigurado;
+      _rol = rol;
       // Si ya tenía el bloqueo configurado de una sesión anterior en este
       // mismo dispositivo, igual debe pasar por la pantalla de bloqueo.
       _desbloqueada = false;
@@ -112,6 +123,7 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
     setState(() {
       _haySesion = false;
       _desbloqueada = false;
+      _rol = null;
     });
   }
 
@@ -126,11 +138,24 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
     }
 
     if (!_bloqueoConfigurado) {
-      return BloqueoConfigScreen(onConfigurado: _alConfigurarBloqueoExitoso);
+      return BloqueoConfigScreen(
+        onConfigurado: _alConfigurarBloqueoExitoso,
+        bloqueoRepository: _bloqueoRepository,
+      );
     }
 
     if (!_desbloqueada) {
-      return BloqueoScreen(onDesbloqueado: _alDesbloquear);
+      return BloqueoScreen(
+        onDesbloqueado: _alDesbloquear,
+        onCerrarSesion: _cerrarSesion,
+        bloqueoRepository: _bloqueoRepository,
+      );
+    }
+
+    // Las pantallas de cobrador (clientes, préstamos, pagos) son exclusivas
+    // de ese rol; un admin ve su propio panel.
+    if (_rol == 'admin') {
+      return AdminPanelScreen(onCerrarSesion: _cerrarSesion);
     }
 
     return DashboardPlaceholderScreen(onCerrarSesion: _cerrarSesion);

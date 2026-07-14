@@ -43,21 +43,25 @@ class LoginResult {
   final String rol;
 }
 
-/// Hashes de PIN maestro tal como los guarda el backend (bcrypt), listos
-/// para verificarse localmente con el paquete `bcrypt`. Cualquiera de los
-/// dos puede venir nulo si no está configurado.
+/// Datos de bloqueo descargados del servidor (`GET /pin-maestro`): hashes de
+/// PIN maestro (bcrypt, listos para verificarse localmente con el paquete
+/// `bcrypt` — cualquiera de los dos puede venir nulo si no está configurado)
+/// y cuántos intentos de PIN personal tolera la app antes de ofrecer el PIN
+/// maestro.
 class PinMaestroHashes {
-  const PinMaestroHashes({this.individual, this.global});
+  const PinMaestroHashes({this.individual, this.global, required this.intentosPinAntesDeMaestro});
 
   factory PinMaestroHashes.fromJson(Map<String, dynamic> json) {
     return PinMaestroHashes(
       individual: json['pin_maestro_individual_hash'] as String?,
       global: json['pin_maestro_global_hash'] as String?,
+      intentosPinAntesDeMaestro: json['intentos_pin_antes_de_maestro'] as int? ?? 3,
     );
   }
 
   final String? individual;
   final String? global;
+  final int intentosPinAntesDeMaestro;
 }
 
 /// Cliente HTTP delgado para los endpoints que necesita el módulo de
@@ -83,6 +87,24 @@ class ApiClient {
   Future<PinMaestroHashes> obtenerPinMaestro(String token) async {
     final respuesta = await _get('/pin-maestro', token: token);
     return PinMaestroHashes.fromJson(respuesta['data'] as Map<String, dynamic>);
+  }
+
+  // --- Genéricos, para que cada feature (admin, y a futuro clientes/
+  // préstamos/pagos) arme sus propias llamadas tipadas sin duplicar el
+  // manejo de headers/errores. ---
+
+  Future<Map<String, dynamic>> get(String ruta, {String? token}) => _get(ruta, token: token);
+
+  Future<Map<String, dynamic>> post(String ruta, {Map<String, dynamic>? body, String? token}) =>
+      _post(ruta, body: body, token: token);
+
+  Future<Map<String, dynamic>> put(String ruta, {Map<String, dynamic>? body, String? token}) async {
+    final respuesta = await _http.put(
+      Uri.parse('$_baseUrl$ruta'),
+      headers: _headers(token: token),
+      body: jsonEncode(body ?? {}),
+    );
+    return _procesar(respuesta);
   }
 
   Future<Map<String, dynamic>> _post(String ruta, {Map<String, dynamic>? body, String? token}) async {

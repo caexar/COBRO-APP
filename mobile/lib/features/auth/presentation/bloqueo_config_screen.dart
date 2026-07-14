@@ -6,9 +6,13 @@ import '../data/bloqueo_repository.dart';
 /// Se muestra una sola vez, justo después del primer login en el
 /// dispositivo, para que el cobrador defina cómo se protegerá la app.
 class BloqueoConfigScreen extends StatefulWidget {
-  const BloqueoConfigScreen({super.key, required this.onConfigurado});
+  const BloqueoConfigScreen({super.key, required this.onConfigurado, this.bloqueoRepository});
 
   final VoidCallback onConfigurado;
+
+  /// Inyectable solo para pruebas; en la app real siempre se usa la
+  /// instancia por defecto.
+  final BloqueoRepository? bloqueoRepository;
 
   @override
   State<BloqueoConfigScreen> createState() => _BloqueoConfigScreenState();
@@ -18,7 +22,7 @@ class _BloqueoConfigScreenState extends State<BloqueoConfigScreen> {
   final _formKey = GlobalKey<FormState>();
   final _pinController = TextEditingController();
   final _confirmarPinController = TextEditingController();
-  final _bloqueoRepository = BloqueoRepository();
+  late final _bloqueoRepository = widget.bloqueoRepository ?? BloqueoRepository();
 
   bool _biometriaDisponible = false;
   bool _biometriaActivada = false;

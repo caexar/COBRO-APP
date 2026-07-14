@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/formato_dinero.dart';
 import '../data/prestamo_calculator.dart';
 
 /// Datos válidos y ya calculados que expone [PrestamoCalculadoraFormulario]
@@ -127,7 +128,7 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
   }
 
   void _recalcular() {
-    final capital = double.tryParse(_capitalController.text.replaceAll(',', '.'));
+    final capital = FormateadorDinero.valorNumerico(_capitalController.text);
     final porcentaje = _porcentajeActual;
     final plazo = int.tryParse(_plazoController.text);
     final diasPersonalizado = _frecuenciaPago == 'personalizado'
@@ -137,7 +138,7 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
     final extras = <ExtraPrestamo>[];
     for (final controles in _extras) {
       final concepto = controles.concepto.text.trim();
-      final valor = double.tryParse(controles.valor.text.replaceAll(',', '.'));
+      final valor = FormateadorDinero.valorNumerico(controles.valor.text);
       if (concepto.isNotEmpty && valor != null && valor > 0) {
         extras.add(ExtraPrestamo(concepto: concepto, valor: valor));
       }
@@ -190,7 +191,8 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
       children: [
         TextField(
           controller: _capitalController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: TextInputType.number,
+          inputFormatters: [FormateadorDinero()],
           decoration: const InputDecoration(
             labelText: 'Monto de capital',
             border: OutlineInputBorder(),
@@ -260,7 +262,8 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
                   flex: 2,
                   child: TextField(
                     controller: _extras[i].valor,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FormateadorDinero()],
                     decoration: const InputDecoration(labelText: 'Valor', border: OutlineInputBorder()),
                   ),
                 ),
@@ -323,12 +326,6 @@ String _formatearFecha(DateTime fecha) {
   final dia = fecha.day.toString().padLeft(2, '0');
   final mes = fecha.month.toString().padLeft(2, '0');
   return '$dia/$mes/${fecha.year}';
-}
-
-String formatearMoneda(double valor) {
-  final parteEntera = valor.truncate().toString();
-  final conSeparadorDeMiles = parteEntera.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => '.');
-  return '\$ $conSeparadorDeMiles';
 }
 
 class _TarjetaResultado extends StatelessWidget {

@@ -8,16 +8,30 @@ import '../data/bloqueo_repository.dart';
 /// activada, pide el PIN personal. Tras varios intentos fallidos (o si el
 /// usuario toca "Olvidé mi PIN"), ofrece el PIN maestro de emergencia.
 class BloqueoScreen extends StatefulWidget {
-  const BloqueoScreen({super.key, required this.onDesbloqueado});
+  const BloqueoScreen({
+    super.key,
+    required this.onDesbloqueado,
+    required this.onCerrarSesion,
+    this.bloqueoRepository,
+  });
 
   final VoidCallback onDesbloqueado;
+
+  /// Cierra la sesión actual (revoca el token, limpia los datos locales de
+  /// sesión) para permitir iniciar con otra cuenta. Es la misma lógica que
+  /// el botón "Cerrar sesión" del menú principal.
+  final Future<void> Function() onCerrarSesion;
+
+  /// Inyectable solo para pruebas; en la app real siempre se usa la
+  /// instancia por defecto.
+  final BloqueoRepository? bloqueoRepository;
 
   @override
   State<BloqueoScreen> createState() => _BloqueoScreenState();
 }
 
 class _BloqueoScreenState extends State<BloqueoScreen> {
-  final _bloqueoRepository = BloqueoRepository();
+  late final _bloqueoRepository = widget.bloqueoRepository ?? BloqueoRepository();
   final _pinController = TextEditingController();
   final _pinMaestroController = TextEditingController();
 
@@ -25,6 +39,8 @@ class _BloqueoScreenState extends State<BloqueoScreen> {
   bool _hayPinMaestroDisponible = false;
   bool _intentandoBiometria = false;
   bool _verificando = false;
+  bool _cerrandoSesion = false;
+  int _intentosMaximos = 3;
   String? _error;
 
   @override
@@ -35,6 +51,7 @@ class _BloqueoScreenState extends State<BloqueoScreen> {
 
   Future<void> _inicializar() async {
     _hayPinMaestroDisponible = await _bloqueoRepository.hayPinMaestroDisponible();
+    _intentosMaximos = await _bloqueoRepository.obtenerIntentosMaximosPin();
     final biometriaActivada = await _bloqueoRepository.biometriaHabilitada();
 
     if (!mounted) return;
@@ -80,12 +97,11 @@ class _BloqueoScreenState extends State<BloqueoScreen> {
     setState(() {
       _verificando = false;
       _pinController.clear();
-      if (resultado.intentosFallidos >= BloqueoRepository.intentosMaximosPinPersonal) {
+      if (resultado.intentosFallidos >= _intentosMaximos) {
         _error = 'Demasiados intentos fallidos.';
         if (_hayPinMaestroDisponible) _mostrandoPinMaestro = true;
       } else {
-        _error =
-            'PIN incorrecto (intento ${resultado.intentosFallidos} de ${BloqueoRepository.intentosMaximosPinPersonal}).';
+        _error = 'PIN incorrecto (intento ${resultado.intentosFallidos} de $_intentosMaximos).';
       }
     });
   }
@@ -111,6 +127,31 @@ class _BloqueoScreenState extends State<BloqueoScreen> {
       _pinMaestroController.clear();
       _error = 'PIN maestro incorrecto.';
     });
+  }
+
+  /// Salida alterna para quien no quiere seguir con la cuenta ya logueada
+  /// en este dispositivo. Pide confirmación porque esta pantalla se ve muy
+  /// seguido (cada vez que se abre o retoma la app) y un toque accidental
+  /// no debería cerrar una sesión que sigue siendo válida.
+  Future<void> _confirmarCerrarSesion() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Quieres cerrar la sesión actual e iniciar con otra cuenta?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Cerrar sesión')),
+        ],
+      ),
+    );
+
+    if (confirmar != true || !mounted) return;
+
+    setState(() => _cerrandoSesion = true);
+    await widget.onCerrarSesion();
+    // No hace falta más setState: en cuanto onCerrarSesion actualiza el
+    // estado del padre (AppEntryPoint), esta pantalla deja de existir.
   }
 
   @override
@@ -211,6 +252,13 @@ class _BloqueoScreenState extends State<BloqueoScreen> {
                     style: TextStyle(color: Theme.of(context).colorScheme.error),
                   ),
                 ],
+                const SizedBox(height: 24),
+                TextButton(
+                  onPressed: _cerrandoSesion ? null : _confirmarCerrarSesion,
+                  child: _cerrandoSesion
+                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Cerrar sesión e iniciar con otra cuenta'),
+                ),
               ],
             ),
           ),

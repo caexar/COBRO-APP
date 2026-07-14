@@ -127,10 +127,14 @@ descuido):
 `pin_maestro_configurado: true/false`. Para que la app móvil pueda validar el PIN maestro
 **sin conexión**, existe un endpoint aparte, para cobradores, que sí entrega los hashes:
 `GET /api/pin-maestro` (`App\Http\Controllers\Api\PinMaestroController`), devuelve
-`pin_maestro_individual_hash` (del cobrador autenticado) y `pin_maestro_global_hash` (de
-`configuracion_global`), ambos nullable. La app intenta primero el individual y, si no
-coincide o no existe, cae al global (implementado en
-`mobile/lib/features/auth/data/bloqueo_repository.dart`).
+`pin_maestro_individual_hash` (del cobrador autenticado), `pin_maestro_global_hash` (de
+`configuracion_global`, ambos nullable) y también `intentos_pin_antes_de_maestro` (mismo
+patrón: es una config de admin, pero el cobrador necesita descargarla para que el bloqueo
+funcione offline). La app intenta primero el individual y, si no coincide o no existe, cae
+al global (implementado en `mobile/lib/features/auth/data/bloqueo_repository.dart`).
+**Cualquier configuración nueva que el cobrador necesite offline debe seguir este mismo
+patrón** — agregarla a `GET /api/pin-maestro`, no asumir que se puede leer directo de
+`/api/admin/configuracion` (esa ruta seguirá siendo 403 para cualquier cobrador).
 
 ### Usuarios (admin)
 
@@ -154,7 +158,7 @@ coincide o no existe, cae al global (implementado en
 
 ### Configuración global (`configuracion_global`)
 
-Tabla clave/valor genérica; el admin gestiona 3 claves conocidas vía
+Tabla clave/valor genérica; el admin gestiona 4 claves conocidas vía
 `GET`/`PUT /api/admin/configuracion`:
 - `tasas_interes_default`: array JSON de tasas sugeridas (ej. `[10,20,30,40]`) — **no se
   valida** `porcentaje_interes` de un préstamo contra esta lista, es solo un valor de UI.
@@ -162,6 +166,12 @@ Tabla clave/valor genérica; el admin gestiona 3 claves conocidas vía
   valor (lookup vía `ConfiguracionGlobal::obtener('politica_mora_default', 'mantener')` en
   `PrestamoController::store`) en lugar de un default hardcodeado.
 - `pin_maestro_hash`: ver sección de PIN maestro arriba.
+- `intentos_pin_antes_de_maestro`: entero (default `3`, guardado como string en la tabla,
+  como todo en `configuracion_global`); cuántos intentos fallidos del PIN personal tolera la
+  app móvil antes de ofrecer el PIN maestro. Se lee/escribe igual que las demás claves, pero
+  **también se expone vía `GET /api/pin-maestro`** (endpoint de cobrador, no solo de admin) —
+  ver esa sección arriba y la nota en "App móvil: autenticación y bloqueo" más abajo sobre por
+  qué esto vive ahí y no solo en el endpoint de admin.
 
 `ConfiguracionGlobal::obtener()`/`::guardar()` son los helpers para leer/escribir por clave;
 usarlos en vez de consultar la tabla directamente.
@@ -185,6 +195,14 @@ usarlos en vez de consultar la tabla directamente.
   arriba) y se guarda cifrado; funciona offline hasta la siguiente sincronización exitosa.
   Ahora mismo `AuthRepository.sincronizarPinMaestro()` se llama justo después del login; el
   próximo módulo que implemente sincronización general de datos debe llamarlo también ahí.
+- **`intentosMaximosPinPersonal` ya no es una constante**: cuántos intentos fallidos del PIN
+  personal tolera `BloqueoScreen` antes de ofrecer el PIN maestro es configurable por el admin
+  (`configuracion_global.intentos_pin_antes_de_maestro`, editable desde
+  `AdminConfiguracionScreen`) y se descarga en el mismo `GET /api/pin-maestro` de arriba
+  (`SecureStorageService.guardarIntentosMaximosPin`/`leerIntentosMaximosPin`, default `3` si
+  el dispositivo nunca ha sincronizado). `BloqueoRepository.obtenerIntentosMaximosPin()` es
+  ahora un método de instancia async, no un `static const` — `BloqueoScreen` lo carga una vez
+  en `_inicializar()` y lo guarda en `_intentosMaximos`.
 - `AppEntryPoint` (`mobile/lib/app.dart`) es el único lugar que decide qué pantalla mostrar
   (login → configurar bloqueo → bloqueo → dashboard) y el que re-exige el bloqueo cuando la
   app vuelve de segundo plano (`WidgetsBindingObserver`). No es un router de verdad, es
@@ -195,6 +213,42 @@ usarlos en vez de consultar la tabla directamente.
 - `local_auth` (biometría) requiere que `MainActivity` (Android) extienda
   `FlutterFragmentActivity`, no `FlutterActivity` (ya configurado), y `minSdk >= 23`
   (forzado en `android/app/build.gradle.kts` con `maxOf(flutter.minSdkVersion, 23)`).
+- **Gotcha ya corregido**: `ApiClient.logout()` llama al `http.Client` directo, sin pasar por
+  `_procesar()` — por diseño, para no fallar si el servidor responde con un error de estado
+  (no nos importa la respuesta). Pero eso significa que nunca lanza `ApiException`; un fallo
+  real de conexión (sin internet, backend caído) lanza una excepción de red distinta
+  (`SocketException`, `TimeoutException`, etc.). `AuthRepository.cerrarSesion()` debe atrapar
+  **cualquier** excepción ahí (`catch (_)`, no `on ApiException`), porque cerrar sesión tiene
+  que limpiar el token local sí o sí, sin conexión. Un `catch` demasiado específico en
+  cualquier llamada de red que se considere "best effort" (revocar token, sincronizar algo
+  en segundo plano) es el mismo error en potencia — repasar esto si se agregan más llamadas
+  "best effort" en el futuro. Cubierto por
+  `test/features/auth/auth_repository_test.dart` (fuerza un fallo de red real con un
+  `http.BaseClient` falso y verifica que el token se borra igual, sin tocar el PIN maestro).
+- `BloqueoScreen` tiene una salida alterna ("Cerrar sesión e iniciar con otra cuenta") además
+  del flujo normal de biometría/PIN — usa la misma `AuthRepository.cerrarSesion()` que el
+  botón del dashboard (vía el callback `onCerrarSesion` que le pasa `AppEntryPoint`), con un
+  diálogo de confirmación porque esta pantalla se ve en cada apertura/reanudación de la app y
+  un toque accidental no debería cerrar una sesión válida.
+- **Verificación de rol tras el login**: `AppEntryPoint` (`mobile/lib/app.dart`) es el único
+  lugar que decide si mostrar el dashboard de cobrador o el panel de admin (`AdminPanelScreen`,
+  ver sección "App móvil: panel de administrador" más abajo), comparando `_rol` (leído de
+  `AuthRepository.rolUsuarioActual()`, que viene de `SecureStorageService.leerRol()`) contra
+  `'admin'`. Este chequeo se re-evalúa tanto en login fresco (`_alIniciarSesionExitoso`) como
+  al reabrir una sesión ya guardada (`_evaluarEstadoInicial`, en frío) — por diseño **no** hay
+  chequeo de rol en `BloqueoScreen` ni en pantallas de cobrador/admin individuales: el único
+  punto de entrada a esas pantallas es el `build()` de `AppEntryPoint`, así que gatear ahí es
+  suficiente mientras no exista navegación/deep-linking directa a
+  `ClientesListScreen`/`PrestamoFormScreen`/`AdminUsuariosListScreen`/etc. Si eso cambia,
+  revisar si hace falta un segundo chequeo.
+- `AppEntryPoint`, `BloqueoScreen` y `BloqueoConfigScreen` aceptan sus repositorios
+  (`AuthRepository`/`BloqueoRepository`) como parámetro opcional del constructor (`late final
+  _x = widget.x ?? XReal()`), con la instancia real como default. Esto es lo que permite
+  testear el flujo completo con dobles de prueba en
+  `test/app_role_gating_test.dart` — antes de este cambio, `BloqueoScreen` y
+  `BloqueoConfigScreen` construían su propio `BloqueoRepository()` por dentro, así que un
+  repositorio falso pasado únicamente a `AppEntryPoint` nunca llegaba a la pantalla real. Si
+  se agregan más pantallas de auth, seguir el mismo patrón de inyección opcional.
 
 ## App móvil: clientes (`mobile/lib/features/clientes`)
 
@@ -252,3 +306,48 @@ usarlos en vez de consultar la tabla directamente.
 - Los botones rápidos de interés (10/20/30/40%) están hardcodeados a propósito, tal como se
   pidió — no se leen de `configuracion_global.tasas_interes_default` (eso sigue siendo solo
   informativo para el panel admin).
+- **Formato de dinero**: `core/utils/formato_dinero.dart` centraliza tanto el
+  `TextInputFormatter` (`FormateadorDinero`, separador de miles con `.` mientras se escribe —
+  no coma, para que coincida con `formatearMoneda` y la convención de pesos colombianos) como
+  la función de solo-lectura `formatearMoneda()` (usada en la tarjeta de resultado y en
+  `PrestamoDetalleScreen`). **Cualquier campo de dinero nuevo en la app** (capital, montos
+  extra, y en el futuro `monto_abonado` de pagos, etc.) debe usar
+  `inputFormatters: [FormateadorDinero()]` y leer el valor con
+  `FormateadorDinero.valorNumerico(controller.text)` — nunca `double.tryParse` directo sobre
+  el texto del controller, porque tendría los puntos de separador incluidos. El separador es
+  puramente visual: nunca se guarda en Drift ni se envía al backend.
+
+## App móvil: panel de administrador (`mobile/lib/features/admin`)
+
+- A diferencia de clientes/préstamos, **el panel admin no trabaja offline**: no toca Drift ni
+  `cambios_pendientes`, cada pantalla llama directo a `/api/admin/*` vía `AdminRepository`
+  cada vez que se abre o se refresca (no hay razón de negocio para que un admin gestione
+  usuarios/configuración sin conexión). Si eso cambia, tocaría rediseñar el repositorio.
+- `ApiClient` ahora expone `get`/`post`/`put` genéricos (además de los métodos específicos de
+  auth ya existentes) para que cada feature arme sus propias llamadas tipadas sin duplicar
+  manejo de headers/errores — este es el patrón a seguir para pagos u otras features futuras
+  que necesiten hablar con el backend fuera de auth.
+- `AppEntryPoint` (`mobile/lib/app.dart`) es, de nuevo, el único punto de entrada: si
+  `_rol == 'admin'` muestra `AdminPanelScreen` en vez de `DashboardPlaceholderScreen`. Ya no
+  existe `AdminNoDisponibleScreen` (se eliminó al construir el panel real).
+- `PUT /admin/usuarios/{id}` **nunca** debe recibir `activo` en el body — ese campo es
+  exclusivo de `desactivarUsuario()`/`reactivarUsuario()` (rutas separadas). El formulario de
+  edición (`AdminUsuarioFormScreen`) arma su propio mapa de `cambios` con solo lo que el admin
+  realmente modificó (nombre/email siempre; password solo si no quedó vacío), igual que el
+  patrón ya usado en `ClientesRepository`/`PrestamosRepository`.
+- `AdminCobradorDetalleScreen` es deliberadamente de solo lectura (sin botones de editar ni
+  eliminar sobre clientes/préstamos) — el admin puede *ver* la cartera de un cobrador pero el
+  CRUD operativo sigue siendo exclusivo del cobrador dueño, desde su propia app.
+- El PIN maestro global (`AdminConfiguracionScreen`) sigue la misma regla que el resto de la
+  app: nunca se lee/muestra en texto plano, solo `pin_maestro_configurado` (bool). Escribir un
+  valor nuevo lo reemplaza; el checkbox "Quitar el PIN maestro actual" manda
+  `{'pin_maestro': null}` explícito (distinto de no incluir la clave, que significa "no
+  cambiar nada").
+- `AdminConfiguracionScreen` también edita `intentos_pin_antes_de_maestro` (1-10, default 3)
+  — es la misma configuración que usa `BloqueoScreen` del lado cobrador, pero se escribe aquí
+  (`PUT /admin/configuracion`) y se **lee** por un endpoint distinto (`GET /pin-maestro`, ver
+  sección de PIN maestro) porque un cobrador no puede llamar `/admin/configuracion`.
+- Verificado también con un smoke test real contra el backend vivo (`php artisan serve` +
+  `curl`) para confirmar que las formas de JSON asumidas en
+  `test/features/admin/admin_repository_test.dart` (con `MockClient` de `package:http`)
+  coinciden con la implementación actual, no solo con lo documentado en `API.md`.

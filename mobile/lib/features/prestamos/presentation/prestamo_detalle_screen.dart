@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/formato_dinero.dart';
 import '../data/prestamos_repository.dart';
-import 'prestamo_calculadora_formulario.dart' show formatearMoneda;
 
 /// Detalle de un préstamo ya guardado: capital, interés, extras y cuotas
 /// generadas con su estado (pendiente/pagada/en_mora).

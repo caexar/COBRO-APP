@@ -34,6 +34,10 @@ class AdminConfiguracionController extends Controller
             ConfiguracionGlobal::guardar('politica_mora_default', $datos['politica_mora_default']);
         }
 
+        if (array_key_exists('intentos_pin_antes_de_maestro', $datos)) {
+            ConfiguracionGlobal::guardar('intentos_pin_antes_de_maestro', (string) $datos['intentos_pin_antes_de_maestro']);
+        }
+
         if ($huboCambioPinMaestro) {
             if ($datos['pin_maestro'] === null) {
                 ConfiguracionGlobal::where('clave', 'pin_maestro_hash')->delete();
@@ -58,7 +62,7 @@ class AdminConfiguracionController extends Controller
     }
 
     /**
-     * @return array{tasas_interes_default: array<int, float>, politica_mora_default: string, pin_maestro_configurado: bool}
+     * @return array{tasas_interes_default: array<int, float>, politica_mora_default: string, pin_maestro_configurado: bool, intentos_pin_antes_de_maestro: int}
      */
     private function configuracionActual(): array
     {
@@ -68,6 +72,7 @@ class AdminConfiguracionController extends Controller
             'tasas_interes_default' => $tasas ? json_decode($tasas, true) : [10, 20, 30, 40],
             'politica_mora_default' => ConfiguracionGlobal::obtener('politica_mora_default', 'mantener'),
             'pin_maestro_configurado' => ConfiguracionGlobal::where('clave', 'pin_maestro_hash')->exists(),
+            'intentos_pin_antes_de_maestro' => (int) ConfiguracionGlobal::obtener('intentos_pin_antes_de_maestro', 3),
         ];
     }
 }

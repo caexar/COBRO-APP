@@ -10,10 +10,11 @@ use Illuminate\Http\Request;
 class PinMaestroController extends Controller
 {
     /**
-     * Hashes de PIN maestro que la app móvil descarga y guarda cifrada
-     * localmente, para poder validar el PIN maestro incluso sin conexión.
-     * Nunca se expone el PIN en texto plano, solo el hash ya calculado por
-     * el backend (Hash::make en Laravel = bcrypt).
+     * Datos de bloqueo que la app móvil descarga y guarda cifrados/localmente
+     * en cada sincronización, para que el bloqueo (PIN maestro de emergencia,
+     * cuántos intentos de PIN personal se toleran) funcione incluso sin
+     * conexión. Nunca se expone el PIN en texto plano, solo el hash ya
+     * calculado por el backend (Hash::make en Laravel = bcrypt).
      */
     public function index(Request $request): JsonResponse
     {
@@ -21,6 +22,7 @@ class PinMaestroController extends Controller
             'data' => [
                 'pin_maestro_individual_hash' => $request->user()->pin_maestro_hash,
                 'pin_maestro_global_hash' => ConfiguracionGlobal::obtener('pin_maestro_hash'),
+                'intentos_pin_antes_de_maestro' => (int) ConfiguracionGlobal::obtener('intentos_pin_antes_de_maestro', 3),
             ],
         ]);
     }

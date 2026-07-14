@@ -22,8 +22,10 @@ class BloqueoRepository {
   final LocalAuthentication _localAuth;
 
   /// Después de este número de intentos fallidos del PIN personal se ofrece
-  /// automáticamente el campo de PIN maestro.
-  static const intentosMaximosPinPersonal = 3;
+  /// automáticamente el campo de PIN maestro. Configurable por el admin
+  /// (`GET /api/pin-maestro`, sincronizado por `AuthRepository`); 3 por
+  /// defecto si el dispositivo todavía no ha sincronizado nunca.
+  Future<int> obtenerIntentosMaximosPin() => _secureStorage.leerIntentosMaximosPin();
 
   Future<bool> tieneBloqueoConfigurado() => _secureStorage.tienePinPersonalConfigurado();
 

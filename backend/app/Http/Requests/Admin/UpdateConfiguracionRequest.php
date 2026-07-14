@@ -21,6 +21,7 @@ class UpdateConfiguracionRequest extends FormRequest
             'tasas_interes_default.*' => ['numeric', 'min:0'],
             'politica_mora_default' => ['sometimes', 'in:mantener,siguiente_pago,sumar_total'],
             'pin_maestro' => ['sometimes', 'nullable', 'string', 'min:4', 'max:10'],
+            'intentos_pin_antes_de_maestro' => ['sometimes', 'integer', 'min:1', 'max:10'],
         ];
     }
 }

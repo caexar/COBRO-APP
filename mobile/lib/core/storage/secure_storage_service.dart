@@ -28,6 +28,7 @@ class SecureStorageService {
   static const _claveBiometriaHabilitada = 'bloqueo_biometria_habilitada';
   static const _clavePinMaestroIndividual = 'pin_maestro_individual_hash';
   static const _clavePinMaestroGlobal = 'pin_maestro_global_hash';
+  static const _claveIntentosMaximosPin = 'bloqueo_intentos_maximos_pin';
   static const _claveIntentosFallidos = 'bloqueo_intentos_fallidos';
 
   // --- Sesión ---
@@ -109,6 +110,17 @@ class SecureStorageService {
     final individual = await _storage.read(key: _clavePinMaestroIndividual);
     final global = await _storage.read(key: _clavePinMaestroGlobal);
     return PinMaestroHashesGuardados(individual: individual, global: global);
+  }
+
+  /// Cuántos intentos fallidos del PIN personal se toleran antes de ofrecer
+  /// el PIN maestro (configurable por el admin, descargado en cada
+  /// sincronización). 3 por defecto si todavía no se ha sincronizado nunca.
+  Future<void> guardarIntentosMaximosPin(int intentos) =>
+      _storage.write(key: _claveIntentosMaximosPin, value: intentos.toString());
+
+  Future<int> leerIntentosMaximosPin() async {
+    final valor = await _storage.read(key: _claveIntentosMaximosPin);
+    return int.tryParse(valor ?? '') ?? 3;
   }
 
   // --- Intentos fallidos del PIN personal ---
