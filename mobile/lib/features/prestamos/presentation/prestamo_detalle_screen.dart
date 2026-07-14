@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/formato_dinero.dart';
+import '../../pagos/presentation/historial_pagos_screen.dart';
+import '../../pagos/presentation/registrar_pago_screen.dart';
 import '../data/prestamos_repository.dart';
 
 /// Detalle de un préstamo ya guardado: capital, interés, extras y cuotas
@@ -30,12 +32,42 @@ class _PrestamoDetalleScreenState extends State<PrestamoDetalleScreen> {
     setState(() => _detalle = detalle);
   }
 
+  Future<void> _registrarPago() async {
+    final guardado = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => RegistrarPagoScreen(prestamoId: widget.prestamoId)));
+    if (guardado == true) _cargar();
+  }
+
+  void _verHistorialPagos() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => HistorialPagosScreen(prestamoId: widget.prestamoId)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final detalle = _detalle;
+    final puedeRegistrarPago = detalle != null && detalle.prestamo.estado != 'anulado' && detalle.prestamo.estado != 'pagado';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Detalle del préstamo')),
+      appBar: AppBar(
+        title: const Text('Detalle del préstamo'),
+        actions: [
+          IconButton(
+            onPressed: detalle == null ? null : _verHistorialPagos,
+            icon: const Icon(Icons.history),
+            tooltip: 'Historial de pagos',
+          ),
+        ],
+      ),
+      floatingActionButton: puedeRegistrarPago
+          ? FloatingActionButton.extended(
+              onPressed: _registrarPago,
+              icon: const Icon(Icons.payments_outlined),
+              label: const Text('Registrar pago'),
+            )
+          : null,
       body: detalle == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
