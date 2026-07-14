@@ -195,3 +195,33 @@ usarlos en vez de consultar la tabla directamente.
 - `local_auth` (biometría) requiere que `MainActivity` (Android) extienda
   `FlutterFragmentActivity`, no `FlutterActivity` (ya configurado), y `minSdk >= 23`
   (forzado en `android/app/build.gradle.kts` con `maxOf(flutter.minSdkVersion, 23)`).
+
+## App móvil: clientes (`mobile/lib/features/clientes`)
+
+- `ClientesRepository` es la única puerta de entrada al CRUD local de clientes; las
+  pantallas (`clientes_list_screen.dart`, `cliente_form_screen.dart`) no tocan `ClientesDao`
+  directamente. Cada `crear()`/`actualizar()` exitoso encola una fila en
+  `cambios_pendientes` (payload en JSON) para el futuro botón de sincronización.
+- **Duplicados de nombre/cédula se validan localmente**, en Dart, contra SQLite —
+  independiente de la validación del backend (fase de sincronización). Están scoped por
+  `usuarioId` (igual que la restricción del backend), así que solo choca contra clientes del
+  mismo cobrador.
+- Búsqueda (`ClientesRepository.buscar`): siempre por nombre (`LIKE`); si el texto contiene
+  algún dígito, **además** busca por cédula y agrega esos resultados al final sin duplicar
+  filas. No es "nombre, y si no hay resultados cédula" (así funciona el buscador del backend
+  en `GET /api/clientes?q=`) — son búsquedas distintas a propósito, una es local/inmediata y
+  la otra ya filtró contra el servidor.
+- La foto (`fotoUrl`) se guarda como **ruta de archivo local** (copiada a
+  `ApplicationDocumentsDirectory/fotos_clientes/` vía
+  `core/utils/almacenamiento_fotos.dart`, nunca se usa el path temporal de `image_picker`
+  directamente) hasta que se sincronice y el backend devuelva una URL real.
+- **Gotcha de Drift**: `update(tabla).replace(companion)` exige que *todas* las columnas
+  requeridas sin default estén presentes en el companion (lanza `InvalidDataException` si
+  falta alguna), no es un update parcial pese al nombre. Para actualizar solo algunos campos
+  usar `(update(tabla)..where((t) => t.id.equals(id))).write(companion)` (ver
+  `ClientesDao.actualizar`). Aplica el mismo cuidado a los próximos DAOs (préstamos, cuotas,
+  pagos).
+- Test de referencia: `test/features/clientes/clientes_repository_test.dart` corre contra
+  Drift en memoria (`AppDatabase.paraPruebas(NativeDatabase.memory())`) con un
+  `SecureStorageService` de prueba (subclase que fija `leerUsuarioId()`), sin tocar
+  `flutter_secure_storage` real. Buen patrón a copiar para testear futuros repositorios.

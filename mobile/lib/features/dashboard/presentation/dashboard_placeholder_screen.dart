@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Marcador de posición mínimo para poder probar el flujo de autenticación
+import '../../clientes/presentation/clientes_list_screen.dart';
+
+/// Marcador de posición mínimo para poder probar los módulos ya construidos
 /// de punta a punta. El dashboard real se construye en una fase futura.
 class DashboardPlaceholderScreen extends StatelessWidget {
   const DashboardPlaceholderScreen({super.key, required this.onCerrarSesion});
@@ -16,12 +18,27 @@ class DashboardPlaceholderScreen extends StatelessWidget {
           IconButton(icon: const Icon(Icons.logout), tooltip: 'Cerrar sesión', onPressed: onCerrarSesion),
         ],
       ),
-      body: const Center(
+      body: SafeArea(
         child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Sesión iniciada y app desbloqueada.\nEl dashboard se construye en una fase futura.',
-            textAlign: TextAlign.center,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 16),
+              const Text(
+                'Sesión iniciada y app desbloqueada.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const ClientesListScreen())),
+                icon: const Icon(Icons.people),
+                label: const Text('Clientes', style: TextStyle(fontSize: 17)),
+                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
+              ),
+            ],
           ),
         ),
       ),

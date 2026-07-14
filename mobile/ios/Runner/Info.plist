@@ -28,6 +28,10 @@
 	<true/>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Usamos Face ID / Touch ID para desbloquear la app rápidamente.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Usamos la cámara para tomar la foto del cliente.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Usamos la galería para elegir la foto del cliente.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

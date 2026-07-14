@@ -32,6 +32,10 @@ class AppDatabase extends _$AppDatabase {
 
   AppDatabase.paraPruebas(super.executor);
 
+  /// Instancia única compartida por toda la app: Drift debe abrir un solo
+  /// archivo de base de datos, no una conexión nueva por cada repositorio.
+  static final AppDatabase instance = AppDatabase();
+
   @override
   int get schemaVersion => 1;
 }

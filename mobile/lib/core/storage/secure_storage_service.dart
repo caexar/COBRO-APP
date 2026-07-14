@@ -48,6 +48,11 @@ class SecureStorageService {
 
   Future<String?> leerToken() => _storage.read(key: _claveToken);
 
+  Future<int?> leerUsuarioId() async {
+    final valor = await _storage.read(key: _claveUsuarioId);
+    return valor != null ? int.tryParse(valor) : null;
+  }
+
   Future<String?> leerNombre() => _storage.read(key: _claveUsuarioNombre);
 
   Future<String?> leerRol() => _storage.read(key: _claveUsuarioRol);
