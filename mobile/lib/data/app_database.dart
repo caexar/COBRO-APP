@@ -37,7 +37,19 @@ class AppDatabase extends _$AppDatabase {
   static final AppDatabase instance = AppDatabase();
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      // v1 -> v2: prestamos.referencia (nombre corto opcional para que el
+      // cobrador distinga préstamos cuando un cliente tiene más de uno).
+      if (from < 2) {
+        await m.addColumn(prestamos, prestamos.referencia);
+      }
+    },
+  );
 }
 
 LazyDatabase _abrirConexion() {

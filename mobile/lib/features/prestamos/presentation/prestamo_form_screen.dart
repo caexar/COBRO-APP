@@ -25,6 +25,7 @@ class _PrestamoFormScreenState extends State<PrestamoFormScreen> {
   Cliente? _cliente;
   DatosPrestamoFormulario? _datos;
   bool _guardando = false;
+  String? _error;
 
   @override
   void initState() {
@@ -48,7 +49,10 @@ class _PrestamoFormScreenState extends State<PrestamoFormScreen> {
     final datos = _datos;
     if (cliente == null || datos == null || _guardando) return;
 
-    setState(() => _guardando = true);
+    setState(() {
+      _guardando = true;
+      _error = null;
+    });
 
     try {
       final referencia = _referenciaController.text.trim();
@@ -68,6 +72,8 @@ class _PrestamoFormScreenState extends State<PrestamoFormScreen> {
       Navigator.of(
         context,
       ).pushReplacement(MaterialPageRoute(builder: (_) => PrestamoDetalleScreen(prestamoId: prestamoId)));
+    } catch (e) {
+      if (mounted) setState(() => _error = 'No se pudo guardar el préstamo: $e');
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
@@ -110,6 +116,10 @@ class _PrestamoFormScreenState extends State<PrestamoFormScreen> {
               ),
               const SizedBox(height: 24),
               PrestamoCalculadoraFormulario(onDatosValidosCambiados: (datos) => setState(() => _datos = datos)),
+              if (_error != null) ...[
+                const SizedBox(height: 16),
+                Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ],
               const SizedBox(height: 28),
               FilledButton(
                 onPressed: puedeGuardar ? _guardar : null,
