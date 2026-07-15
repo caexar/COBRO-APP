@@ -270,4 +270,68 @@ void main() {
       expect(porCedula.first.cliente.nombre, 'Juan Perez');
     });
   });
+
+  group('listarPagados', () {
+    test('incluye solo préstamos ya pagados por completo, con el total pagado', () async {
+      final cliente1 = await crearClientePrueba();
+      final cliente2 = await clientesRepository.crear(
+        nombre: 'Maria Gomez',
+        cedula: '654321',
+        telefono: '3009999999',
+        direccion: 'Otra direccion',
+      );
+
+      // Préstamo activo: no debe aparecer en el historial de pagados.
+      await prestamosRepository.crear(
+        clienteId: cliente1,
+        montoCapital: 10000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 2,
+        fechaInicio: DateTime(2026, 1, 1),
+      );
+
+      // Préstamo pagado por completo: sí debe aparecer.
+      final prestamoPagadoId = await prestamosRepository.crear(
+        clienteId: cliente2,
+        montoCapital: 5000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 1,
+        fechaInicio: DateTime(2026, 1, 1),
+      );
+      await pagosRepository.registrar(
+        prestamoId: prestamoPagadoId,
+        montoAbonado: 5000,
+        fechaPago: DateTime(2026, 1, 2),
+      );
+
+      final pagados = await prestamosRepository.listarPagados();
+
+      expect(pagados, hasLength(1));
+      expect(pagados.first.cliente.nombre, 'Maria Gomez');
+      expect(pagados.first.totalPagado, 5000);
+      expect(pagados.first.saldoPendiente, 0);
+    });
+
+    test('busqueda filtra por nombre o cédula igual que listarPendientes', () async {
+      final cliente1 = await crearClientePrueba(); // Juan Perez, cédula 123456
+      final prestamoId = await prestamosRepository.crear(
+        clienteId: cliente1,
+        montoCapital: 5000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 1,
+        fechaInicio: DateTime(2026, 1, 1),
+      );
+      await pagosRepository.registrar(prestamoId: prestamoId, montoAbonado: 5000, fechaPago: DateTime(2026, 1, 2));
+
+      final porNombre = await prestamosRepository.listarPagados(busqueda: 'Maria');
+      expect(porNombre, isEmpty);
+
+      final porCedula = await prestamosRepository.listarPagados(busqueda: '123456');
+      expect(porCedula, hasLength(1));
+      expect(porCedula.first.cliente.nombre, 'Juan Perez');
+    });
+  });
 }

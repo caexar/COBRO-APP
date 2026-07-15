@@ -112,9 +112,11 @@ void main() {
     final resumen = await dashboardRepository.calcularResumen();
 
     // totalAbonadoGlobal = 32500 (prestamo1) + 10000 (prestamo2) = 42500
-    // capitalEnPrestamosActivos = 100000 (solo prestamo1, el 2 ya está pagado)
-    // saldoDisponible = 200000 + 42500 - 100000
-    expect(resumen.saldoDisponible, 142500);
+    // capitalPrestadoNoAnulado = 100000 (prestamo1, activo) + 10000
+    // (prestamo2, ya pagado pero no anulado: su capital también salió de
+    // caja alguna vez) = 110000
+    // saldoDisponible = 200000 - 0 (sin retiros) + 42500 - 110000
+    expect(resumen.saldoDisponible, 132500);
 
     // cartera = montoTotal(125000) - totalAplicado(25000) del préstamo 1 activo.
     expect(resumen.carteraPorCobrar, 100000);
@@ -126,10 +128,10 @@ void main() {
     expect(resumen.gananciaExtras, closeTo(8500, 0.01));
     expect(resumen.gananciaTotal, closeTo(12500, 0.01));
 
-    // Cuota 3 (única con fecha_esperada == hoy) = 12500.
-    expect(resumen.proyeccionHoy, 12500);
-    // Cuotas 3..9 (7 cuotas, dentro de [hoy, hoy+7)) = 7 * 12500.
-    expect(resumen.proyeccionSemana, 87500);
+    // Los 3 pagos quedaron fechados hoy-2, hoy-1 y hoy-4: ninguno es "hoy".
+    expect(resumen.entradasHoy, 0);
+    // Los 3 caen dentro de la ventana [hoy-6, hoy]: 12500 + 20000 + 10000.
+    expect(resumen.entradasUltimos7Dias, 42500);
   });
 
   test('sin datos, todo queda en cero', () async {
@@ -137,8 +139,46 @@ void main() {
 
     expect(resumen.saldoDisponible, 0);
     expect(resumen.carteraPorCobrar, 0);
-    expect(resumen.proyeccionHoy, 0);
-    expect(resumen.proyeccionSemana, 0);
+    expect(resumen.entradasHoy, 0);
+    expect(resumen.entradasUltimos7Dias, 0);
     expect(resumen.gananciaTotal, 0);
+  });
+
+  test('saldo disponible resta el capital de un préstamo ya pagado (bug real corregido)', () async {
+    // Caso exacto reportado: se inicia con 200000, se presta 100000 al 20%
+    // de interés y se cobra exactamente 120000 de vuelta (capital + interés).
+    // El saldo disponible debe quedar en 220000 (200000 - 100000 prestados +
+    // 120000 devueltos), no en 320000 (lo que daba el cálculo viejo, que
+    // dejaba de restar el capital apenas el préstamo pasaba a "pagado").
+    final hoy = DateTime(2026, 7, 15);
+    final cliente = await clientesRepository.crear(
+      nombre: 'Pedro Ruiz',
+      cedula: '333',
+      telefono: '3000000003',
+      direccion: 'Calle 3',
+    );
+    final prestamo = await prestamosRepository.crear(
+      clienteId: cliente,
+      montoCapital: 100000,
+      porcentajeInteres: 20,
+      frecuenciaPago: 'diario',
+      plazoCuotas: 1,
+      fechaInicio: hoy.subtract(const Duration(days: 1)),
+    );
+    final cuotas = (await prestamosRepository.obtenerDetalle(prestamo)).cuotas;
+    await pagosRepository.registrar(prestamoId: prestamo, montoAbonado: 120000, fechaPago: cuotas[0].fechaEsperada);
+
+    await cargasCapitalRepository.crear(monto: 200000);
+
+    final resumen = await dashboardRepository.calcularResumen();
+    expect(resumen.saldoDisponible, 220000);
+  });
+
+  test('un retiro de capital resta del saldo disponible', () async {
+    await cargasCapitalRepository.crear(monto: 200000, descripcion: 'Aporte inicial');
+    await cargasCapitalRepository.crear(monto: 50000, descripcion: 'Retiro para gastos', tipo: 'retiro');
+
+    final resumen = await dashboardRepository.calcularResumen();
+    expect(resumen.saldoDisponible, 150000);
   });
 }

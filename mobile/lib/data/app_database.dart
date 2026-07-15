@@ -39,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   static final AppDatabase instance = AppDatabase();
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -59,6 +59,17 @@ class AppDatabase extends _$AppDatabase {
       // dispositivo.
       if (from < 4) {
         await m.addColumn(cambiosPendientes, cambiosPendientes.usuarioId);
+      }
+      // v4 -> v5: cargas_capital.tipo (carga/retiro) y eliminadoEn (soft
+      // delete), para poder registrar retiros de capital y deshacer un
+      // movimiento por error. Solo hace falta el ALTER si la tabla ya
+      // existía con el esquema viejo (from >= 3): si venía de antes de v3,
+      // el paso de arriba ya la crea con `createTable` usando la definición
+      // *actual* de la tabla (que ya incluye estas columnas), y agregarlas
+      // de nuevo fallaría con "duplicate column".
+      if (from >= 3 && from < 5) {
+        await m.addColumn(cargasCapital, cargasCapital.tipo);
+        await m.addColumn(cargasCapital, cargasCapital.eliminadoEn);
       }
     },
   );

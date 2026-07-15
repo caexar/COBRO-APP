@@ -27,6 +27,20 @@ const _crearCambiosPendientesV1a3 = '''
   );
 ''';
 
+/// `cargas_capital` tal como quedó entre v3 y v5 (sin `tipo` ni
+/// `eliminado_en`, agregadas recién en v5).
+const _crearCargasCapitalV3a4 = '''
+  CREATE TABLE cargas_capital (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "servidor_id" INTEGER NULL UNIQUE,
+    "usuario_id" INTEGER NOT NULL,
+    "monto" REAL NOT NULL,
+    "descripcion" TEXT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1))
+  );
+''';
+
 void main() {
   late Directory carpetaTemporal;
   late File archivoDb;
@@ -99,13 +113,13 @@ void main() {
     await db.close();
 
     // La migración debe quedar registrada (incluye los pasos v2->v3 de
-    // cargas_capital y v3->v4 de cambios_pendientes.usuarioId, porque venía
-    // desde v1): reabrir el mismo archivo no debe volver a intentar migrar
-    // ni fallar.
+    // cargas_capital, v3->v4 de cambios_pendientes.usuarioId y v4->v5 de
+    // cargas_capital.tipo/eliminadoEn, porque venía desde v1): reabrir el
+    // mismo archivo no debe volver a intentar migrar ni fallar.
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 4);
+    expect(version, 5);
 
     final dbReabierta = AppDatabase.paraPruebas(NativeDatabase(archivoDb));
     addTearDown(dbReabierta.close);
@@ -197,6 +211,10 @@ void main() {
       INSERT INTO cambios_pendientes (tabla, registro_id, tipo_operacion, payload)
       VALUES ('clientes', 1, 'crear', '{}');
     ''');
+    // La tabla ya existe desde v3 (aunque este test no la use directamente):
+    // sin ella, el paso v4->v5 (agregar tipo/eliminadoEn) fallaría con "no
+    // such table" al migrar desde v3, algo que no pasaría en un dispositivo real.
+    db.execute(_crearCargasCapitalV3a4);
     db.execute('PRAGMA user_version = 3;');
     db.close();
   }
@@ -229,5 +247,62 @@ void main() {
 
     final pendientesUsuario2 = await db.cambiosPendientesDao.obtenerPendientes(2);
     expect(pendientesUsuario2.map((p) => p.registroId), [3]);
+  });
+
+  /// Crea el archivo con el esquema "v4": ya tiene `cambios_pendientes.usuario_id`
+  /// y la tabla `cargas_capital`, pero esta última todavía no tiene `tipo` ni
+  /// `eliminado_en`, con una carga de capital ya guardada.
+  void crearBaseDeDatosV4() {
+    final db = sqlite3.sqlite3.open(archivoDb.path);
+    db.execute('''
+      CREATE TABLE cambios_pendientes (
+        "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+        "usuario_id" INTEGER NULL,
+        "tabla" TEXT NOT NULL,
+        "registro_id" INTEGER NOT NULL,
+        "tipo_operacion" TEXT NOT NULL,
+        "payload" TEXT NULL,
+        "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+        "intentos" INTEGER NOT NULL DEFAULT 0,
+        "ultimo_error" TEXT NULL
+      );
+    ''');
+    db.execute(_crearCargasCapitalV3a4);
+    db.execute('''
+      INSERT INTO cargas_capital (usuario_id, monto, descripcion, creado_en)
+      VALUES (1, 500000.0, 'Aporte inicial', 1752192000);
+    ''');
+    db.execute('PRAGMA user_version = 4;');
+    db.close();
+  }
+
+  test('agrega tipo y eliminadoEn a cargas_capital sin perder lo ya guardado', () async {
+    crearBaseDeDatosV4();
+
+    final db = AppDatabase.paraPruebas(NativeDatabase(archivoDb));
+    addTearDown(db.close);
+
+    final cargas = await db.cargasCapitalDao.obtenerTodas(1);
+    expect(cargas, hasLength(1));
+    // La columna tipo llega con su default 'carga' para filas viejas, que
+    // todas eran aportes (el concepto de retiro no existía antes de v5).
+    expect(cargas.first.tipo, 'carga');
+    expect(cargas.first.monto, 500000.0);
+
+    final retiroId = await db.cargasCapitalDao.insertar(
+      CargasCapitalCompanion.insert(usuarioId: 1, monto: 20000, tipo: const Value('retiro')),
+    );
+    await db.cargasCapitalDao.eliminar(retiroId);
+
+    // El retiro recién insertado y luego eliminado no debe aparecer, la
+    // carga vieja sigue intacta.
+    final trasEliminar = await db.cargasCapitalDao.obtenerTodas(1);
+    expect(trasEliminar, hasLength(1));
+    expect(trasEliminar.first.descripcion, 'Aporte inicial');
+
+    final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
+    final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
+    rawDespues.close();
+    expect(version, 5);
   });
 }

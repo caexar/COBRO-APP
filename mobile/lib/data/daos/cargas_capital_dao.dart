@@ -9,14 +9,24 @@ part 'cargas_capital_dao.g.dart';
 class CargasCapitalDao extends DatabaseAccessor<AppDatabase> with _$CargasCapitalDaoMixin {
   CargasCapitalDao(super.db);
 
-  /// Cargas de capital de [usuarioId]. Cada cobrador solo ve/suma las
-  /// suyas, aunque compartan dispositivo.
+  /// Movimientos de capital (cargas y retiros) no eliminados de
+  /// [usuarioId]. Cada cobrador solo ve/suma los suyos, aunque compartan
+  /// dispositivo.
   Future<List<CargaCapital>> obtenerTodas(int usuarioId) {
     return (select(cargasCapital)
-          ..where((tbl) => tbl.usuarioId.equals(usuarioId))
+          ..where((tbl) => tbl.usuarioId.equals(usuarioId) & tbl.eliminadoEn.isNull())
           ..orderBy([(tbl) => OrderingTerm(expression: tbl.creadoEn)]))
         .get();
   }
 
   Future<int> insertar(CargasCapitalCompanion cargaCapital) => into(cargasCapital).insert(cargaCapital);
+
+  /// Soft-delete: nunca se borra la fila, solo se marca `eliminadoEn` (mismo
+  /// patrón que `prestamos`/`pagos`), para poder deshacer un movimiento
+  /// registrado por error.
+  Future<int> eliminar(int id) {
+    return (update(cargasCapital)..where((tbl) => tbl.id.equals(id))).write(
+      CargasCapitalCompanion(eliminadoEn: Value(DateTime.now()), sincronizado: const Value(false)),
+    );
+  }
 }

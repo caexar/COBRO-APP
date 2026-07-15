@@ -57,8 +57,8 @@ class _DashboardRepositoryFalso extends DashboardRepository {
     return const ResumenDashboard(
       saldoDisponible: 0,
       carteraPorCobrar: 0,
-      proyeccionHoy: 0,
-      proyeccionSemana: 0,
+      entradasHoy: 0,
+      entradasUltimos7Dias: 0,
       gananciaInteres: 0,
       gananciaExtras: 0,
     );

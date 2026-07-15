@@ -14,13 +14,20 @@ import 'prestamo_calculator.dart';
 
 export '../../../data/app_database.dart' show Cuota, Prestamo, PrestamosExtra;
 
-/// Préstamo activo o en mora, con su cliente y el saldo que todavía falta
-/// por cobrar. Vista combinada para la pantalla de "Cobros pendientes".
+/// Préstamo con su cliente, el total ya cobrado (`monto_aplicado`) y el
+/// saldo que todavía falta por cobrar. Vista combinada para las pantallas
+/// de "Cobros pendientes" e "Historial de préstamos".
 class PrestamoResumen {
-  const PrestamoResumen({required this.prestamo, required this.cliente, required this.saldoPendiente});
+  const PrestamoResumen({
+    required this.prestamo,
+    required this.cliente,
+    required this.totalPagado,
+    required this.saldoPendiente,
+  });
 
   final Prestamo prestamo;
   final Cliente cliente;
+  final double totalPagado;
   final double saldoPendiente;
 
   bool get enMora => prestamo.estado == 'en_mora';
@@ -105,6 +112,42 @@ class PrestamosRepository {
           PrestamoResumen(
             prestamo: prestamo,
             cliente: cliente,
+            totalPagado: totalAplicado,
+            saldoPendiente: saldoPendiente < 0 ? 0 : saldoPendiente,
+          ),
+        );
+      }
+    }
+
+    return resumenes;
+  }
+
+  /// Préstamos `pagado` del cobrador con su cliente y saldo pendiente (0
+  /// salvo redondeos), filtrados por [busqueda] con el mismo criterio que
+  /// [listarPendientes]. Pensado para la pantalla de "Historial de
+  /// préstamos" (mismo listado que "Cobros pendientes" pero solo lo que ya
+  /// se terminó de cobrar).
+  Future<List<PrestamoResumen>> listarPagados({String busqueda = ''}) async {
+    final usuarioId = await _usuarioIdActual();
+    final clientes = await _clientesRepository.buscar(busqueda);
+    final resumenes = <PrestamoResumen>[];
+
+    for (final cliente in clientes) {
+      final prestamosCliente = await _prestamosDao.obtenerPorCliente(cliente.id, usuarioId);
+
+      for (final prestamo in prestamosCliente) {
+        if (prestamo.estado != 'pagado') continue;
+
+        final detalle = await obtenerDetalle(prestamo.id);
+        final pagos = await _pagosDao.obtenerPorPrestamo(prestamo.id);
+        final totalAplicado = pagos.fold<double>(0, (acumulado, pago) => acumulado + pago.montoAplicado);
+        final saldoPendiente = detalle.montoTotal - totalAplicado;
+
+        resumenes.add(
+          PrestamoResumen(
+            prestamo: prestamo,
+            cliente: cliente,
+            totalPagado: totalAplicado,
             saldoPendiente: saldoPendiente < 0 ? 0 : saldoPendiente,
           ),
         );

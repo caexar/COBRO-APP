@@ -54,4 +54,46 @@ void main() {
     final todas = await repository.listarTodas();
     expect(todas.first.descripcion, isNull);
   });
+
+  test('tipo por defecto es carga', () async {
+    await repository.crear(monto: 50000);
+
+    final todas = await repository.listarTodas();
+    expect(todas.first.tipo, 'carga');
+  });
+
+  test('permite registrar un retiro y lo encola en cambios_pendientes', () async {
+    await repository.crear(monto: 30000, descripcion: 'Retiro para gastos', tipo: 'retiro');
+
+    final todas = await repository.listarTodas();
+    expect(todas, hasLength(1));
+    expect(todas.first.tipo, 'retiro');
+    expect(todas.first.monto, 30000);
+
+    final pendientes = await db.cambiosPendientesDao.obtenerPendientes(1);
+    expect(pendientes.first.payload, contains('retiro'));
+  });
+
+  test('eliminar hace soft-delete y no aparece más en listarTodas', () async {
+    final id = await repository.crear(monto: 100000);
+
+    await repository.eliminar(id);
+
+    final todas = await repository.listarTodas();
+    expect(todas, isEmpty);
+
+    final pendientes = await db.cambiosPendientesDao.obtenerPendientes(1);
+    expect(pendientes.where((p) => p.tipoOperacion == 'eliminar'), hasLength(1));
+  });
+
+  test('eliminar un movimiento no afecta a los demás', () async {
+    final id1 = await repository.crear(monto: 100000, descripcion: 'Primero');
+    await repository.crear(monto: 200000, descripcion: 'Segundo');
+
+    await repository.eliminar(id1);
+
+    final todas = await repository.listarTodas();
+    expect(todas, hasLength(1));
+    expect(todas.first.descripcion, 'Segundo');
+  });
 }

@@ -4317,6 +4317,16 @@ class $CargasCapitalTable extends CargasCapital
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _tipoMeta = const VerificationMeta('tipo');
+  @override
+  late final GeneratedColumn<String> tipo = GeneratedColumn<String>(
+    'tipo',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('carga'),
+  );
   static const VerificationMeta _descripcionMeta = const VerificationMeta(
     'descripcion',
   );
@@ -4340,6 +4350,17 @@ class $CargasCapitalTable extends CargasCapital
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _eliminadoEnMeta = const VerificationMeta(
+    'eliminadoEn',
+  );
+  @override
+  late final GeneratedColumn<DateTime> eliminadoEn = GeneratedColumn<DateTime>(
+    'eliminado_en',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _sincronizadoMeta = const VerificationMeta(
     'sincronizado',
   );
@@ -4361,8 +4382,10 @@ class $CargasCapitalTable extends CargasCapital
     servidorId,
     usuarioId,
     monto,
+    tipo,
     descripcion,
     creadoEn,
+    eliminadoEn,
     sincronizado,
   ];
   @override
@@ -4402,6 +4425,12 @@ class $CargasCapitalTable extends CargasCapital
     } else if (isInserting) {
       context.missing(_montoMeta);
     }
+    if (data.containsKey('tipo')) {
+      context.handle(
+        _tipoMeta,
+        tipo.isAcceptableOrUnknown(data['tipo']!, _tipoMeta),
+      );
+    }
     if (data.containsKey('descripcion')) {
       context.handle(
         _descripcionMeta,
@@ -4415,6 +4444,15 @@ class $CargasCapitalTable extends CargasCapital
       context.handle(
         _creadoEnMeta,
         creadoEn.isAcceptableOrUnknown(data['creado_en']!, _creadoEnMeta),
+      );
+    }
+    if (data.containsKey('eliminado_en')) {
+      context.handle(
+        _eliminadoEnMeta,
+        eliminadoEn.isAcceptableOrUnknown(
+          data['eliminado_en']!,
+          _eliminadoEnMeta,
+        ),
       );
     }
     if (data.containsKey('sincronizado')) {
@@ -4451,6 +4489,10 @@ class $CargasCapitalTable extends CargasCapital
         DriftSqlType.double,
         data['${effectivePrefix}monto'],
       )!,
+      tipo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tipo'],
+      )!,
       descripcion: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}descripcion'],
@@ -4459,6 +4501,10 @@ class $CargasCapitalTable extends CargasCapital
         DriftSqlType.dateTime,
         data['${effectivePrefix}creado_en'],
       )!,
+      eliminadoEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}eliminado_en'],
+      ),
       sincronizado: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}sincronizado'],
@@ -4477,16 +4523,20 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
   final int? servidorId;
   final int usuarioId;
   final double monto;
+  final String tipo;
   final String? descripcion;
   final DateTime creadoEn;
+  final DateTime? eliminadoEn;
   final bool sincronizado;
   const CargaCapital({
     required this.id,
     this.servidorId,
     required this.usuarioId,
     required this.monto,
+    required this.tipo,
     this.descripcion,
     required this.creadoEn,
+    this.eliminadoEn,
     required this.sincronizado,
   });
   @override
@@ -4498,10 +4548,14 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
     }
     map['usuario_id'] = Variable<int>(usuarioId);
     map['monto'] = Variable<double>(monto);
+    map['tipo'] = Variable<String>(tipo);
     if (!nullToAbsent || descripcion != null) {
       map['descripcion'] = Variable<String>(descripcion);
     }
     map['creado_en'] = Variable<DateTime>(creadoEn);
+    if (!nullToAbsent || eliminadoEn != null) {
+      map['eliminado_en'] = Variable<DateTime>(eliminadoEn);
+    }
     map['sincronizado'] = Variable<bool>(sincronizado);
     return map;
   }
@@ -4514,10 +4568,14 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
           : Value(servidorId),
       usuarioId: Value(usuarioId),
       monto: Value(monto),
+      tipo: Value(tipo),
       descripcion: descripcion == null && nullToAbsent
           ? const Value.absent()
           : Value(descripcion),
       creadoEn: Value(creadoEn),
+      eliminadoEn: eliminadoEn == null && nullToAbsent
+          ? const Value.absent()
+          : Value(eliminadoEn),
       sincronizado: Value(sincronizado),
     );
   }
@@ -4532,8 +4590,10 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
       servidorId: serializer.fromJson<int?>(json['servidorId']),
       usuarioId: serializer.fromJson<int>(json['usuarioId']),
       monto: serializer.fromJson<double>(json['monto']),
+      tipo: serializer.fromJson<String>(json['tipo']),
       descripcion: serializer.fromJson<String?>(json['descripcion']),
       creadoEn: serializer.fromJson<DateTime>(json['creadoEn']),
+      eliminadoEn: serializer.fromJson<DateTime?>(json['eliminadoEn']),
       sincronizado: serializer.fromJson<bool>(json['sincronizado']),
     );
   }
@@ -4545,8 +4605,10 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
       'servidorId': serializer.toJson<int?>(servidorId),
       'usuarioId': serializer.toJson<int>(usuarioId),
       'monto': serializer.toJson<double>(monto),
+      'tipo': serializer.toJson<String>(tipo),
       'descripcion': serializer.toJson<String?>(descripcion),
       'creadoEn': serializer.toJson<DateTime>(creadoEn),
+      'eliminadoEn': serializer.toJson<DateTime?>(eliminadoEn),
       'sincronizado': serializer.toJson<bool>(sincronizado),
     };
   }
@@ -4556,16 +4618,20 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
     Value<int?> servidorId = const Value.absent(),
     int? usuarioId,
     double? monto,
+    String? tipo,
     Value<String?> descripcion = const Value.absent(),
     DateTime? creadoEn,
+    Value<DateTime?> eliminadoEn = const Value.absent(),
     bool? sincronizado,
   }) => CargaCapital(
     id: id ?? this.id,
     servidorId: servidorId.present ? servidorId.value : this.servidorId,
     usuarioId: usuarioId ?? this.usuarioId,
     monto: monto ?? this.monto,
+    tipo: tipo ?? this.tipo,
     descripcion: descripcion.present ? descripcion.value : this.descripcion,
     creadoEn: creadoEn ?? this.creadoEn,
+    eliminadoEn: eliminadoEn.present ? eliminadoEn.value : this.eliminadoEn,
     sincronizado: sincronizado ?? this.sincronizado,
   );
   CargaCapital copyWithCompanion(CargasCapitalCompanion data) {
@@ -4576,10 +4642,14 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
           : this.servidorId,
       usuarioId: data.usuarioId.present ? data.usuarioId.value : this.usuarioId,
       monto: data.monto.present ? data.monto.value : this.monto,
+      tipo: data.tipo.present ? data.tipo.value : this.tipo,
       descripcion: data.descripcion.present
           ? data.descripcion.value
           : this.descripcion,
       creadoEn: data.creadoEn.present ? data.creadoEn.value : this.creadoEn,
+      eliminadoEn: data.eliminadoEn.present
+          ? data.eliminadoEn.value
+          : this.eliminadoEn,
       sincronizado: data.sincronizado.present
           ? data.sincronizado.value
           : this.sincronizado,
@@ -4593,8 +4663,10 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
           ..write('servidorId: $servidorId, ')
           ..write('usuarioId: $usuarioId, ')
           ..write('monto: $monto, ')
+          ..write('tipo: $tipo, ')
           ..write('descripcion: $descripcion, ')
           ..write('creadoEn: $creadoEn, ')
+          ..write('eliminadoEn: $eliminadoEn, ')
           ..write('sincronizado: $sincronizado')
           ..write(')'))
         .toString();
@@ -4606,8 +4678,10 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
     servidorId,
     usuarioId,
     monto,
+    tipo,
     descripcion,
     creadoEn,
+    eliminadoEn,
     sincronizado,
   );
   @override
@@ -4618,8 +4692,10 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
           other.servidorId == this.servidorId &&
           other.usuarioId == this.usuarioId &&
           other.monto == this.monto &&
+          other.tipo == this.tipo &&
           other.descripcion == this.descripcion &&
           other.creadoEn == this.creadoEn &&
+          other.eliminadoEn == this.eliminadoEn &&
           other.sincronizado == this.sincronizado);
 }
 
@@ -4628,16 +4704,20 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
   final Value<int?> servidorId;
   final Value<int> usuarioId;
   final Value<double> monto;
+  final Value<String> tipo;
   final Value<String?> descripcion;
   final Value<DateTime> creadoEn;
+  final Value<DateTime?> eliminadoEn;
   final Value<bool> sincronizado;
   const CargasCapitalCompanion({
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
     this.usuarioId = const Value.absent(),
     this.monto = const Value.absent(),
+    this.tipo = const Value.absent(),
     this.descripcion = const Value.absent(),
     this.creadoEn = const Value.absent(),
+    this.eliminadoEn = const Value.absent(),
     this.sincronizado = const Value.absent(),
   });
   CargasCapitalCompanion.insert({
@@ -4645,8 +4725,10 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
     this.servidorId = const Value.absent(),
     required int usuarioId,
     required double monto,
+    this.tipo = const Value.absent(),
     this.descripcion = const Value.absent(),
     this.creadoEn = const Value.absent(),
+    this.eliminadoEn = const Value.absent(),
     this.sincronizado = const Value.absent(),
   }) : usuarioId = Value(usuarioId),
        monto = Value(monto);
@@ -4655,8 +4737,10 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
     Expression<int>? servidorId,
     Expression<int>? usuarioId,
     Expression<double>? monto,
+    Expression<String>? tipo,
     Expression<String>? descripcion,
     Expression<DateTime>? creadoEn,
+    Expression<DateTime>? eliminadoEn,
     Expression<bool>? sincronizado,
   }) {
     return RawValuesInsertable({
@@ -4664,8 +4748,10 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
       if (servidorId != null) 'servidor_id': servidorId,
       if (usuarioId != null) 'usuario_id': usuarioId,
       if (monto != null) 'monto': monto,
+      if (tipo != null) 'tipo': tipo,
       if (descripcion != null) 'descripcion': descripcion,
       if (creadoEn != null) 'creado_en': creadoEn,
+      if (eliminadoEn != null) 'eliminado_en': eliminadoEn,
       if (sincronizado != null) 'sincronizado': sincronizado,
     });
   }
@@ -4675,8 +4761,10 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
     Value<int?>? servidorId,
     Value<int>? usuarioId,
     Value<double>? monto,
+    Value<String>? tipo,
     Value<String?>? descripcion,
     Value<DateTime>? creadoEn,
+    Value<DateTime?>? eliminadoEn,
     Value<bool>? sincronizado,
   }) {
     return CargasCapitalCompanion(
@@ -4684,8 +4772,10 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
       servidorId: servidorId ?? this.servidorId,
       usuarioId: usuarioId ?? this.usuarioId,
       monto: monto ?? this.monto,
+      tipo: tipo ?? this.tipo,
       descripcion: descripcion ?? this.descripcion,
       creadoEn: creadoEn ?? this.creadoEn,
+      eliminadoEn: eliminadoEn ?? this.eliminadoEn,
       sincronizado: sincronizado ?? this.sincronizado,
     );
   }
@@ -4705,11 +4795,17 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
     if (monto.present) {
       map['monto'] = Variable<double>(monto.value);
     }
+    if (tipo.present) {
+      map['tipo'] = Variable<String>(tipo.value);
+    }
     if (descripcion.present) {
       map['descripcion'] = Variable<String>(descripcion.value);
     }
     if (creadoEn.present) {
       map['creado_en'] = Variable<DateTime>(creadoEn.value);
+    }
+    if (eliminadoEn.present) {
+      map['eliminado_en'] = Variable<DateTime>(eliminadoEn.value);
     }
     if (sincronizado.present) {
       map['sincronizado'] = Variable<bool>(sincronizado.value);
@@ -4724,8 +4820,10 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
           ..write('servidorId: $servidorId, ')
           ..write('usuarioId: $usuarioId, ')
           ..write('monto: $monto, ')
+          ..write('tipo: $tipo, ')
           ..write('descripcion: $descripcion, ')
           ..write('creadoEn: $creadoEn, ')
+          ..write('eliminadoEn: $eliminadoEn, ')
           ..write('sincronizado: $sincronizado')
           ..write(')'))
         .toString();
@@ -7820,8 +7918,10 @@ typedef $$CargasCapitalTableCreateCompanionBuilder =
       Value<int?> servidorId,
       required int usuarioId,
       required double monto,
+      Value<String> tipo,
       Value<String?> descripcion,
       Value<DateTime> creadoEn,
+      Value<DateTime?> eliminadoEn,
       Value<bool> sincronizado,
     });
 typedef $$CargasCapitalTableUpdateCompanionBuilder =
@@ -7830,8 +7930,10 @@ typedef $$CargasCapitalTableUpdateCompanionBuilder =
       Value<int?> servidorId,
       Value<int> usuarioId,
       Value<double> monto,
+      Value<String> tipo,
       Value<String?> descripcion,
       Value<DateTime> creadoEn,
+      Value<DateTime?> eliminadoEn,
       Value<bool> sincronizado,
     });
 
@@ -7864,6 +7966,11 @@ class $$CargasCapitalTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get tipo => $composableBuilder(
+    column: $table.tipo,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get descripcion => $composableBuilder(
     column: $table.descripcion,
     builder: (column) => ColumnFilters(column),
@@ -7871,6 +7978,11 @@ class $$CargasCapitalTableFilterComposer
 
   ColumnFilters<DateTime> get creadoEn => $composableBuilder(
     column: $table.creadoEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get eliminadoEn => $composableBuilder(
+    column: $table.eliminadoEn,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7909,6 +8021,11 @@ class $$CargasCapitalTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get tipo => $composableBuilder(
+    column: $table.tipo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get descripcion => $composableBuilder(
     column: $table.descripcion,
     builder: (column) => ColumnOrderings(column),
@@ -7916,6 +8033,11 @@ class $$CargasCapitalTableOrderingComposer
 
   ColumnOrderings<DateTime> get creadoEn => $composableBuilder(
     column: $table.creadoEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get eliminadoEn => $composableBuilder(
+    column: $table.eliminadoEn,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -7948,6 +8070,9 @@ class $$CargasCapitalTableAnnotationComposer
   GeneratedColumn<double> get monto =>
       $composableBuilder(column: $table.monto, builder: (column) => column);
 
+  GeneratedColumn<String> get tipo =>
+      $composableBuilder(column: $table.tipo, builder: (column) => column);
+
   GeneratedColumn<String> get descripcion => $composableBuilder(
     column: $table.descripcion,
     builder: (column) => column,
@@ -7955,6 +8080,11 @@ class $$CargasCapitalTableAnnotationComposer
 
   GeneratedColumn<DateTime> get creadoEn =>
       $composableBuilder(column: $table.creadoEn, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get eliminadoEn => $composableBuilder(
+    column: $table.eliminadoEn,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get sincronizado => $composableBuilder(
     column: $table.sincronizado,
@@ -7997,16 +8127,20 @@ class $$CargasCapitalTableTableManager
                 Value<int?> servidorId = const Value.absent(),
                 Value<int> usuarioId = const Value.absent(),
                 Value<double> monto = const Value.absent(),
+                Value<String> tipo = const Value.absent(),
                 Value<String?> descripcion = const Value.absent(),
                 Value<DateTime> creadoEn = const Value.absent(),
+                Value<DateTime?> eliminadoEn = const Value.absent(),
                 Value<bool> sincronizado = const Value.absent(),
               }) => CargasCapitalCompanion(
                 id: id,
                 servidorId: servidorId,
                 usuarioId: usuarioId,
                 monto: monto,
+                tipo: tipo,
                 descripcion: descripcion,
                 creadoEn: creadoEn,
+                eliminadoEn: eliminadoEn,
                 sincronizado: sincronizado,
               ),
           createCompanionCallback:
@@ -8015,16 +8149,20 @@ class $$CargasCapitalTableTableManager
                 Value<int?> servidorId = const Value.absent(),
                 required int usuarioId,
                 required double monto,
+                Value<String> tipo = const Value.absent(),
                 Value<String?> descripcion = const Value.absent(),
                 Value<DateTime> creadoEn = const Value.absent(),
+                Value<DateTime?> eliminadoEn = const Value.absent(),
                 Value<bool> sincronizado = const Value.absent(),
               }) => CargasCapitalCompanion.insert(
                 id: id,
                 servidorId: servidorId,
                 usuarioId: usuarioId,
                 monto: monto,
+                tipo: tipo,
                 descripcion: descripcion,
                 creadoEn: creadoEn,
+                eliminadoEn: eliminadoEn,
                 sincronizado: sincronizado,
               ),
           withReferenceMapper: (p0) => p0

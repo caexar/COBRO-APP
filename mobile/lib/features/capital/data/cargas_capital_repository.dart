@@ -9,9 +9,10 @@ import '../../../data/daos/cargas_capital_dao.dart';
 
 export '../../../data/app_database.dart' show CargaCapital;
 
-/// CRUD local (solo alta y lectura) de cargas de capital: dinero que el
-/// cobrador mete al negocio. Encola el alta en `cambios_pendientes`, mismo
-/// patrón que clientes/préstamos/pagos.
+/// CRUD local de movimientos de capital: aportes (`tipo = 'carga'`) y
+/// retiros (`tipo = 'retiro'`) que el cobrador registra sobre el negocio.
+/// Encola cada alta/baja en `cambios_pendientes`, mismo patrón que
+/// clientes/préstamos/pagos.
 class CargasCapitalRepository {
   CargasCapitalRepository({AppDatabase? database, SecureStorageService? secureStorage})
       : _database = database ?? AppDatabase.instance,
@@ -36,9 +37,10 @@ class CargasCapitalRepository {
     return _cargasCapitalDao.obtenerTodas(usuarioId);
   }
 
-  /// Registra una carga de capital y encola el alta para la próxima
-  /// sincronización. La fecha es siempre "ahora" (no se pide editable).
-  Future<int> crear({required double monto, String? descripcion}) async {
+  /// Registra un movimiento de capital ([tipo] `'carga'` o `'retiro'`, monto
+  /// siempre positivo) y encola el alta para la próxima sincronización. La
+  /// fecha es siempre "ahora" (no se pide editable).
+  Future<int> crear({required double monto, String? descripcion, String tipo = 'carga'}) async {
     final usuarioId = await _usuarioIdActual();
     final ahora = DateTime.now();
 
@@ -46,6 +48,7 @@ class CargasCapitalRepository {
       CargasCapitalCompanion.insert(
         usuarioId: usuarioId,
         monto: monto,
+        tipo: Value(tipo),
         descripcion: Value(descripcion),
         creadoEn: Value(ahora),
       ),
@@ -56,9 +59,23 @@ class CargasCapitalRepository {
       tabla: 'cargas_capital',
       registroId: id,
       tipoOperacion: 'crear',
-      payload: jsonEncode({'monto': monto, 'descripcion': descripcion, 'fecha': ahora.toIso8601String()}),
+      payload: jsonEncode({'monto': monto, 'tipo': tipo, 'descripcion': descripcion, 'fecha': ahora.toIso8601String()}),
     );
 
     return id;
+  }
+
+  /// Deshace un movimiento registrado por error (soft-delete) y encola la
+  /// baja para la próxima sincronización.
+  Future<void> eliminar(int id) async {
+    final usuarioId = await _usuarioIdActual();
+    await _cargasCapitalDao.eliminar(id);
+
+    await _cambiosPendientesDao.encolar(
+      usuarioId: usuarioId,
+      tabla: 'cargas_capital',
+      registroId: id,
+      tipoOperacion: 'eliminar',
+    );
   }
 }

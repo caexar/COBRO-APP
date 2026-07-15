@@ -381,12 +381,23 @@ usarlos en vez de consultar la tabla directamente.
 Todo se calcula **desde Drift local**, nunca pidiéndole nada al backend (mismo criterio
 offline-first que clientes/préstamos/pagos). `cargas_capital` es tabla nueva (backend con
 migración + `POST /cargas-capital`, sin `GET`; local en Drift) para que el cobrador registre
-aportes de capital (monto + descripción opcional, fecha automática).
+movimientos de capital: aportes (`tipo = 'carga'`) y retiros (`tipo = 'retiro'`), monto siempre
+positivo, el signo lo da `tipo` (mismo patrón que `monto_abonado` en pagos). Soporta soft-delete
+(`eliminadoEn`) para deshacer un movimiento registrado por error — `CargasCapitalDao.obtenerTodas`
+ya filtra `eliminadoEn.isNull()`. `AgregarCapitalScreen` tiene un `SegmentedButton` para elegir
+entrada/retiro; `HistorialCapitalScreen` (icono junto al botón "Agregar capital") lista todos los
+movimientos no eliminados con opción de eliminar cada uno.
 
-- **Saldo disponible** (`DashboardRepository.calcularResumen`) = `Σ cargas_capital.monto` +
-  `Σ pagos.monto_abonado` (todo lo cobrado, **no** `monto_aplicado` — así el excedente de un
-  `cobro_extra` sí cuenta como efectivo en caja) − `Σ prestamos.monto_capital` de préstamos
-  `activo`/`en_mora` (capital ya pagado o anulado no se resta, porque ya volvió o nunca contó).
+- **Saldo disponible** (`DashboardRepository.calcularResumen`) = `Σ cargas_capital.monto` (tipo
+  `carga`) − `Σ cargas_capital.monto` (tipo `retiro`) + `Σ pagos.monto_abonado` (todo lo
+  cobrado, **no** `monto_aplicado` — así el excedente de un `cobro_extra` sí cuenta como
+  efectivo en caja) − `Σ prestamos.monto_capital` de **cualquier préstamo no anulado**
+  (`activo`, `en_mora` o `pagado`). **Ojo con este último término**: hasta la corrección de un
+  bug real reportado, solo se restaba el capital de préstamos `activo`/`en_mora`, así que un
+  préstamo que terminaba de pagarse dejaba de descontarse — el capital había salido de caja al
+  prestarlo igual, y lo que volvió (capital + interés) ya está contado en `monto_abonado`, así
+  que dejar de restarlo inflaba el saldo con el capital original otra vez. Solo un préstamo
+  `anulado` no cuenta (nunca se entregó o se revirtió).
 - **Ganancia realizada**: por cada préstamo (de cualquier estado, uno ya `pagado`/`anulado`
   sigue contando históricamente) se reparte `Σ pagos.monto_aplicado` proporcional al peso de
   interés/extras sobre `montoTotal`. El excedente `cobro_extra` (`monto_abonado -
@@ -394,9 +405,24 @@ aportes de capital (monto + descripción opcional, fecha automática).
   (mismo balde que los montos extra del préstamo) — decisión explícita del negocio, no un
   tercer balde. La gráfica (`fl_chart`, colores validados con la skill de dataviz) es de esos
   2 colores nada más.
-- **Proyección de entradas** ("hoy" y "en la semana"): ventana móvil de 7 días (hoy inclusive
-  hasta 6 días después), no semana calendario — decisión de diseño sin precedente previo en
-  el código, documentada aquí por si se quiere cambiar a calendario lunes-domingo.
+- **Vista configurable del dashboard** (por cobrador, guardada en secure storage con clave
+  `dashboard_vista_<usuarioId>`, ver `SecureStorageService.guardar/leerVistaDashboard`, ícono
+  de ajustes en el `AppBar` del dashboard): `'todo'` (default, sin preferencia guardada),
+  `'capital'` (oculta la tarjeta de "Ganancia realizada" por completo), `'capital_interes'` o
+  `'capital_extra'` (la tarjeta queda con un solo balde/color). No afecta el cálculo de
+  `DashboardRepository`, solo qué pinta `DashboardScreen`.
+- **Entradas hoy / entradas en 7 días**: dinero **realmente cobrado** (`Σ pagos.monto_abonado`
+  agrupado por `fecha_pago`), no una proyección de cuotas por vencer. "Hoy" es `fecha_pago` ==
+  hoy; "7 días" es una ventana móvil retrospectiva (hoy inclusive, hasta 6 días atrás), sin
+  importar si el pago correspondía o no a la cuota que vencía ese día. (Antes de una corrección
+  reciente esto mostraba una proyección de cuotas *por vencer* — cifras completamente distintas
+  a lo que el nombre de la tarjeta sugiere; si se necesita esa proyección hacia adelante en el
+  futuro, debe ser una tarjeta separada, no reemplazar a esta.)
+- **Historial de préstamos** (`HistorialPrestamosScreen`, botón debajo de "Nuevo préstamo"):
+  misma vista que "Cobros pendientes" (`PrestamosRepository.listarPagados`, mismo criterio de
+  búsqueda), pero solo préstamos `estado = pagado`; tocar uno abre el mismo
+  `PrestamoDetalleScreen` de siempre (ya es de solo lectura para pagos en ese estado, porque
+  `puedeRegistrarPago` ya excluía `pagado`/`anulado`).
 - **Exportar CSV** (`ReportesRepository`, paquete `csv` + `share_plus`): filtra el historial de
   pagos por rango de fechas y cliente opcional; el resumen de cartera y el listado de
   préstamos siempre salen completos, sin filtrar.
@@ -411,8 +437,15 @@ Dos reglas que ya causaron bugs reales y no deben repetirse:
    mano con `package:sqlite3` crudo, verificado contra `sqlite_master` real, no de memoria).
    Sin esto, un dispositivo con la app ya instalada rompe en silencio (`no such column`/`no
    such table`) la primera vez que se toca esa tabla — ya pasó con `prestamos.referencia`.
-   Versión actual: `4` (v1→v2 `referencia`, v2→v3 tabla `cargas_capital`, v3→v4
-   `cambios_pendientes.usuario_id`).
+   Versión actual: `5` (v1→v2 `referencia`, v2→v3 tabla `cargas_capital`, v3→v4
+   `cambios_pendientes.usuario_id`, v4→v5 `cargas_capital.tipo`/`eliminadoEn`). **Cuidado con
+   `m.createTable(tabla)` en un paso `if (from < N)`**: siempre crea la tabla con la definición
+   *actual* del código, no con la forma histórica de esa versión — si más adelante se agregan
+   columnas a esa misma tabla en un paso posterior (`m.addColumn`), un dispositivo que migra
+   desde antes de que la tabla existiera ya la recibe completa vía `createTable` y el
+   `addColumn` posterior debe excluir ese caso (`if (from >= N && from < M)`, no solo
+   `if (from < M)`) o falla con "duplicate column" — pasó exactamente esto con
+   `cargas_capital.tipo`/`eliminadoEn` en el paso v4→v5.
 2. **Todo método de lectura de un DAO que devuelva datos propios de un cobrador debe filtrar
    por `usuarioId`** — el dispositivo es compartido potencialmente por varios cobradores
    (login/logout), todos sobre el mismo archivo SQLite. Antes de esta regla, `obtenerTodos`/

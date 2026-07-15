@@ -30,6 +30,7 @@ class SecureStorageService {
   static const _clavePinMaestroGlobal = 'pin_maestro_global_hash';
   static const _claveIntentosMaximosPin = 'bloqueo_intentos_maximos_pin';
   static const _claveIntentosFallidos = 'bloqueo_intentos_fallidos';
+  static const _prefijoVistaDashboard = 'dashboard_vista_';
 
   // --- Sesión ---
 
@@ -137,4 +138,19 @@ class SecureStorageService {
   }
 
   Future<void> reiniciarIntentosFallidos() => _storage.write(key: _claveIntentosFallidos, value: '0');
+
+  // --- Dashboard: vista configurable por cobrador ---
+
+  /// Qué tarjetas mostrar en el dashboard del cobrador: `'todo'` (default,
+  /// interés y extras), `'capital'` (solo saldo/cartera/entradas, sin
+  /// tarjeta de ganancia), `'capital_interes'` o `'capital_extra'` (tarjeta
+  /// de ganancia con un solo balde). Clave por [usuarioId] porque el
+  /// dispositivo puede ser compartido por varios cobradores.
+  Future<void> guardarVistaDashboard(int usuarioId, String vista) =>
+      _storage.write(key: '$_prefijoVistaDashboard$usuarioId', value: vista);
+
+  Future<String> leerVistaDashboard(int usuarioId) async {
+    final valor = await _storage.read(key: '$_prefijoVistaDashboard$usuarioId');
+    return valor ?? 'todo';
+  }
 }
