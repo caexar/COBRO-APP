@@ -42,7 +42,7 @@ void main() {
     expect(clientes.first.nombre, 'Juan Perez');
     expect(clientes.first.sincronizado, isFalse);
 
-    final pendientes = await db.cambiosPendientesDao.obtenerPendientes();
+    final pendientes = await db.cambiosPendientesDao.obtenerPendientes(1);
     expect(pendientes, hasLength(1));
     expect(pendientes.first.tabla, 'clientes');
     expect(pendientes.first.registroId, id);
@@ -95,7 +95,7 @@ void main() {
     final clientes = await repository.listar();
     expect(clientes.single.telefono, '3009999999');
 
-    final pendientes = await db.cambiosPendientesDao.obtenerPendientes();
+    final pendientes = await db.cambiosPendientesDao.obtenerPendientes(1);
     expect(pendientes.map((p) => p.tipoOperacion), containsAll(['crear', 'actualizar']));
   });
 

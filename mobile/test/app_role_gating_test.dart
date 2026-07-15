@@ -2,7 +2,8 @@ import 'package:cobro_app/app.dart';
 import 'package:cobro_app/features/admin/presentation/admin_panel_screen.dart';
 import 'package:cobro_app/features/auth/data/auth_repository.dart';
 import 'package:cobro_app/features/auth/data/bloqueo_repository.dart';
-import 'package:cobro_app/features/dashboard/presentation/dashboard_placeholder_screen.dart';
+import 'package:cobro_app/features/dashboard/data/dashboard_repository.dart';
+import 'package:cobro_app/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -48,6 +49,22 @@ class _BloqueoRepositoryFalso extends BloqueoRepository {
   }
 }
 
+/// Evita que el dashboard de cobrador toque la base de datos real (que no
+/// está disponible en este entorno de pruebas) al calcular su resumen.
+class _DashboardRepositoryFalso extends DashboardRepository {
+  @override
+  Future<ResumenDashboard> calcularResumen() async {
+    return const ResumenDashboard(
+      saldoDisponible: 0,
+      carteraPorCobrar: 0,
+      proyeccionHoy: 0,
+      proyeccionSemana: 0,
+      gananciaInteres: 0,
+      gananciaExtras: 0,
+    );
+  }
+}
+
 Future<void> _desbloquear(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.enterText(find.byType(TextField).first, '1234');
@@ -69,7 +86,7 @@ void main() {
     await _desbloquear(tester);
 
     expect(find.byType(AdminPanelScreen), findsOneWidget);
-    expect(find.byType(DashboardPlaceholderScreen), findsNothing);
+    expect(find.byType(DashboardScreen), findsNothing);
     expect(find.text('Clientes'), findsNothing);
     expect(find.text('Usuarios cobradores'), findsOneWidget);
     expect(find.text('Ana Cobradora · Administrador'), findsOneWidget);
@@ -81,15 +98,20 @@ void main() {
         home: AppEntryPoint(
           authRepository: _AuthRepositoryFalso(rol: 'cobrador'),
           bloqueoRepository: _BloqueoRepositoryFalso(),
+          dashboardRepository: _DashboardRepositoryFalso(),
         ),
       ),
     );
 
     await _desbloquear(tester);
 
-    expect(find.byType(DashboardPlaceholderScreen), findsOneWidget);
+    expect(find.byType(DashboardScreen), findsOneWidget);
     expect(find.byType(AdminPanelScreen), findsNothing);
-    expect(find.text('Clientes'), findsOneWidget);
     expect(find.text('Ana Cobradora · Cobrador'), findsOneWidget);
+
+    // Las tarjetas financieras arriba del dashboard ocupan más que el
+    // viewport de la prueba: hay que bajar para que "Clientes" se construya.
+    await tester.scrollUntilVisible(find.text('Clientes'), 300, scrollable: find.byType(Scrollable));
+    expect(find.text('Clientes'), findsOneWidget);
   });
 }

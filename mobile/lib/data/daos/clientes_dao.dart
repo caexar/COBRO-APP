@@ -9,43 +9,48 @@ part 'clientes_dao.g.dart';
 class ClientesDao extends DatabaseAccessor<AppDatabase> with _$ClientesDaoMixin {
   ClientesDao(super.db);
 
-  /// Clientes no eliminados, ordenados por nombre.
-  Future<List<Cliente>> obtenerTodos() {
+  /// Clientes no eliminados de [usuarioId], ordenados por nombre. Cada
+  /// cobrador solo puede ver los suyos, aunque compartan dispositivo.
+  Future<List<Cliente>> obtenerTodos(int usuarioId) {
     return (select(clientes)
-          ..where((tbl) => tbl.eliminadoEn.isNull())
+          ..where((tbl) => tbl.eliminadoEn.isNull() & tbl.usuarioId.equals(usuarioId))
           ..orderBy([(tbl) => OrderingTerm(expression: tbl.nombre)]))
         .get();
   }
 
-  /// Igual que [obtenerTodos] pero reactivo, para refrescar la UI cuando cambien los datos.
-  Stream<List<Cliente>> observarTodos() {
+  Future<Cliente?> obtenerPorId(int id, int usuarioId) {
     return (select(clientes)
-          ..where((tbl) => tbl.eliminadoEn.isNull())
-          ..orderBy([(tbl) => OrderingTerm(expression: tbl.nombre)]))
-        .watch();
-  }
-
-  Future<Cliente?> obtenerPorId(int id) {
-    return (select(clientes)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+          ..where((tbl) => tbl.id.equals(id) & tbl.usuarioId.equals(usuarioId)))
+        .getSingleOrNull();
   }
 
   Future<List<Cliente>> obtenerNoSincronizados() {
     return (select(clientes)..where((tbl) => tbl.sincronizado.equals(false))).get();
   }
 
-  /// Coincidencias por nombre (LIKE, sin distinguir mayúsculas), para el buscador.
-  Future<List<Cliente>> buscarPorNombre(String termino) {
+  /// Coincidencias por nombre (LIKE, sin distinguir mayúsculas) de [usuarioId], para el buscador.
+  Future<List<Cliente>> buscarPorNombre(String termino, int usuarioId) {
     return (select(clientes)
-          ..where((tbl) => tbl.eliminadoEn.isNull() & tbl.nombre.like('%$termino%'))
+          ..where(
+            (tbl) =>
+                tbl.eliminadoEn.isNull() &
+                tbl.usuarioId.equals(usuarioId) &
+                tbl.nombre.like('%$termino%'),
+          )
           ..orderBy([(tbl) => OrderingTerm(expression: tbl.nombre)]))
         .get();
   }
 
-  /// Coincidencias por cédula (LIKE), usado como complemento cuando el
-  /// término de búsqueda contiene dígitos.
-  Future<List<Cliente>> buscarPorCedula(String termino) {
+  /// Coincidencias por cédula (LIKE) de [usuarioId], usado como complemento
+  /// cuando el término de búsqueda contiene dígitos.
+  Future<List<Cliente>> buscarPorCedula(String termino, int usuarioId) {
     return (select(clientes)
-          ..where((tbl) => tbl.eliminadoEn.isNull() & tbl.cedula.like('%$termino%'))
+          ..where(
+            (tbl) =>
+                tbl.eliminadoEn.isNull() &
+                tbl.usuarioId.equals(usuarioId) &
+                tbl.cedula.like('%$termino%'),
+          )
           ..orderBy([(tbl) => OrderingTerm(expression: tbl.nombre)]))
         .get();
   }
@@ -84,9 +89,13 @@ class ClientesDao extends DatabaseAccessor<AppDatabase> with _$ClientesDaoMixin 
 
   /// Actualización parcial: solo escribe los campos presentes en [cliente]
   /// (a diferencia de `.replace()`, que exige que todas las columnas
-  /// requeridas estén en el companion). Requiere que `cliente.id` esté seteado.
-  Future<int> actualizar(ClientesCompanion cliente) {
-    return (update(clientes)..where((tbl) => tbl.id.equals(cliente.id.value))).write(cliente);
+  /// requeridas estén en el companion). Requiere que `cliente.id` esté
+  /// seteado; [usuarioId] evita que se pueda editar un cliente ajeno aunque
+  /// se conozca su id.
+  Future<int> actualizar(ClientesCompanion cliente, int usuarioId) {
+    return (update(clientes)
+          ..where((tbl) => tbl.id.equals(cliente.id.value) & tbl.usuarioId.equals(usuarioId)))
+        .write(cliente);
   }
 
   /// Soft delete: el backend nunca elimina físicamente un cliente.

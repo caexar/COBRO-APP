@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Admin\AdminConfiguracionController;
 use App\Http\Controllers\Api\Admin\AdminResumenController;
 use App\Http\Controllers\Api\Admin\AdminUsuarioController;
+use App\Http\Controllers\Api\CargaCapitalController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\PagoController;
 use App\Http\Controllers\Api\PinMaestroController;
@@ -33,6 +34,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('prestamos/{prestamo}/pagos', [PrestamoController::class, 'pagos']);
 
         Route::post('pagos', [PagoController::class, 'store']);
+
+        Route::post('cargas-capital', [CargaCapitalController::class, 'store']);
 
         Route::get('pin-maestro', [PinMaestroController::class, 'index']);
     });

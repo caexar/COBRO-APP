@@ -8,7 +8,8 @@ import 'features/auth/data/bloqueo_repository.dart';
 import 'features/auth/presentation/bloqueo_config_screen.dart';
 import 'features/auth/presentation/bloqueo_screen.dart';
 import 'features/auth/presentation/login_screen.dart';
-import 'features/dashboard/presentation/dashboard_placeholder_screen.dart';
+import 'features/dashboard/data/dashboard_repository.dart';
+import 'features/dashboard/presentation/dashboard_screen.dart';
 
 class CobroApp extends StatelessWidget {
   const CobroApp({super.key});
@@ -28,12 +29,13 @@ class CobroApp extends StatelessWidget {
 /// dashboard) y vuelve a exigir el bloqueo cada vez que la app se abre o
 /// vuelve de segundo plano.
 class AppEntryPoint extends StatefulWidget {
-  const AppEntryPoint({super.key, this.authRepository, this.bloqueoRepository});
+  const AppEntryPoint({super.key, this.authRepository, this.bloqueoRepository, this.dashboardRepository});
 
   /// Inyectables solo para pruebas; en la app real siempre se usan las
   /// instancias por defecto (ver `_AppEntryPointState`).
   final AuthRepository? authRepository;
   final BloqueoRepository? bloqueoRepository;
+  final DashboardRepository? dashboardRepository;
 
   @override
   State<AppEntryPoint> createState() => _AppEntryPointState();
@@ -164,6 +166,10 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
       return AdminPanelScreen(onCerrarSesion: _cerrarSesion, nombre: _nombre ?? '');
     }
 
-    return DashboardPlaceholderScreen(onCerrarSesion: _cerrarSesion, nombre: _nombre ?? '');
+    return DashboardScreen(
+      onCerrarSesion: _cerrarSesion,
+      nombre: _nombre ?? '',
+      dashboardRepository: widget.dashboardRepository,
+    );
   }
 }

@@ -68,18 +68,30 @@ class PrestamosRepository {
     return id;
   }
 
-  Future<List<Prestamo>> listarPorCliente(int clienteId) => _prestamosDao.obtenerPorCliente(clienteId);
+  Future<List<Prestamo>> listarPorCliente(int clienteId) async {
+    final usuarioId = await _usuarioIdActual();
+    return _prestamosDao.obtenerPorCliente(clienteId, usuarioId);
+  }
+
+  /// Todos los préstamos del cobrador, de cualquier estado (para reportes
+  /// globales como el dashboard, donde un préstamo ya pagado o anulado
+  /// sigue contando para la ganancia históricamente realizada).
+  Future<List<Prestamo>> listarTodos() async {
+    final usuarioId = await _usuarioIdActual();
+    return _prestamosDao.obtenerTodos(usuarioId);
+  }
 
   /// Préstamos `activo`/`en_mora` del cobrador con su cliente y saldo
   /// pendiente, filtrados por [busqueda] con el mismo criterio flexible de
   /// [ClientesRepository.buscar] (nombre siempre, cédula si el texto tiene
   /// dígitos). Pensado para la pantalla de "Cobros pendientes".
   Future<List<PrestamoResumen>> listarPendientes({String busqueda = ''}) async {
+    final usuarioId = await _usuarioIdActual();
     final clientes = await _clientesRepository.buscar(busqueda);
     final resumenes = <PrestamoResumen>[];
 
     for (final cliente in clientes) {
-      final prestamosCliente = await _prestamosDao.obtenerPorCliente(cliente.id);
+      final prestamosCliente = await _prestamosDao.obtenerPorCliente(cliente.id, usuarioId);
 
       for (final prestamo in prestamosCliente) {
         if (prestamo.estado != 'activo' && prestamo.estado != 'en_mora') continue;
@@ -102,8 +114,12 @@ class PrestamosRepository {
     return resumenes;
   }
 
+  /// Lanza [StateError] si el préstamo no existe **o pertenece a otro
+  /// cobrador** — nunca revela si es lo uno o lo otro, para no filtrar la
+  /// existencia de datos ajenos.
   Future<PrestamoDetalle> obtenerDetalle(int prestamoId) async {
-    final prestamo = await _prestamosDao.obtenerPorId(prestamoId);
+    final usuarioId = await _usuarioIdActual();
+    final prestamo = await _prestamosDao.obtenerPorId(prestamoId, usuarioId);
     if (prestamo == null) {
       throw StateError('El préstamo ya no existe.');
     }
@@ -173,6 +189,7 @@ class PrestamosRepository {
     }
 
     await _cambiosPendientesDao.encolar(
+      usuarioId: usuarioId,
       tabla: 'prestamos',
       registroId: prestamoId,
       tipoOperacion: 'crear',

@@ -10,22 +10,27 @@ class CambiosPendientesDao extends DatabaseAccessor<AppDatabase>
     with _$CambiosPendientesDaoMixin {
   CambiosPendientesDao(super.db);
 
-  /// Todos los cambios que el botón de sincronización todavía debe enviar.
-  Future<List<CambiosPendiente>> obtenerPendientes() {
+  /// Todos los cambios de [usuarioId] que el botón de sincronización todavía
+  /// debe enviar (cada cobrador solo ve/sincroniza su propia cola, aunque
+  /// compartan dispositivo).
+  Future<List<CambiosPendiente>> obtenerPendientes(int usuarioId) {
     return (select(cambiosPendientes)
+          ..where((tbl) => tbl.usuarioId.equals(usuarioId))
           ..orderBy([(tbl) => OrderingTerm(expression: tbl.creadoEn)]))
         .get();
   }
 
   /// Igual que [obtenerPendientes], pero reactivo (útil para un contador en el botón de sync).
-  Stream<List<CambiosPendiente>> observarPendientes() {
+  Stream<List<CambiosPendiente>> observarPendientes(int usuarioId) {
     return (select(cambiosPendientes)
+          ..where((tbl) => tbl.usuarioId.equals(usuarioId))
           ..orderBy([(tbl) => OrderingTerm(expression: tbl.creadoEn)]))
         .watch();
   }
 
   /// Encola un cambio local pendiente de enviar al servidor.
   Future<int> encolar({
+    required int usuarioId,
     required String tabla,
     required int registroId,
     required String tipoOperacion,
@@ -33,6 +38,7 @@ class CambiosPendientesDao extends DatabaseAccessor<AppDatabase>
   }) {
     return into(cambiosPendientes).insert(
       CambiosPendientesCompanion.insert(
+        usuarioId: Value(usuarioId),
         tabla: tabla,
         registroId: registroId,
         tipoOperacion: tipoOperacion,

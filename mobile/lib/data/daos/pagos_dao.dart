@@ -2,10 +2,11 @@ import 'package:drift/drift.dart';
 
 import '../app_database.dart';
 import '../tables/pagos_table.dart';
+import '../tables/prestamos_table.dart';
 
 part 'pagos_dao.g.dart';
 
-@DriftAccessor(tables: [Pagos])
+@DriftAccessor(tables: [Pagos, Prestamos])
 class PagosDao extends DatabaseAccessor<AppDatabase> with _$PagosDaoMixin {
   PagosDao(super.db);
 
@@ -14,6 +15,21 @@ class PagosDao extends DatabaseAccessor<AppDatabase> with _$PagosDaoMixin {
           ..where((tbl) => tbl.prestamoId.equals(prestamoId) & tbl.eliminadoEn.isNull())
           ..orderBy([(tbl) => OrderingTerm(expression: tbl.fechaPago)]))
         .get();
+  }
+
+  /// Todos los pagos no eliminados de préstamos de [usuarioId] (para
+  /// reportes que no están acotados a un solo préstamo, ej. exportar CSV).
+  /// Filtra con un join contra `prestamos` porque `pagos` no guarda el
+  /// dueño directamente — solo `prestamo_id`.
+  Future<List<Pago>> obtenerTodos(int usuarioId) async {
+    final consulta = select(pagos).join([
+      innerJoin(prestamos, prestamos.id.equalsExp(pagos.prestamoId)),
+    ])
+      ..where(pagos.eliminadoEn.isNull() & prestamos.usuarioId.equals(usuarioId))
+      ..orderBy([OrderingTerm(expression: pagos.fechaPago)]);
+
+    final filas = await consulta.get();
+    return filas.map((fila) => fila.readTable(pagos)).toList();
   }
 
   Future<List<Pago>> obtenerNoSincronizados() {

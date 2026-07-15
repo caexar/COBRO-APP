@@ -303,6 +303,15 @@ usarlos en vez de consultar la tabla directamente.
   encola **una sola fila** en `cambios_pendientes` para el préstamo (no una por cuota/extra) —
   el payload JSON lleva todo lo necesario para que la sincronización recree el mismo cálculo
   del lado del servidor.
+- `prestamos.referencia` (backend y Drift): texto corto opcional, solo informativo, para que
+  el cobrador distinga préstamos cuando un mismo cliente tiene varios (ej. "Préstamo moto").
+  No participa en `PrestamoCalculator`. Se muestra en el detalle del préstamo y en "Cobros
+  pendientes" como `"Cliente — Referencia"`.
+- `CobrosPendientesScreen` (`presentation/cobros_pendientes_screen.dart`): lista préstamos
+  `activo`/`en_mora` del cobrador (vía `PrestamosRepository.listarPendientes`, que reutiliza
+  `ClientesRepository.buscar` para el buscador) con saldo pendiente y chip "En mora". Tocar un
+  ítem abre `PrestamoDetalleScreen` (no salta directo a registrar pago) — desde ahí se usa el
+  botón "Registrar pago" que ya existe en esa pantalla.
 - Los botones rápidos de interés (10/20/30/40%) están hardcodeados a propósito, tal como se
   pidió — no se leen de `configuracion_global.tasas_interes_default` (eso sigue siendo solo
   informativo para el panel admin).
@@ -351,3 +360,70 @@ usarlos en vez de consultar la tabla directamente.
   `curl`) para confirmar que las formas de JSON asumidas en
   `test/features/admin/admin_repository_test.dart` (con `MockClient` de `package:http`)
   coinciden con la implementación actual, no solo con lo documentado en `API.md`.
+
+## App móvil: pagos (`mobile/lib/features/pagos`)
+
+- `PagoProcessor` (Dart) es réplica del `PagoProcessor.php` del backend (mismos 3 escenarios:
+  exacto/faltante/excedente, misma cascada de `abono_deuda`, mismo reparto de `sumar_total`).
+  **Diferencia a propósito**: en el backend `politica_mora` es fija por préstamo (elegida al
+  crearlo); en la app, el cobrador la elige en el momento de cada pago con faltante. Cuando
+  elige una distinta a la ya guardada, `PagosRepository.registrar()` también actualiza
+  `prestamos.politica_mora` localmente y la re-encola en `cambios_pendientes`, para que quede
+  consistente con lo recién aplicado.
+- Excedente (`manejo_excedente`): igual que el backend, `abono_deuda` cascada a las siguientes
+  cuotas, `cobro_extra` no reduce deuda pero sí es efectivo real (ver saldo disponible abajo).
+- `RegistrarPagoScreen`/`PrestamoFormScreen`/`AgregarCapitalScreen` siguen el mismo patrón:
+  try/catch alrededor del guardado con mensaje de error visible — un fallo de guardado nunca
+  debe quedar silencioso (bug real que ya pasó una vez con la migración de `referencia`).
+
+## App móvil: dashboard, capital y reportes — "Fase 10" (`mobile/lib/features/{dashboard,capital}`)
+
+Todo se calcula **desde Drift local**, nunca pidiéndole nada al backend (mismo criterio
+offline-first que clientes/préstamos/pagos). `cargas_capital` es tabla nueva (backend con
+migración + `POST /cargas-capital`, sin `GET`; local en Drift) para que el cobrador registre
+aportes de capital (monto + descripción opcional, fecha automática).
+
+- **Saldo disponible** (`DashboardRepository.calcularResumen`) = `Σ cargas_capital.monto` +
+  `Σ pagos.monto_abonado` (todo lo cobrado, **no** `monto_aplicado` — así el excedente de un
+  `cobro_extra` sí cuenta como efectivo en caja) − `Σ prestamos.monto_capital` de préstamos
+  `activo`/`en_mora` (capital ya pagado o anulado no se resta, porque ya volvió o nunca contó).
+- **Ganancia realizada**: por cada préstamo (de cualquier estado, uno ya `pagado`/`anulado`
+  sigue contando históricamente) se reparte `Σ pagos.monto_aplicado` proporcional al peso de
+  interés/extras sobre `montoTotal`. El excedente `cobro_extra` (`monto_abonado -
+  monto_aplicado`, el único caso donde difieren) se suma íntegro al balde de **"extras"**
+  (mismo balde que los montos extra del préstamo) — decisión explícita del negocio, no un
+  tercer balde. La gráfica (`fl_chart`, colores validados con la skill de dataviz) es de esos
+  2 colores nada más.
+- **Proyección de entradas** ("hoy" y "en la semana"): ventana móvil de 7 días (hoy inclusive
+  hasta 6 días después), no semana calendario — decisión de diseño sin precedente previo en
+  el código, documentada aquí por si se quiere cambiar a calendario lunes-domingo.
+- **Exportar CSV** (`ReportesRepository`, paquete `csv` + `share_plus`): filtra el historial de
+  pagos por rango de fechas y cliente opcional; el resumen de cartera y el listado de
+  préstamos siempre salen completos, sin filtrar.
+
+## App móvil: base de datos local (Drift) — versionado y aislamiento entre cobradores
+
+Dos reglas que ya causaron bugs reales y no deben repetirse:
+
+1. **Cualquier cambio de esquema (columna o tabla nueva) exige subir `schemaVersion` y
+   agregar un paso a `MigrationStrategy.onUpgrade` en `mobile/lib/data/app_database.dart`**,
+   con su propio test en `test/data/app_database_migration_test.dart` (arma el esquema viejo a
+   mano con `package:sqlite3` crudo, verificado contra `sqlite_master` real, no de memoria).
+   Sin esto, un dispositivo con la app ya instalada rompe en silencio (`no such column`/`no
+   such table`) la primera vez que se toca esa tabla — ya pasó con `prestamos.referencia`.
+   Versión actual: `4` (v1→v2 `referencia`, v2→v3 tabla `cargas_capital`, v3→v4
+   `cambios_pendientes.usuario_id`).
+2. **Todo método de lectura de un DAO que devuelva datos propios de un cobrador debe filtrar
+   por `usuarioId`** — el dispositivo es compartido potencialmente por varios cobradores
+   (login/logout), todos sobre el mismo archivo SQLite. Antes de esta regla, `obtenerTodos`/
+   `buscarPor*`/`obtenerPorId` de casi todos los DAOs no filtraban nada (solo las validaciones
+   de duplicados en clientes lo hacían) — cualquier cobrador veía los clientes/préstamos/pagos/
+   capital de todos los demás. `PrestamosRepository.obtenerDetalle()` es el punto de
+   verificación central (lanza si el préstamo no existe **o es de otro cobrador**, sin
+   distinguir cuál de los dos casos, para no filtrar la existencia de datos ajenos) — cualquier
+   pantalla que reciba un `prestamoId` de afuera pasa por ahí antes de tocar cuotas/pagos/extras
+   (que no tienen `usuario_id` propio, solo `prestamo_id`). `cambios_pendientes` también tiene
+   `usuario_id` (nullable, por filas viejas sin dueño) por la misma razón: la cola de
+   sincronización tampoco debe cruzarse entre cobradores. Cubierto end-to-end en
+   `test/aislamiento_entre_usuarios_test.dart` (dos cobradores, misma base de datos en
+   memoria, un solo `AppDatabase`).

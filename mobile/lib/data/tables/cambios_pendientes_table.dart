@@ -9,7 +9,13 @@ import 'package:drift/drift.dart';
 class CambiosPendientes extends Table {
   IntColumn get id => integer().autoIncrement()();
 
-  /// Nombre de la tabla afectada: clientes|prestamos|prestamos_extras|cuotas|pagos.
+  /// Dueño del cambio (el cobrador que lo generó). Nullable solo porque las
+  /// filas creadas antes de esta columna no lo tienen; toda fila nueva
+  /// siempre lo trae. Sin esto, dos cobradores que comparten dispositivo
+  /// verían la cola de sincronización del otro.
+  IntColumn get usuarioId => integer().nullable()();
+
+  /// Nombre de la tabla afectada: clientes|prestamos|prestamos_extras|cuotas|pagos|cargas_capital.
   TextColumn get tabla => text()();
 
   /// Id local (de la tabla indicada en `tabla`) del registro afectado.

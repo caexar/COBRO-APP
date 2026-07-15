@@ -3712,6 +3712,17 @@ class $CambiosPendientesTable extends CambiosPendientes
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
+  static const VerificationMeta _usuarioIdMeta = const VerificationMeta(
+    'usuarioId',
+  );
+  @override
+  late final GeneratedColumn<int> usuarioId = GeneratedColumn<int>(
+    'usuario_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _tablaMeta = const VerificationMeta('tabla');
   @override
   late final GeneratedColumn<String> tabla = GeneratedColumn<String>(
@@ -3792,6 +3803,7 @@ class $CambiosPendientesTable extends CambiosPendientes
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    usuarioId,
     tabla,
     registroId,
     tipoOperacion,
@@ -3814,6 +3826,12 @@ class $CambiosPendientesTable extends CambiosPendientes
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('usuario_id')) {
+      context.handle(
+        _usuarioIdMeta,
+        usuarioId.isAcceptableOrUnknown(data['usuario_id']!, _usuarioIdMeta),
+      );
     }
     if (data.containsKey('tabla')) {
       context.handle(
@@ -3882,6 +3900,10 @@ class $CambiosPendientesTable extends CambiosPendientes
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
+      usuarioId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}usuario_id'],
+      ),
       tabla: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}tabla'],
@@ -3923,7 +3945,13 @@ class CambiosPendiente extends DataClass
     implements Insertable<CambiosPendiente> {
   final int id;
 
-  /// Nombre de la tabla afectada: clientes|prestamos|prestamos_extras|cuotas|pagos.
+  /// Dueño del cambio (el cobrador que lo generó). Nullable solo porque las
+  /// filas creadas antes de esta columna no lo tienen; toda fila nueva
+  /// siempre lo trae. Sin esto, dos cobradores que comparten dispositivo
+  /// verían la cola de sincronización del otro.
+  final int? usuarioId;
+
+  /// Nombre de la tabla afectada: clientes|prestamos|prestamos_extras|cuotas|pagos|cargas_capital.
   final String tabla;
 
   /// Id local (de la tabla indicada en `tabla`) del registro afectado.
@@ -3939,6 +3967,7 @@ class CambiosPendiente extends DataClass
   final String? ultimoError;
   const CambiosPendiente({
     required this.id,
+    this.usuarioId,
     required this.tabla,
     required this.registroId,
     required this.tipoOperacion,
@@ -3951,6 +3980,9 @@ class CambiosPendiente extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
+    if (!nullToAbsent || usuarioId != null) {
+      map['usuario_id'] = Variable<int>(usuarioId);
+    }
     map['tabla'] = Variable<String>(tabla);
     map['registro_id'] = Variable<int>(registroId);
     map['tipo_operacion'] = Variable<String>(tipoOperacion);
@@ -3968,6 +4000,9 @@ class CambiosPendiente extends DataClass
   CambiosPendientesCompanion toCompanion(bool nullToAbsent) {
     return CambiosPendientesCompanion(
       id: Value(id),
+      usuarioId: usuarioId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(usuarioId),
       tabla: Value(tabla),
       registroId: Value(registroId),
       tipoOperacion: Value(tipoOperacion),
@@ -3989,6 +4024,7 @@ class CambiosPendiente extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return CambiosPendiente(
       id: serializer.fromJson<int>(json['id']),
+      usuarioId: serializer.fromJson<int?>(json['usuarioId']),
       tabla: serializer.fromJson<String>(json['tabla']),
       registroId: serializer.fromJson<int>(json['registroId']),
       tipoOperacion: serializer.fromJson<String>(json['tipoOperacion']),
@@ -4003,6 +4039,7 @@ class CambiosPendiente extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
+      'usuarioId': serializer.toJson<int?>(usuarioId),
       'tabla': serializer.toJson<String>(tabla),
       'registroId': serializer.toJson<int>(registroId),
       'tipoOperacion': serializer.toJson<String>(tipoOperacion),
@@ -4015,6 +4052,7 @@ class CambiosPendiente extends DataClass
 
   CambiosPendiente copyWith({
     int? id,
+    Value<int?> usuarioId = const Value.absent(),
     String? tabla,
     int? registroId,
     String? tipoOperacion,
@@ -4024,6 +4062,7 @@ class CambiosPendiente extends DataClass
     Value<String?> ultimoError = const Value.absent(),
   }) => CambiosPendiente(
     id: id ?? this.id,
+    usuarioId: usuarioId.present ? usuarioId.value : this.usuarioId,
     tabla: tabla ?? this.tabla,
     registroId: registroId ?? this.registroId,
     tipoOperacion: tipoOperacion ?? this.tipoOperacion,
@@ -4035,6 +4074,7 @@ class CambiosPendiente extends DataClass
   CambiosPendiente copyWithCompanion(CambiosPendientesCompanion data) {
     return CambiosPendiente(
       id: data.id.present ? data.id.value : this.id,
+      usuarioId: data.usuarioId.present ? data.usuarioId.value : this.usuarioId,
       tabla: data.tabla.present ? data.tabla.value : this.tabla,
       registroId: data.registroId.present
           ? data.registroId.value
@@ -4055,6 +4095,7 @@ class CambiosPendiente extends DataClass
   String toString() {
     return (StringBuffer('CambiosPendiente(')
           ..write('id: $id, ')
+          ..write('usuarioId: $usuarioId, ')
           ..write('tabla: $tabla, ')
           ..write('registroId: $registroId, ')
           ..write('tipoOperacion: $tipoOperacion, ')
@@ -4069,6 +4110,7 @@ class CambiosPendiente extends DataClass
   @override
   int get hashCode => Object.hash(
     id,
+    usuarioId,
     tabla,
     registroId,
     tipoOperacion,
@@ -4082,6 +4124,7 @@ class CambiosPendiente extends DataClass
       identical(this, other) ||
       (other is CambiosPendiente &&
           other.id == this.id &&
+          other.usuarioId == this.usuarioId &&
           other.tabla == this.tabla &&
           other.registroId == this.registroId &&
           other.tipoOperacion == this.tipoOperacion &&
@@ -4093,6 +4136,7 @@ class CambiosPendiente extends DataClass
 
 class CambiosPendientesCompanion extends UpdateCompanion<CambiosPendiente> {
   final Value<int> id;
+  final Value<int?> usuarioId;
   final Value<String> tabla;
   final Value<int> registroId;
   final Value<String> tipoOperacion;
@@ -4102,6 +4146,7 @@ class CambiosPendientesCompanion extends UpdateCompanion<CambiosPendiente> {
   final Value<String?> ultimoError;
   const CambiosPendientesCompanion({
     this.id = const Value.absent(),
+    this.usuarioId = const Value.absent(),
     this.tabla = const Value.absent(),
     this.registroId = const Value.absent(),
     this.tipoOperacion = const Value.absent(),
@@ -4112,6 +4157,7 @@ class CambiosPendientesCompanion extends UpdateCompanion<CambiosPendiente> {
   });
   CambiosPendientesCompanion.insert({
     this.id = const Value.absent(),
+    this.usuarioId = const Value.absent(),
     required String tabla,
     required int registroId,
     required String tipoOperacion,
@@ -4124,6 +4170,7 @@ class CambiosPendientesCompanion extends UpdateCompanion<CambiosPendiente> {
        tipoOperacion = Value(tipoOperacion);
   static Insertable<CambiosPendiente> custom({
     Expression<int>? id,
+    Expression<int>? usuarioId,
     Expression<String>? tabla,
     Expression<int>? registroId,
     Expression<String>? tipoOperacion,
@@ -4134,6 +4181,7 @@ class CambiosPendientesCompanion extends UpdateCompanion<CambiosPendiente> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (usuarioId != null) 'usuario_id': usuarioId,
       if (tabla != null) 'tabla': tabla,
       if (registroId != null) 'registro_id': registroId,
       if (tipoOperacion != null) 'tipo_operacion': tipoOperacion,
@@ -4146,6 +4194,7 @@ class CambiosPendientesCompanion extends UpdateCompanion<CambiosPendiente> {
 
   CambiosPendientesCompanion copyWith({
     Value<int>? id,
+    Value<int?>? usuarioId,
     Value<String>? tabla,
     Value<int>? registroId,
     Value<String>? tipoOperacion,
@@ -4156,6 +4205,7 @@ class CambiosPendientesCompanion extends UpdateCompanion<CambiosPendiente> {
   }) {
     return CambiosPendientesCompanion(
       id: id ?? this.id,
+      usuarioId: usuarioId ?? this.usuarioId,
       tabla: tabla ?? this.tabla,
       registroId: registroId ?? this.registroId,
       tipoOperacion: tipoOperacion ?? this.tipoOperacion,
@@ -4171,6 +4221,9 @@ class CambiosPendientesCompanion extends UpdateCompanion<CambiosPendiente> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<int>(id.value);
+    }
+    if (usuarioId.present) {
+      map['usuario_id'] = Variable<int>(usuarioId.value);
     }
     if (tabla.present) {
       map['tabla'] = Variable<String>(tabla.value);
@@ -4200,6 +4253,7 @@ class CambiosPendientesCompanion extends UpdateCompanion<CambiosPendiente> {
   String toString() {
     return (StringBuffer('CambiosPendientesCompanion(')
           ..write('id: $id, ')
+          ..write('usuarioId: $usuarioId, ')
           ..write('tabla: $tabla, ')
           ..write('registroId: $registroId, ')
           ..write('tipoOperacion: $tipoOperacion, ')
@@ -4207,6 +4261,472 @@ class CambiosPendientesCompanion extends UpdateCompanion<CambiosPendiente> {
           ..write('creadoEn: $creadoEn, ')
           ..write('intentos: $intentos, ')
           ..write('ultimoError: $ultimoError')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CargasCapitalTable extends CargasCapital
+    with TableInfo<$CargasCapitalTable, CargaCapital> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CargasCapitalTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _servidorIdMeta = const VerificationMeta(
+    'servidorId',
+  );
+  @override
+  late final GeneratedColumn<int> servidorId = GeneratedColumn<int>(
+    'servidor_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _usuarioIdMeta = const VerificationMeta(
+    'usuarioId',
+  );
+  @override
+  late final GeneratedColumn<int> usuarioId = GeneratedColumn<int>(
+    'usuario_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _montoMeta = const VerificationMeta('monto');
+  @override
+  late final GeneratedColumn<double> monto = GeneratedColumn<double>(
+    'monto',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descripcionMeta = const VerificationMeta(
+    'descripcion',
+  );
+  @override
+  late final GeneratedColumn<String> descripcion = GeneratedColumn<String>(
+    'descripcion',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _creadoEnMeta = const VerificationMeta(
+    'creadoEn',
+  );
+  @override
+  late final GeneratedColumn<DateTime> creadoEn = GeneratedColumn<DateTime>(
+    'creado_en',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _sincronizadoMeta = const VerificationMeta(
+    'sincronizado',
+  );
+  @override
+  late final GeneratedColumn<bool> sincronizado = GeneratedColumn<bool>(
+    'sincronizado',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("sincronizado" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    servidorId,
+    usuarioId,
+    monto,
+    descripcion,
+    creadoEn,
+    sincronizado,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cargas_capital';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CargaCapital> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('servidor_id')) {
+      context.handle(
+        _servidorIdMeta,
+        servidorId.isAcceptableOrUnknown(data['servidor_id']!, _servidorIdMeta),
+      );
+    }
+    if (data.containsKey('usuario_id')) {
+      context.handle(
+        _usuarioIdMeta,
+        usuarioId.isAcceptableOrUnknown(data['usuario_id']!, _usuarioIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_usuarioIdMeta);
+    }
+    if (data.containsKey('monto')) {
+      context.handle(
+        _montoMeta,
+        monto.isAcceptableOrUnknown(data['monto']!, _montoMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_montoMeta);
+    }
+    if (data.containsKey('descripcion')) {
+      context.handle(
+        _descripcionMeta,
+        descripcion.isAcceptableOrUnknown(
+          data['descripcion']!,
+          _descripcionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('creado_en')) {
+      context.handle(
+        _creadoEnMeta,
+        creadoEn.isAcceptableOrUnknown(data['creado_en']!, _creadoEnMeta),
+      );
+    }
+    if (data.containsKey('sincronizado')) {
+      context.handle(
+        _sincronizadoMeta,
+        sincronizado.isAcceptableOrUnknown(
+          data['sincronizado']!,
+          _sincronizadoMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CargaCapital map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CargaCapital(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      servidorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}servidor_id'],
+      ),
+      usuarioId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}usuario_id'],
+      )!,
+      monto: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}monto'],
+      )!,
+      descripcion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}descripcion'],
+      ),
+      creadoEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}creado_en'],
+      )!,
+      sincronizado: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}sincronizado'],
+      )!,
+    );
+  }
+
+  @override
+  $CargasCapitalTable createAlias(String alias) {
+    return $CargasCapitalTable(attachedDatabase, alias);
+  }
+}
+
+class CargaCapital extends DataClass implements Insertable<CargaCapital> {
+  final int id;
+  final int? servidorId;
+  final int usuarioId;
+  final double monto;
+  final String? descripcion;
+  final DateTime creadoEn;
+  final bool sincronizado;
+  const CargaCapital({
+    required this.id,
+    this.servidorId,
+    required this.usuarioId,
+    required this.monto,
+    this.descripcion,
+    required this.creadoEn,
+    required this.sincronizado,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || servidorId != null) {
+      map['servidor_id'] = Variable<int>(servidorId);
+    }
+    map['usuario_id'] = Variable<int>(usuarioId);
+    map['monto'] = Variable<double>(monto);
+    if (!nullToAbsent || descripcion != null) {
+      map['descripcion'] = Variable<String>(descripcion);
+    }
+    map['creado_en'] = Variable<DateTime>(creadoEn);
+    map['sincronizado'] = Variable<bool>(sincronizado);
+    return map;
+  }
+
+  CargasCapitalCompanion toCompanion(bool nullToAbsent) {
+    return CargasCapitalCompanion(
+      id: Value(id),
+      servidorId: servidorId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(servidorId),
+      usuarioId: Value(usuarioId),
+      monto: Value(monto),
+      descripcion: descripcion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(descripcion),
+      creadoEn: Value(creadoEn),
+      sincronizado: Value(sincronizado),
+    );
+  }
+
+  factory CargaCapital.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CargaCapital(
+      id: serializer.fromJson<int>(json['id']),
+      servidorId: serializer.fromJson<int?>(json['servidorId']),
+      usuarioId: serializer.fromJson<int>(json['usuarioId']),
+      monto: serializer.fromJson<double>(json['monto']),
+      descripcion: serializer.fromJson<String?>(json['descripcion']),
+      creadoEn: serializer.fromJson<DateTime>(json['creadoEn']),
+      sincronizado: serializer.fromJson<bool>(json['sincronizado']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'servidorId': serializer.toJson<int?>(servidorId),
+      'usuarioId': serializer.toJson<int>(usuarioId),
+      'monto': serializer.toJson<double>(monto),
+      'descripcion': serializer.toJson<String?>(descripcion),
+      'creadoEn': serializer.toJson<DateTime>(creadoEn),
+      'sincronizado': serializer.toJson<bool>(sincronizado),
+    };
+  }
+
+  CargaCapital copyWith({
+    int? id,
+    Value<int?> servidorId = const Value.absent(),
+    int? usuarioId,
+    double? monto,
+    Value<String?> descripcion = const Value.absent(),
+    DateTime? creadoEn,
+    bool? sincronizado,
+  }) => CargaCapital(
+    id: id ?? this.id,
+    servidorId: servidorId.present ? servidorId.value : this.servidorId,
+    usuarioId: usuarioId ?? this.usuarioId,
+    monto: monto ?? this.monto,
+    descripcion: descripcion.present ? descripcion.value : this.descripcion,
+    creadoEn: creadoEn ?? this.creadoEn,
+    sincronizado: sincronizado ?? this.sincronizado,
+  );
+  CargaCapital copyWithCompanion(CargasCapitalCompanion data) {
+    return CargaCapital(
+      id: data.id.present ? data.id.value : this.id,
+      servidorId: data.servidorId.present
+          ? data.servidorId.value
+          : this.servidorId,
+      usuarioId: data.usuarioId.present ? data.usuarioId.value : this.usuarioId,
+      monto: data.monto.present ? data.monto.value : this.monto,
+      descripcion: data.descripcion.present
+          ? data.descripcion.value
+          : this.descripcion,
+      creadoEn: data.creadoEn.present ? data.creadoEn.value : this.creadoEn,
+      sincronizado: data.sincronizado.present
+          ? data.sincronizado.value
+          : this.sincronizado,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CargaCapital(')
+          ..write('id: $id, ')
+          ..write('servidorId: $servidorId, ')
+          ..write('usuarioId: $usuarioId, ')
+          ..write('monto: $monto, ')
+          ..write('descripcion: $descripcion, ')
+          ..write('creadoEn: $creadoEn, ')
+          ..write('sincronizado: $sincronizado')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    servidorId,
+    usuarioId,
+    monto,
+    descripcion,
+    creadoEn,
+    sincronizado,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CargaCapital &&
+          other.id == this.id &&
+          other.servidorId == this.servidorId &&
+          other.usuarioId == this.usuarioId &&
+          other.monto == this.monto &&
+          other.descripcion == this.descripcion &&
+          other.creadoEn == this.creadoEn &&
+          other.sincronizado == this.sincronizado);
+}
+
+class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
+  final Value<int> id;
+  final Value<int?> servidorId;
+  final Value<int> usuarioId;
+  final Value<double> monto;
+  final Value<String?> descripcion;
+  final Value<DateTime> creadoEn;
+  final Value<bool> sincronizado;
+  const CargasCapitalCompanion({
+    this.id = const Value.absent(),
+    this.servidorId = const Value.absent(),
+    this.usuarioId = const Value.absent(),
+    this.monto = const Value.absent(),
+    this.descripcion = const Value.absent(),
+    this.creadoEn = const Value.absent(),
+    this.sincronizado = const Value.absent(),
+  });
+  CargasCapitalCompanion.insert({
+    this.id = const Value.absent(),
+    this.servidorId = const Value.absent(),
+    required int usuarioId,
+    required double monto,
+    this.descripcion = const Value.absent(),
+    this.creadoEn = const Value.absent(),
+    this.sincronizado = const Value.absent(),
+  }) : usuarioId = Value(usuarioId),
+       monto = Value(monto);
+  static Insertable<CargaCapital> custom({
+    Expression<int>? id,
+    Expression<int>? servidorId,
+    Expression<int>? usuarioId,
+    Expression<double>? monto,
+    Expression<String>? descripcion,
+    Expression<DateTime>? creadoEn,
+    Expression<bool>? sincronizado,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (servidorId != null) 'servidor_id': servidorId,
+      if (usuarioId != null) 'usuario_id': usuarioId,
+      if (monto != null) 'monto': monto,
+      if (descripcion != null) 'descripcion': descripcion,
+      if (creadoEn != null) 'creado_en': creadoEn,
+      if (sincronizado != null) 'sincronizado': sincronizado,
+    });
+  }
+
+  CargasCapitalCompanion copyWith({
+    Value<int>? id,
+    Value<int?>? servidorId,
+    Value<int>? usuarioId,
+    Value<double>? monto,
+    Value<String?>? descripcion,
+    Value<DateTime>? creadoEn,
+    Value<bool>? sincronizado,
+  }) {
+    return CargasCapitalCompanion(
+      id: id ?? this.id,
+      servidorId: servidorId ?? this.servidorId,
+      usuarioId: usuarioId ?? this.usuarioId,
+      monto: monto ?? this.monto,
+      descripcion: descripcion ?? this.descripcion,
+      creadoEn: creadoEn ?? this.creadoEn,
+      sincronizado: sincronizado ?? this.sincronizado,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (servidorId.present) {
+      map['servidor_id'] = Variable<int>(servidorId.value);
+    }
+    if (usuarioId.present) {
+      map['usuario_id'] = Variable<int>(usuarioId.value);
+    }
+    if (monto.present) {
+      map['monto'] = Variable<double>(monto.value);
+    }
+    if (descripcion.present) {
+      map['descripcion'] = Variable<String>(descripcion.value);
+    }
+    if (creadoEn.present) {
+      map['creado_en'] = Variable<DateTime>(creadoEn.value);
+    }
+    if (sincronizado.present) {
+      map['sincronizado'] = Variable<bool>(sincronizado.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CargasCapitalCompanion(')
+          ..write('id: $id, ')
+          ..write('servidorId: $servidorId, ')
+          ..write('usuarioId: $usuarioId, ')
+          ..write('monto: $monto, ')
+          ..write('descripcion: $descripcion, ')
+          ..write('creadoEn: $creadoEn, ')
+          ..write('sincronizado: $sincronizado')
           ..write(')'))
         .toString();
   }
@@ -4224,6 +4744,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PagosTable pagos = $PagosTable(this);
   late final $CambiosPendientesTable cambiosPendientes =
       $CambiosPendientesTable(this);
+  late final $CargasCapitalTable cargasCapital = $CargasCapitalTable(this);
   late final ClientesDao clientesDao = ClientesDao(this as AppDatabase);
   late final PrestamosDao prestamosDao = PrestamosDao(this as AppDatabase);
   late final PrestamosExtrasDao prestamosExtrasDao = PrestamosExtrasDao(
@@ -4232,6 +4753,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final CuotasDao cuotasDao = CuotasDao(this as AppDatabase);
   late final PagosDao pagosDao = PagosDao(this as AppDatabase);
   late final CambiosPendientesDao cambiosPendientesDao = CambiosPendientesDao(
+    this as AppDatabase,
+  );
+  late final CargasCapitalDao cargasCapitalDao = CargasCapitalDao(
     this as AppDatabase,
   );
   @override
@@ -4245,6 +4769,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     cuotas,
     pagos,
     cambiosPendientes,
+    cargasCapital,
   ];
 }
 
@@ -7003,6 +7528,7 @@ typedef $$PagosTableProcessedTableManager =
 typedef $$CambiosPendientesTableCreateCompanionBuilder =
     CambiosPendientesCompanion Function({
       Value<int> id,
+      Value<int?> usuarioId,
       required String tabla,
       required int registroId,
       required String tipoOperacion,
@@ -7014,6 +7540,7 @@ typedef $$CambiosPendientesTableCreateCompanionBuilder =
 typedef $$CambiosPendientesTableUpdateCompanionBuilder =
     CambiosPendientesCompanion Function({
       Value<int> id,
+      Value<int?> usuarioId,
       Value<String> tabla,
       Value<int> registroId,
       Value<String> tipoOperacion,
@@ -7034,6 +7561,11 @@ class $$CambiosPendientesTableFilterComposer
   });
   ColumnFilters<int> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get usuarioId => $composableBuilder(
+    column: $table.usuarioId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7087,6 +7619,11 @@ class $$CambiosPendientesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get usuarioId => $composableBuilder(
+    column: $table.usuarioId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get tabla => $composableBuilder(
     column: $table.tabla,
     builder: (column) => ColumnOrderings(column),
@@ -7134,6 +7671,9 @@ class $$CambiosPendientesTableAnnotationComposer
   });
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get usuarioId =>
+      $composableBuilder(column: $table.usuarioId, builder: (column) => column);
 
   GeneratedColumn<String> get tabla =>
       $composableBuilder(column: $table.tabla, builder: (column) => column);
@@ -7204,6 +7744,7 @@ class $$CambiosPendientesTableTableManager
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<int?> usuarioId = const Value.absent(),
                 Value<String> tabla = const Value.absent(),
                 Value<int> registroId = const Value.absent(),
                 Value<String> tipoOperacion = const Value.absent(),
@@ -7213,6 +7754,7 @@ class $$CambiosPendientesTableTableManager
                 Value<String?> ultimoError = const Value.absent(),
               }) => CambiosPendientesCompanion(
                 id: id,
+                usuarioId: usuarioId,
                 tabla: tabla,
                 registroId: registroId,
                 tipoOperacion: tipoOperacion,
@@ -7224,6 +7766,7 @@ class $$CambiosPendientesTableTableManager
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
+                Value<int?> usuarioId = const Value.absent(),
                 required String tabla,
                 required int registroId,
                 required String tipoOperacion,
@@ -7233,6 +7776,7 @@ class $$CambiosPendientesTableTableManager
                 Value<String?> ultimoError = const Value.absent(),
               }) => CambiosPendientesCompanion.insert(
                 id: id,
+                usuarioId: usuarioId,
                 tabla: tabla,
                 registroId: registroId,
                 tipoOperacion: tipoOperacion,
@@ -7270,6 +7814,244 @@ typedef $$CambiosPendientesTableProcessedTableManager =
       CambiosPendiente,
       PrefetchHooks Function()
     >;
+typedef $$CargasCapitalTableCreateCompanionBuilder =
+    CargasCapitalCompanion Function({
+      Value<int> id,
+      Value<int?> servidorId,
+      required int usuarioId,
+      required double monto,
+      Value<String?> descripcion,
+      Value<DateTime> creadoEn,
+      Value<bool> sincronizado,
+    });
+typedef $$CargasCapitalTableUpdateCompanionBuilder =
+    CargasCapitalCompanion Function({
+      Value<int> id,
+      Value<int?> servidorId,
+      Value<int> usuarioId,
+      Value<double> monto,
+      Value<String?> descripcion,
+      Value<DateTime> creadoEn,
+      Value<bool> sincronizado,
+    });
+
+class $$CargasCapitalTableFilterComposer
+    extends Composer<_$AppDatabase, $CargasCapitalTable> {
+  $$CargasCapitalTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get usuarioId => $composableBuilder(
+    column: $table.usuarioId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get monto => $composableBuilder(
+    column: $table.monto,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get descripcion => $composableBuilder(
+    column: $table.descripcion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get creadoEn => $composableBuilder(
+    column: $table.creadoEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CargasCapitalTableOrderingComposer
+    extends Composer<_$AppDatabase, $CargasCapitalTable> {
+  $$CargasCapitalTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get usuarioId => $composableBuilder(
+    column: $table.usuarioId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get monto => $composableBuilder(
+    column: $table.monto,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get descripcion => $composableBuilder(
+    column: $table.descripcion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get creadoEn => $composableBuilder(
+    column: $table.creadoEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CargasCapitalTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CargasCapitalTable> {
+  $$CargasCapitalTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get usuarioId =>
+      $composableBuilder(column: $table.usuarioId, builder: (column) => column);
+
+  GeneratedColumn<double> get monto =>
+      $composableBuilder(column: $table.monto, builder: (column) => column);
+
+  GeneratedColumn<String> get descripcion => $composableBuilder(
+    column: $table.descripcion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get creadoEn =>
+      $composableBuilder(column: $table.creadoEn, builder: (column) => column);
+
+  GeneratedColumn<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => column,
+  );
+}
+
+class $$CargasCapitalTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CargasCapitalTable,
+          CargaCapital,
+          $$CargasCapitalTableFilterComposer,
+          $$CargasCapitalTableOrderingComposer,
+          $$CargasCapitalTableAnnotationComposer,
+          $$CargasCapitalTableCreateCompanionBuilder,
+          $$CargasCapitalTableUpdateCompanionBuilder,
+          (
+            CargaCapital,
+            BaseReferences<_$AppDatabase, $CargasCapitalTable, CargaCapital>,
+          ),
+          CargaCapital,
+          PrefetchHooks Function()
+        > {
+  $$CargasCapitalTableTableManager(_$AppDatabase db, $CargasCapitalTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CargasCapitalTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CargasCapitalTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CargasCapitalTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> servidorId = const Value.absent(),
+                Value<int> usuarioId = const Value.absent(),
+                Value<double> monto = const Value.absent(),
+                Value<String?> descripcion = const Value.absent(),
+                Value<DateTime> creadoEn = const Value.absent(),
+                Value<bool> sincronizado = const Value.absent(),
+              }) => CargasCapitalCompanion(
+                id: id,
+                servidorId: servidorId,
+                usuarioId: usuarioId,
+                monto: monto,
+                descripcion: descripcion,
+                creadoEn: creadoEn,
+                sincronizado: sincronizado,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> servidorId = const Value.absent(),
+                required int usuarioId,
+                required double monto,
+                Value<String?> descripcion = const Value.absent(),
+                Value<DateTime> creadoEn = const Value.absent(),
+                Value<bool> sincronizado = const Value.absent(),
+              }) => CargasCapitalCompanion.insert(
+                id: id,
+                servidorId: servidorId,
+                usuarioId: usuarioId,
+                monto: monto,
+                descripcion: descripcion,
+                creadoEn: creadoEn,
+                sincronizado: sincronizado,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CargasCapitalTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CargasCapitalTable,
+      CargaCapital,
+      $$CargasCapitalTableFilterComposer,
+      $$CargasCapitalTableOrderingComposer,
+      $$CargasCapitalTableAnnotationComposer,
+      $$CargasCapitalTableCreateCompanionBuilder,
+      $$CargasCapitalTableUpdateCompanionBuilder,
+      (
+        CargaCapital,
+        BaseReferences<_$AppDatabase, $CargasCapitalTable, CargaCapital>,
+      ),
+      CargaCapital,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7286,4 +8068,6 @@ class $AppDatabaseManager {
       $$PagosTableTableManager(_db, _db.pagos);
   $$CambiosPendientesTableTableManager get cambiosPendientes =>
       $$CambiosPendientesTableTableManager(_db, _db.cambiosPendientes);
+  $$CargasCapitalTableTableManager get cargasCapital =>
+      $$CargasCapitalTableTableManager(_db, _db.cargasCapital);
 }

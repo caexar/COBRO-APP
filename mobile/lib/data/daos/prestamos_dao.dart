@@ -9,22 +9,29 @@ part 'prestamos_dao.g.dart';
 class PrestamosDao extends DatabaseAccessor<AppDatabase> with _$PrestamosDaoMixin {
   PrestamosDao(super.db);
 
-  Future<List<Prestamo>> obtenerTodos() {
-    return (select(prestamos)..where((tbl) => tbl.eliminadoEn.isNull())).get();
-  }
-
-  Stream<List<Prestamo>> observarTodos() {
-    return (select(prestamos)..where((tbl) => tbl.eliminadoEn.isNull())).watch();
-  }
-
-  Future<List<Prestamo>> obtenerPorCliente(int clienteId) {
+  /// Préstamos no eliminados de [usuarioId] (cualquier estado). Cada
+  /// cobrador solo ve los suyos, aunque compartan dispositivo.
+  Future<List<Prestamo>> obtenerTodos(int usuarioId) {
     return (select(prestamos)
-          ..where((tbl) => tbl.clienteId.equals(clienteId) & tbl.eliminadoEn.isNull()))
+          ..where((tbl) => tbl.eliminadoEn.isNull() & tbl.usuarioId.equals(usuarioId)))
         .get();
   }
 
-  Future<Prestamo?> obtenerPorId(int id) {
-    return (select(prestamos)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+  Future<List<Prestamo>> obtenerPorCliente(int clienteId, int usuarioId) {
+    return (select(prestamos)
+          ..where(
+            (tbl) =>
+                tbl.clienteId.equals(clienteId) &
+                tbl.usuarioId.equals(usuarioId) &
+                tbl.eliminadoEn.isNull(),
+          ))
+        .get();
+  }
+
+  Future<Prestamo?> obtenerPorId(int id, int usuarioId) {
+    return (select(prestamos)
+          ..where((tbl) => tbl.id.equals(id) & tbl.usuarioId.equals(usuarioId)))
+        .getSingleOrNull();
   }
 
   Future<List<Prestamo>> obtenerNoSincronizados() {

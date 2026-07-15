@@ -36,21 +36,26 @@ class ClientesRepository {
   ClientesDao get _clientesDao => _database.clientesDao;
   CambiosPendientesDao get _cambiosPendientesDao => _database.cambiosPendientesDao;
 
-  Future<List<Cliente>> listar() => _clientesDao.obtenerTodos();
+  Future<List<Cliente>> listar() async {
+    final usuarioId = await _usuarioIdActual();
+    return _clientesDao.obtenerTodos(usuarioId);
+  }
 
   /// Busca siempre por nombre; si [termino] contiene dígitos, también busca
   /// por cédula y agrega esos resultados al final (sin duplicar filas).
+  /// Nunca cruza datos entre cobradores, aunque compartan dispositivo.
   Future<List<Cliente>> buscar(String termino) async {
     final consulta = termino.trim();
     if (consulta.isEmpty) return listar();
 
-    final porNombre = await _clientesDao.buscarPorNombre(consulta);
+    final usuarioId = await _usuarioIdActual();
+    final porNombre = await _clientesDao.buscarPorNombre(consulta, usuarioId);
 
     if (!_contieneDigitos(consulta)) {
       return porNombre;
     }
 
-    final porCedula = await _clientesDao.buscarPorCedula(consulta);
+    final porCedula = await _clientesDao.buscarPorCedula(consulta, usuarioId);
     final idsYaIncluidos = porNombre.map((cliente) => cliente.id).toSet();
     final adicionalesPorCedula = porCedula.where((cliente) => !idsYaIncluidos.contains(cliente.id));
 
@@ -107,7 +112,7 @@ class ClientesRepository {
       ),
     );
 
-    await _encolarCambio(id: id, tipoOperacion: 'crear', datos: {
+    await _encolarCambio(usuarioId: usuarioId, id: id, tipoOperacion: 'crear', datos: {
       'nombre': nombre,
       'cedula': cedula,
       'telefono': telefono,
@@ -145,9 +150,10 @@ class ClientesRepository {
         actualizadoEn: Value(DateTime.now()),
         sincronizado: const Value(false),
       ),
+      usuarioId,
     );
 
-    await _encolarCambio(id: id, tipoOperacion: 'actualizar', datos: {
+    await _encolarCambio(usuarioId: usuarioId, id: id, tipoOperacion: 'actualizar', datos: {
       'nombre': nombre,
       'cedula': cedula,
       'telefono': telefono,
@@ -158,11 +164,13 @@ class ClientesRepository {
   }
 
   Future<void> _encolarCambio({
+    required int usuarioId,
     required int id,
     required String tipoOperacion,
     required Map<String, dynamic> datos,
   }) {
     return _cambiosPendientesDao.encolar(
+      usuarioId: usuarioId,
       tabla: 'clientes',
       registroId: id,
       tipoOperacion: tipoOperacion,

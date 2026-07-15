@@ -22,7 +22,11 @@ void main() {
     final secureStorage = _SecureStorageFalso();
     clientesRepository = ClientesRepository(database: db, secureStorage: secureStorage);
     prestamosRepository = PrestamosRepository(database: db, secureStorage: secureStorage);
-    pagosRepository = PagosRepository(database: db, prestamosRepository: prestamosRepository);
+    pagosRepository = PagosRepository(
+      database: db,
+      secureStorage: secureStorage,
+      prestamosRepository: prestamosRepository,
+    );
   });
 
   tearDown(() async {
@@ -67,7 +71,7 @@ void main() {
     expect(detalleActualizado.cuotas.first.estado, 'pagada');
     expect(detalleActualizado.prestamo.estado, 'activo');
 
-    final pendientes = await db.cambiosPendientesDao.obtenerPendientes();
+    final pendientes = await db.cambiosPendientesDao.obtenerPendientes(1);
     final cambioPago = pendientes.where((p) => p.tabla == 'pagos');
     expect(cambioPago, hasLength(1));
     expect(cambioPago.first.tipoOperacion, 'crear');
@@ -127,7 +131,7 @@ void main() {
       expect(detalleActualizado.cuotas[0].estado, 'pagada');
       expect(detalleActualizado.cuotas[1].montoEsperado, 14000);
 
-      final pendientes = await db.cambiosPendientesDao.obtenerPendientes();
+      final pendientes = await db.cambiosPendientesDao.obtenerPendientes(1);
       final cambioPrestamo = pendientes.where((p) => p.tabla == 'prestamos' && p.tipoOperacion == 'actualizar');
       expect(cambioPrestamo, hasLength(1));
       expect(cambioPrestamo.first.registroId, prestamoId);
@@ -160,7 +164,7 @@ void main() {
 
     expect(pagos, hasLength(3));
 
-    final pendientes = await db.cambiosPendientesDao.obtenerPendientes();
+    final pendientes = await db.cambiosPendientesDao.obtenerPendientes(1);
     expect(pendientes.where((p) => p.tabla == 'pagos'), hasLength(1));
   });
 

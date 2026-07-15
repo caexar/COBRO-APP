@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
 
+import '../../../core/storage/secure_storage_service.dart';
 import '../../../data/app_database.dart';
 import '../../../data/daos/cambios_pendientes_dao.dart';
 import '../../../data/daos/cuotas_dao.dart';
@@ -22,11 +23,13 @@ export 'pago_processor.dart' show ManejoExcedenteRequeridoException, PoliticaMor
 /// pasa, el préstamo local se actualiza con esa elección (para que quede
 /// consistente con lo recién aplicado) y también se vuelve a encolar.
 class PagosRepository {
-  PagosRepository({AppDatabase? database, PrestamosRepository? prestamosRepository})
+  PagosRepository({AppDatabase? database, SecureStorageService? secureStorage, PrestamosRepository? prestamosRepository})
       : _database = database ?? AppDatabase.instance,
-        _prestamosRepository = prestamosRepository ?? PrestamosRepository(database: database);
+        _secureStorage = secureStorage ?? SecureStorageService(),
+        _prestamosRepository = prestamosRepository ?? PrestamosRepository(database: database, secureStorage: secureStorage);
 
   final AppDatabase _database;
+  final SecureStorageService _secureStorage;
   final PrestamosRepository _prestamosRepository;
   final _procesador = const PagoProcessor();
 
@@ -35,7 +38,23 @@ class PagosRepository {
   PrestamosDao get _prestamosDao => _database.prestamosDao;
   CambiosPendientesDao get _cambiosPendientesDao => _database.cambiosPendientesDao;
 
+  Future<int> _usuarioIdActual() async {
+    final id = await _secureStorage.leerUsuarioId();
+    if (id == null) {
+      throw StateError('No hay una sesión activa.');
+    }
+    return id;
+  }
+
   Future<List<Pago>> listarPorPrestamo(int prestamoId) => _pagosDao.obtenerPorPrestamo(prestamoId);
+
+  /// Todos los pagos del cobrador, de cualquier préstamo (para reportes
+  /// globales como el CSV exportable, no para el flujo normal de un
+  /// préstamo puntual).
+  Future<List<Pago>> listarTodos() async {
+    final usuarioId = await _usuarioIdActual();
+    return _pagosDao.obtenerTodos(usuarioId);
+  }
 
   /// Calcula y guarda el pago contra la cuota pendiente más antigua del
   /// préstamo. Si el abono no alcanza a cubrirla y no se indicó
@@ -122,6 +141,7 @@ class PagosRepository {
 
       if (politicaCambio) {
         await _cambiosPendientesDao.encolar(
+          usuarioId: detalle.prestamo.usuarioId,
           tabla: 'prestamos',
           registroId: prestamoId,
           tipoOperacion: 'actualizar',
@@ -131,6 +151,7 @@ class PagosRepository {
     }
 
     await _cambiosPendientesDao.encolar(
+      usuarioId: detalle.prestamo.usuarioId,
       tabla: 'pagos',
       registroId: pagosInsertados.first.id,
       tipoOperacion: 'crear',

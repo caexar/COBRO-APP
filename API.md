@@ -283,6 +283,31 @@ el detalle de cada pago generado.
 
 ---
 
+## Capital
+
+### POST /cargas-capital
+
+Requiere `rol = cobrador`. Registra una carga de capital (dinero que el cobrador mete al
+negocio). No existe endpoint de lectura: el móvil calcula el saldo disponible localmente a
+partir de sus propias cargas de capital guardadas; este endpoint solo existe para cuando la
+sincronización real (`cambios_pendientes`) empuje el alta hacia el servidor.
+
+**Body**
+```json
+{
+  "monto": 500000,
+  "descripcion": "Aporte inicial"
+}
+```
+- `monto`: requerido, numérico, mínimo 0.01.
+- `descripcion`: opcional, texto libre corto (máx. 255).
+
+**Respuesta 201**: la carga de capital creada (`usuario_id` se toma del cobrador autenticado).
+
+Deja un registro en `auditoria` (`accion = registrar_carga_capital`).
+
+---
+
 ## Datos de bloqueo (móvil)
 
 ### GET /pin-maestro
@@ -484,6 +509,7 @@ en `auditoria` (`accion = actualizar_configuracion`), solo si cambió o no.
 | PUT | `/prestamos/{prestamo}/anular` | cobrador | dueño, auditoría |
 | GET | `/prestamos/{prestamo}/pagos` | cobrador | dueño |
 | POST | `/pagos` | cobrador | dueño, auditoría |
+| POST | `/cargas-capital` | cobrador | auditoría |
 | GET | `/pin-maestro` | cobrador | hashes bcrypt para desbloqueo offline |
 | GET | `/admin/usuarios` | admin | lista cobradores |
 | POST | `/admin/usuarios` | admin | auditoría |
