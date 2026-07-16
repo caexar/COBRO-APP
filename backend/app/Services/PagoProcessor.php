@@ -107,7 +107,7 @@ class PagoProcessor
         int $diasMora,
     ): Pago {
         $totalAplicadoPrevio = (float) Pago::where('prestamo_id', $prestamo->id)->sum('monto_aplicado');
-        $saldoRestante = max(round($prestamo->montoTotal() - ($totalAplicadoPrevio + $montoAplicado), 2), 0.0);
+        $saldoRestante = max(round($prestamo->monto_total - ($totalAplicadoPrevio + $montoAplicado), 2), 0.0);
 
         return Pago::create([
             'prestamo_id' => $prestamo->id,

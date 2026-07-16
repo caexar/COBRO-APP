@@ -1,0 +1,72 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Cliente;
+use App\Models\Prestamo;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+class PrestamoMontoTotalTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function crearPrestamoConExtra(): Prestamo
+    {
+        $cobrador = User::factory()->create();
+        $cliente = Cliente::create([
+            'usuario_id' => $cobrador->id,
+            'nombre' => 'Juan Perez',
+            'cedula' => '123456',
+            'telefono' => '3001234567',
+            'direccion' => 'Calle 1',
+        ]);
+
+        $prestamo = Prestamo::create([
+            'cliente_id' => $cliente->id,
+            'usuario_id' => $cobrador->id,
+            'monto_capital' => 100000,
+            'porcentaje_interes' => 20,
+            'frecuencia_pago' => 'diario',
+            'plazo_cuotas' => 10,
+            'fecha_inicio' => now(),
+        ]);
+        $prestamo->extras()->create(['concepto' => 'papeleria', 'valor' => 5000]);
+
+        return $prestamo->fresh();
+    }
+
+    public function test_monto_total_es_capital_mas_interes_mas_extras(): void
+    {
+        $prestamo = $this->crearPrestamoConExtra();
+
+        // 100000 + (100000 * 20%) + 5000 = 125000, misma cuenta que PrestamoCalculator.
+        $this->assertEqualsWithDelta(125000, $prestamo->monto_total, 0.01);
+    }
+
+    public function test_monto_total_aparece_al_serializar_el_modelo(): void
+    {
+        $prestamo = $this->crearPrestamoConExtra();
+
+        $arreglo = $prestamo->toArray();
+
+        $this->assertArrayHasKey('monto_total', $arreglo);
+        $this->assertEqualsWithDelta(125000, $arreglo['monto_total'], 0.01);
+    }
+
+    public function test_monto_total_y_cliente_id_aparecen_en_get_admin_usuarios_detalle(): void
+    {
+        $prestamo = $this->crearPrestamoConExtra();
+        $admin = User::factory()->admin()->create();
+
+        Sanctum::actingAs($admin);
+
+        $respuesta = $this->getJson("/api/admin/usuarios/{$prestamo->usuario_id}/detalle");
+
+        $respuesta->assertOk();
+        $respuesta->assertJsonPath('data.prestamos.0.monto_total', 125000);
+        $respuesta->assertJsonPath('data.prestamos.0.cliente_id', $prestamo->cliente_id);
+    }
+}

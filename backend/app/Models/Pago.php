@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'fecha_pago',
     'dias_mora',
     'saldo_restante_despues',
+    'uuid_local',
 ])]
 class Pago extends Model
 {

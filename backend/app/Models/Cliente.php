@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'direccion',
     'referencia',
     'foto_url',
+    'uuid_local',
 ])]
 class Cliente extends Model
 {

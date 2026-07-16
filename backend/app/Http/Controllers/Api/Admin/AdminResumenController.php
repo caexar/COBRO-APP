@@ -36,6 +36,8 @@ class AdminResumenController extends Controller
             ->selectRaw('prestamos.usuario_id, SUM(cuotas.monto_esperado - COALESCE(pagos_cuota.aplicado, 0)) as total')
             ->pluck('total', 'usuario_id');
 
+        [$gananciaInteresPorCobrador, $gananciaExtraPorCobrador] = $this->calcularGananciaPorCobrador();
+
         $porCobrador = User::where('rol', 'cobrador')
             ->orderBy('nombre')
             ->get()
@@ -46,6 +48,8 @@ class AdminResumenController extends Controller
                 'capital_prestado' => round((float) ($capitalPorCobrador[$cobrador->id] ?? 0), 2),
                 'total_cobrado' => round((float) ($cobradoPorCobrador[$cobrador->id] ?? 0), 2),
                 'cartera_en_mora' => round((float) ($moraPorCobrador[$cobrador->id] ?? 0), 2),
+                'ganancia_interes' => round($gananciaInteresPorCobrador[$cobrador->id] ?? 0.0, 2),
+                'ganancia_extra' => round($gananciaExtraPorCobrador[$cobrador->id] ?? 0.0, 2),
             ]);
 
         return response()->json([
@@ -54,9 +58,51 @@ class AdminResumenController extends Controller
                     'capital_prestado' => round((float) $porCobrador->sum('capital_prestado'), 2),
                     'total_cobrado' => round((float) $porCobrador->sum('total_cobrado'), 2),
                     'cartera_en_mora' => round((float) $porCobrador->sum('cartera_en_mora'), 2),
+                    'ganancia_interes' => round((float) $porCobrador->sum('ganancia_interes'), 2),
+                    'ganancia_extra' => round((float) $porCobrador->sum('ganancia_extra'), 2),
                 ],
                 'por_cobrador' => $porCobrador->values(),
             ],
         ]);
+    }
+
+    /**
+     * Reparte Σpagos.monto_aplicado de cada préstamo proporcional al peso de interés/extras
+     * sobre su monto_total, agregado por cobrador sobre TODOS sus préstamos sin importar el
+     * estado (uno ya pagado/anulado sigue contando históricamente) — misma lógica que
+     * `DashboardRepository.calcularResumen` del lado móvil (ver CLAUDE.md), replicada acá para
+     * el consolidado del admin. El excedente de un pago `cobro_extra`
+     * (`monto_abonado - monto_aplicado`, el único caso donde difieren) se suma íntegro al
+     * balde de "extras", igual que del lado móvil.
+     *
+     * @return array{0: array<int, float>, 1: array<int, float>}
+     */
+    private function calcularGananciaPorCobrador(): array
+    {
+        $gananciaInteres = [];
+        $gananciaExtra = [];
+
+        foreach (Prestamo::with(['extras', 'pagos'])->get() as $prestamo) {
+            $totalAplicado = (float) $prestamo->pagos->sum('monto_aplicado');
+            $totalAbonado = (float) $prestamo->pagos->sum('monto_abonado');
+
+            $montoCapital = (float) $prestamo->monto_capital;
+            $montoInteres = round($montoCapital * ((float) $prestamo->porcentaje_interes / 100), 2);
+            $montoExtras = round((float) $prestamo->extras->sum('valor'), 2);
+            $montoTotal = round($montoCapital + $montoInteres + $montoExtras, 2);
+
+            $usuarioId = $prestamo->usuario_id;
+            $gananciaInteres[$usuarioId] ??= 0.0;
+            $gananciaExtra[$usuarioId] ??= 0.0;
+
+            if ($montoTotal > 0) {
+                $gananciaInteres[$usuarioId] += $totalAplicado * ($montoInteres / $montoTotal);
+                $gananciaExtra[$usuarioId] += $totalAplicado * ($montoExtras / $montoTotal);
+            }
+
+            $gananciaExtra[$usuarioId] += $totalAbonado - $totalAplicado;
+        }
+
+        return [$gananciaInteres, $gananciaExtra];
     }
 }

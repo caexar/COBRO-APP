@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AdminCargaCapitalController;
 use App\Http\Controllers\Api\Admin\AdminConfiguracionController;
 use App\Http\Controllers\Api\Admin\AdminResumenController;
 use App\Http\Controllers\Api\Admin\AdminUsuarioController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\PagoController;
 use App\Http\Controllers\Api\PinMaestroController;
 use App\Http\Controllers\Api\PrestamoController;
+use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -38,6 +40,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('cargas-capital', [CargaCapitalController::class, 'store']);
 
         Route::get('pin-maestro', [PinMaestroController::class, 'index']);
+
+        Route::post('sync', [SyncController::class, 'store']);
     });
 
     Route::middleware('role:admin')->prefix('admin')->group(function () {
@@ -52,5 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('configuracion', [AdminConfiguracionController::class, 'index']);
         Route::put('configuracion', [AdminConfiguracionController::class, 'update']);
+
+        Route::post('cargas-capital', [AdminCargaCapitalController::class, 'store']);
     });
 });

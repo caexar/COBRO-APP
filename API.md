@@ -302,9 +302,143 @@ sincronización real (`cambios_pendientes`) empuje el alta hacia el servidor.
 - `monto`: requerido, numérico, mínimo 0.01.
 - `descripcion`: opcional, texto libre corto (máx. 255).
 
-**Respuesta 201**: la carga de capital creada (`usuario_id` se toma del cobrador autenticado).
+**Respuesta 201**: la carga de capital creada (`usuario_id` se toma del cobrador autenticado,
+`tipo` por defecto `carga` si se omite, `origen` siempre `cobrador` en esta ruta).
 
 Deja un registro en `auditoria` (`accion = registrar_carga_capital`).
+
+---
+
+## Sincronización (móvil)
+
+### POST /sync
+
+Requiere `rol = cobrador`. Recibe en un solo request el batch de clientes/préstamos/pagos/
+cargas de capital creados offline y pendientes de subir (la cola `cambios_pendientes` de la
+app), y devuelve el resultado de cada registro más la configuración global vigente — así el
+móvil no necesita un segundo viaje de red para lo que ya conoce que va a necesitar.
+
+Cada registro trae su propio `uuid_local` (generado por la app al crearlo localmente): es la
+clave que usa el servidor para decidir si crearlo, confirmar que ya existe (reintento tras un
+corte a mitad de sincronización) o reconciliarlo con una edición más reciente. Las referencias
+entre registros del mismo batch (`prestamos[].cliente_uuid_local`,
+`pagos[].prestamo_uuid_local`) también se resuelven por `uuid_local`, nunca por id del
+servidor — la app nunca necesita aprenderse ids del servidor.
+
+**Orden de procesamiento**: `clientes` → `prestamos` → `pagos`, siempre en ese orden interno
+sin importar el orden en que vengan las claves del JSON (así un préstamo puede referenciar un
+cliente nuevo del mismo batch). `cargas_capital` es independiente, no depende de ningún otro
+array.
+
+**Body**
+```json
+{
+  "clientes": [
+    {
+      "uuid_local": "c-1",
+      "actualizado_en": "2026-07-15T10:00:00Z",
+      "nombre": "Juan Perez",
+      "cedula": "123456",
+      "telefono": "3001234567",
+      "direccion": "Calle 1 # 2-3",
+      "referencia": null,
+      "foto_url": null
+    }
+  ],
+  "prestamos": [
+    {
+      "uuid_local": "p-1",
+      "actualizado_en": "2026-07-15T10:01:00Z",
+      "cliente_uuid_local": "c-1",
+      "referencia": "Préstamo moto",
+      "monto_capital": 100000,
+      "porcentaje_interes": 20,
+      "extras": [{ "concepto": "papeleria", "valor": 5000 }],
+      "frecuencia_pago": "diario",
+      "dias_personalizado": null,
+      "plazo_cuotas": 10,
+      "fecha_inicio": "2026-07-10",
+      "politica_mora": "mantener"
+    }
+  ],
+  "pagos": [
+    {
+      "uuid_local": "pg-1",
+      "prestamo_uuid_local": "p-1",
+      "numero_cuota": 1,
+      "monto_abonado": 12500,
+      "monto_aplicado": 12500,
+      "fecha_pago": "2026-07-11",
+      "dias_mora": 0,
+      "saldo_restante_despues": 112500,
+      "estado_prestamo": "activo",
+      "cuotas_afectadas": [
+        { "numero_cuota": 1, "estado": "pagada", "monto_esperado": null }
+      ]
+    }
+  ],
+  "cargas_capital": [
+    { "uuid_local": "cc-1", "tipo": "carga", "monto": 500000, "descripcion": "Aporte inicial" }
+  ]
+}
+```
+
+- `clientes[]`/`prestamos[]`: mismos campos que `POST /clientes`/`POST /prestamos`, más
+  `uuid_local` y `actualizado_en` (fecha/hora local del último cambio, usada para resolver
+  conflictos). `prestamos[].cliente_uuid_local` reemplaza a `cliente_id`.
+- **`pagos[]` NO se reprocesa con `PagoProcessor`**: ya viene calculado por su equivalente en
+  Dart (`monto_aplicado`, `dias_mora`, `saldo_restante_despues`, y qué cuotas quedaron
+  afectadas y en qué estado exacto vía `cuotas_afectadas`, identificando cada cuota por
+  `numero_cuota` — no por id, porque `PrestamoCalculator` genera las mismas cuotas 1..N en
+  ambos lados). El servidor solo persiste tal cual y aplica `estado_prestamo` al préstamo.
+  `PagoProcessor.php` sigue siendo la única fuente de verdad para pagos creados directo contra
+  `POST /pagos` (fuera de sync).
+- `prestamos[]` **ya existente** (mismo `uuid_local`): el único campo que se reconcilia es
+  `politica_mora` (el resto — capital, cuotas, etc. — nunca se reescribe después de creado).
+- `cargas_capital[]`: no tiene reconciliación/edición, solo crear-o-confirmar (no existe un
+  flujo de edición de una carga ya sincronizada desde el móvil).
+
+**Conflictos**: si un `uuid_local` de `clientes`/`prestamos` ya existe con datos distintos,
+gana la versión con `actualizado_en` más reciente. Si gana el servidor (el cambio entrante es
+más viejo), se descarta el cambio entrante y se deja un registro en `auditoria`
+(`accion = conflicto_resuelto`, con la versión perdedora en `datos_anteriores` y la ganadora en
+`datos_nuevos`).
+
+**Respuesta 200** — un resultado por cada registro enviado, mismo orden, en cada uno de los 4
+arrays; `estado` es uno de `creado` | `actualizado` | `ya_existia` | `conflicto` | `error`
+(este último con `message` en vez de `id`, ej. una referencia a un `uuid_local` que no se
+encontró):
+```json
+{
+  "data": {
+    "clientes": [{ "uuid_local": "c-1", "estado": "creado", "id": 5 }],
+    "prestamos": [{ "uuid_local": "p-1", "estado": "creado", "id": 3 }],
+    "pagos": [{ "uuid_local": "pg-1", "estado": "creado", "id": 9 }],
+    "cargas_capital": [{ "uuid_local": "cc-1", "estado": "creado", "id": 2 }]
+  },
+  "cargas_capital_admin": [
+    { "id": 7, "tipo": "carga", "monto": 300000, "descripcion": "Fondeo", "creado_en": "2026-07-15T10:00:00.000000Z" }
+  ],
+  "configuracion": {
+    "tasas_interes_default": [10, 20, 30, 40],
+    "politica_mora_default": "mantener",
+    "pin_maestro_configurado": false,
+    "intentos_pin_antes_de_maestro": 3
+  }
+}
+```
+`configuracion` es exactamente lo mismo que devuelve `GET /admin/configuracion`, **excepto**
+que esta ruta es de cobrador (no admin) — igual que `GET /pin-maestro`, nunca incluye el hash
+del PIN maestro, solo `pin_maestro_configurado`. El hash en sí sigue siendo exclusivo de
+`GET /pin-maestro`, no se duplica acá.
+
+`cargas_capital_admin`: movimientos de capital que un admin le asignó a este cobrador
+(`POST /admin/cargas-capital`) y que todavía no había recibido — no hay un endpoint de lectura
+aparte para esto, viaja en la misma respuesta de `/sync` para no gastar un segundo viaje de
+red. Cada uno se marca `descargado = true` en el momento de incluirlo en esta respuesta (así no
+se vuelve a mandar en el próximo `/sync`); si el request se cae antes de llegar a construir esta
+lista (una excepción en el batch de subida de arriba), no se marca nada y se reintenta en el
+siguiente `/sync`. Siempre viene vacío (`[]`) si no hay nada nuevo.
 
 ---
 
@@ -490,6 +624,32 @@ Actualiza uno o más valores (todos opcionales, `sometimes`).
 **Respuesta 200**: mismo shape que el `GET`. El pago maestro nunca se registra en texto plano
 en `auditoria` (`accion = actualizar_configuracion`), solo si cambió o no.
 
+### POST /admin/cargas-capital
+
+El admin asigna (o retira) saldo de capital a un cobrador puntual — a diferencia de
+`POST /cargas-capital` (que usa al cobrador autenticado como dueño), acá `usuario_id` es el
+cobrador **destino** y queda registrado quién lo hizo.
+
+**Body**
+```json
+{
+  "usuario_id": 2,
+  "tipo": "carga",
+  "monto": 500000,
+  "descripcion": "Fondeo inicial"
+}
+```
+- `usuario_id`: requerido, debe ser un usuario existente con `rol = cobrador`.
+- `tipo`: requerido, `carga` | `retiro`.
+- `monto`: requerido, numérico, mínimo 0.01.
+- `descripcion`: opcional.
+
+**Respuesta 201**: la carga de capital creada, con `origen: "admin"` y
+`creado_por_usuario_id` igual al id del admin autenticado (`null` en el flujo normal del
+cobrador vía `POST /cargas-capital`).
+
+Deja un registro en `auditoria` (`accion = asignar_capital`).
+
 ---
 
 ## Resumen de rutas
@@ -511,6 +671,7 @@ en `auditoria` (`accion = actualizar_configuracion`), solo si cambió o no.
 | POST | `/pagos` | cobrador | dueño, auditoría |
 | POST | `/cargas-capital` | cobrador | auditoría |
 | GET | `/pin-maestro` | cobrador | hashes bcrypt para desbloqueo offline |
+| POST | `/sync` | cobrador | batch clientes/prestamos/pagos/cargas_capital + configuración |
 | GET | `/admin/usuarios` | admin | lista cobradores |
 | POST | `/admin/usuarios` | admin | auditoría |
 | PUT | `/admin/usuarios/{usuario}` | admin | auditoría, no toca `activo` |
@@ -520,3 +681,4 @@ en `auditoria` (`accion = actualizar_configuracion`), solo si cambió o no.
 | GET | `/admin/resumen` | admin | consolidado global + por cobrador |
 | GET | `/admin/configuracion` | admin | — |
 | PUT | `/admin/configuracion` | admin | auditoría |
+| POST | `/admin/cargas-capital` | admin | auditoría, asigna saldo a un cobrador |

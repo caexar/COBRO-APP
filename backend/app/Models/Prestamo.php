@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,10 +21,20 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'fecha_inicio',
     'estado',
     'politica_mora',
+    'uuid_local',
 ])]
 class Prestamo extends Model
 {
     use SoftDeletes;
+
+    /**
+     * Sin esto, `monto_total` no aparecería en `toArray()`/`toJson()` (los accessors de
+     * Eloquent son opt-in para serialización) pese a que sí es accesible como
+     * `$prestamo->monto_total` en PHP.
+     *
+     * @var list<string>
+     */
+    protected $appends = ['monto_total'];
 
     /**
      * @return array<string, string>
@@ -78,15 +89,20 @@ class Prestamo extends Model
     }
 
     /**
-     * Monto total a pagar del préstamo: capital + interés + extras.
-     * No se persiste como columna; se deriva de monto_capital, porcentaje_interes y los extras.
+     * Monto total a pagar del préstamo: capital + interés + extras. No se persiste como
+     * columna; se deriva de monto_capital, porcentaje_interes y los extras — accesible como
+     * `$prestamo->monto_total` (y serializado automáticamente, ver `$appends` arriba).
      */
-    public function montoTotal(): float
+    protected function montoTotal(): Attribute
     {
-        $capital = (float) $this->monto_capital;
-        $interes = round($capital * ((float) $this->porcentaje_interes / 100), 2);
-        $extras = round($this->extras()->sum('valor'), 2);
+        return Attribute::make(
+            get: function () {
+                $capital = (float) $this->monto_capital;
+                $interes = round($capital * ((float) $this->porcentaje_interes / 100), 2);
+                $extras = round($this->extras()->sum('valor'), 2);
 
-        return round($capital + $interes + $extras, 2);
+                return round($capital + $interes + $extras, 2);
+            },
+        );
     }
 }
