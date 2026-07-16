@@ -40,6 +40,13 @@ class PagosDao extends DatabaseAccessor<AppDatabase> with _$PagosDaoMixin {
     return (select(pagos)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
   }
 
+  /// Para detectar si un pago descargado por `GET /api/restaurar` ya se
+  /// insertó en un intento anterior (mismo criterio de deduplicación que ya
+  /// usa `POST /api/sync` del lado servidor).
+  Future<Pago?> obtenerPorUuidLocal(String uuidLocal) {
+    return (select(pagos)..where((tbl) => tbl.uuidLocal.equals(uuidLocal))).getSingleOrNull();
+  }
+
   Future<int> insertar(PagosCompanion pago) => into(pagos).insert(pago);
 
   /// Actualización parcial (ver nota en ClientesDao.actualizar). Requiere

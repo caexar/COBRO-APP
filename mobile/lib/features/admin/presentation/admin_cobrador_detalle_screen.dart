@@ -46,17 +46,17 @@ class _AdminCobradorDetalleScreenState extends State<AdminCobradorDetalleScreen>
     }
   }
 
-  /// Cuenta de préstamos por `clienteId`: `(activos, totales)`. "Activos"
-  /// cuenta solo `activo`/`en_mora`; "totales" cuenta cualquier estado. Se
+  /// Cuenta de préstamos por `clienteId`: `(pagados, totales)`. "Pagados"
+  /// cuenta solo `estado == 'pagado'`; "totales" cuenta cualquier estado. Se
   /// arma en memoria a partir de lo que ya trajo `obtenerDetalleCobrador`,
   /// sin pedir nada nuevo al backend.
-  Map<int, (int activos, int totales)> _conteoPrestamosPorCliente(DetalleCobrador detalle) {
+  Map<int, (int pagados, int totales)> _conteoPrestamosPorCliente(DetalleCobrador detalle) {
     final conteo = <int, (int, int)>{};
 
     for (final prestamo in detalle.prestamos) {
       final actual = conteo[prestamo.clienteId] ?? (0, 0);
-      final esActivo = prestamo.estado == 'activo' || prestamo.estado == 'en_mora';
-      conteo[prestamo.clienteId] = (actual.$1 + (esActivo ? 1 : 0), actual.$2 + 1);
+      final esPagado = prestamo.estado == 'pagado';
+      conteo[prestamo.clienteId] = (actual.$1 + (esPagado ? 1 : 0), actual.$2 + 1);
     }
 
     return conteo;
@@ -196,7 +196,11 @@ class _AdminCobradorDetalleScreenState extends State<AdminCobradorDetalleScreen>
                       prestamo,
                       nombresPorCliente[prestamo.clienteId] ?? 'Cliente',
                     ),
-                    title: Text(_tituloPrestamo(prestamo, nombresPorCliente[prestamo.clienteId] ?? 'Cliente')),
+                    title: Text(
+                      _tituloPrestamo(prestamo, nombresPorCliente[prestamo.clienteId] ?? 'Cliente'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     subtitle: Text(
                       '${formatearMoneda(prestamo.montoTotal)} · '
                       '${prestamo.porcentajeInteres.toStringAsFixed(0)}% · '
@@ -212,11 +216,11 @@ class _AdminCobradorDetalleScreenState extends State<AdminCobradorDetalleScreen>
   }
 }
 
-/// Título de un préstamo: su `referencia` si tiene una, o el nombre del
-/// cliente como respaldo para no dejarlo en blanco.
+/// Título de un préstamo: "Nombre del cliente - Referencia", o solo el
+/// nombre del cliente si no tiene referencia.
 String _tituloPrestamo(PrestamoResumen prestamo, String nombreCliente) {
   final referencia = prestamo.referencia;
-  return (referencia != null && referencia.isNotEmpty) ? referencia : nombreCliente;
+  return (referencia != null && referencia.isNotEmpty) ? '$nombreCliente - $referencia' : nombreCliente;
 }
 
 String _formatearFecha(DateTime fecha) {
@@ -225,10 +229,31 @@ String _formatearFecha(DateTime fecha) {
   return '$dia/$mes/${fecha.year}';
 }
 
+/// Fecha esperada de una cuota y, si ya está pagada, la fecha real en que se
+/// pagó (en un color distinto para diferenciarla de la esperada).
+Widget _subtituloFechasCuota(CuotaResumen cuota) {
+  final fechaPago = cuota.fechaPago;
+  if (fechaPago == null) {
+    return Text('Esperada: ${_formatearFecha(cuota.fechaEsperada)}');
+  }
+
+  return Text.rich(
+    TextSpan(
+      children: [
+        TextSpan(text: 'Esperada: ${_formatearFecha(cuota.fechaEsperada)} · '),
+        TextSpan(
+          text: 'Pagada: ${_formatearFecha(fechaPago)}',
+          style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.w600),
+        ),
+      ],
+    ),
+  );
+}
+
 class _BadgeConteoPrestamos extends StatelessWidget {
   const _BadgeConteoPrestamos({required this.conteo});
 
-  final (int activos, int totales) conteo;
+  final (int pagados, int totales) conteo;
 
   @override
   Widget build(BuildContext context) {
@@ -308,6 +333,8 @@ class _DetallePrestamoModal extends StatelessWidget {
                 Text(
                   _tituloPrestamo(prestamo, nombreCliente),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 8),
                 _FilaResumen(etiqueta: 'Capital', valor: formatearMoneda(prestamo.montoCapital)),
@@ -320,6 +347,11 @@ class _DetallePrestamoModal extends StatelessWidget {
                 const Divider(),
                 _FilaResumen(etiqueta: 'Total original de la deuda', valor: formatearMoneda(prestamo.montoTotal)),
                 _FilaResumen(etiqueta: 'Total pagado', valor: formatearMoneda(prestamo.totalPagado)),
+                if (prestamo.extraCobrado > 0)
+                  _FilaResumen(
+                    etiqueta: 'Extra cobrado (no aplica a la deuda)',
+                    valor: formatearMoneda(prestamo.extraCobrado),
+                  ),
                 _FilaResumen(
                   etiqueta: 'Saldo pendiente',
                   valor: formatearMoneda(saldoPendiente < 0 ? 0 : saldoPendiente),
@@ -354,7 +386,7 @@ class _DetallePrestamoModal extends StatelessWidget {
                 ListTile(
                   leading: CircleAvatar(child: Text('${cuota.numeroCuota}')),
                   title: Text(formatearMoneda(cuota.montoEsperado)),
-                  subtitle: Text(_formatearFecha(cuota.fechaEsperada)),
+                  subtitle: _subtituloFechasCuota(cuota),
                   trailing: _EtiquetaEstadoCuota(estado: cuota.estado),
                 ),
             ],
@@ -384,7 +416,8 @@ class _FilaResumen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(etiqueta, style: estilo),
+          Flexible(child: Text(etiqueta, style: estilo, overflow: TextOverflow.ellipsis)),
+          const SizedBox(width: 8),
           Text(valor, style: estilo),
         ],
       ),

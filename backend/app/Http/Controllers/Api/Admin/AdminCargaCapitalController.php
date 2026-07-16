@@ -6,12 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreAdminCargaCapitalRequest;
 use App\Models\CargaCapital;
 use App\Services\AuditoriaLogger;
+use App\Services\CapitalService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 
 class AdminCargaCapitalController extends Controller
 {
     public function __construct(
         private readonly AuditoriaLogger $auditoria,
+        private readonly CapitalService $capitalService,
     ) {}
 
     /**
@@ -22,6 +25,16 @@ class AdminCargaCapitalController extends Controller
     public function store(StoreAdminCargaCapitalRequest $request): JsonResponse
     {
         $datos = $request->validated();
+
+        if ($datos['tipo'] === 'retiro') {
+            $saldoDisponible = $this->capitalService->calcularSaldoDisponible($datos['usuario_id']);
+
+            if ((float) $datos['monto'] > $saldoDisponible) {
+                throw ValidationException::withMessages([
+                    'monto' => 'El monto del retiro excede el saldo disponible del cobrador ($'.number_format($saldoDisponible, 2).').',
+                ]);
+            }
+        }
 
         $carga = CargaCapital::create([
             'usuario_id' => $datos['usuario_id'],

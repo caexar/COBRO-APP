@@ -1,9 +1,6 @@
-import 'dart:io';
-
 import 'package:csv/csv.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
+import '../../../core/utils/csv_exportador.dart';
 import '../../../core/utils/formato_dinero.dart';
 import '../../clientes/data/clientes_repository.dart';
 import '../../pagos/data/pagos_repository.dart';
@@ -117,11 +114,10 @@ class ReportesRepository {
   Future<void> exportarYCompartir({DateTime? desde, DateTime? hasta, int? clienteId}) async {
     final contenidoCsv = await construirCsv(desde: desde, hasta: hasta, clienteId: clienteId);
 
-    final carpetaTemporal = await getTemporaryDirectory();
-    final archivo = File('${carpetaTemporal.path}/cobro_app_reporte_${DateTime.now().millisecondsSinceEpoch}.csv');
-    await archivo.writeAsString(contenidoCsv);
-
-    await SharePlus.instance.share(ShareParams(files: [XFile(archivo.path)], text: 'Reporte CobroApp'));
+    await exportarCsvYCompartir(
+      contenidoCsv: contenidoCsv,
+      nombreArchivo: 'cobro_app_reporte_${DateTime.now().millisecondsSinceEpoch}.csv',
+    );
   }
 }
 

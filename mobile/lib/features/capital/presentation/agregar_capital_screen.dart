@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/formato_dinero.dart';
+import '../../dashboard/data/dashboard_repository.dart';
 import '../data/cargas_capital_repository.dart';
 
 /// Formulario para registrar un movimiento de capital: monto + descripción
 /// opcional, con un selector para elegir si es una entrada (aporte) o una
 /// salida (retiro). La fecha es siempre "ahora" (no se pide, no es editable).
 class AgregarCapitalScreen extends StatefulWidget {
-  const AgregarCapitalScreen({super.key});
+  const AgregarCapitalScreen({super.key, this.repository, this.dashboardRepository});
+
+  /// Inyectables solo para pruebas; en la app real siempre se usa la
+  /// instancia por defecto.
+  final CargasCapitalRepository? repository;
+  final DashboardRepository? dashboardRepository;
 
   @override
   State<AgregarCapitalScreen> createState() => _AgregarCapitalScreenState();
 }
 
 class _AgregarCapitalScreenState extends State<AgregarCapitalScreen> {
-  final _repository = CargasCapitalRepository();
+  late final _repository = widget.repository ?? CargasCapitalRepository();
+  late final _dashboardRepository = widget.dashboardRepository ?? DashboardRepository();
   final _montoController = TextEditingController();
   final _descripcionController = TextEditingController();
 
@@ -48,6 +55,16 @@ class _AgregarCapitalScreenState extends State<AgregarCapitalScreen> {
     });
 
     try {
+      if (_tipo == 'retiro') {
+        final resumen = await _dashboardRepository.calcularResumen();
+        if (monto > resumen.saldoDisponible) {
+          setState(() {
+            _error = 'El monto del retiro excede el saldo disponible (${formatearMoneda(resumen.saldoDisponible)}).';
+          });
+          return;
+        }
+      }
+
       final descripcion = _descripcionController.text.trim();
       await _repository.crear(monto: monto, descripcion: descripcion.isEmpty ? null : descripcion, tipo: _tipo);
 

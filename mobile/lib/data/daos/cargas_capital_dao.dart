@@ -25,6 +25,16 @@ class CargasCapitalDao extends DatabaseAccessor<AppDatabase> with _$CargasCapita
         .getSingleOrNull();
   }
 
+  /// Para detectar si un movimiento de origen `cobrador` descargado por
+  /// `GET /api/restaurar` ya se insertó en un intento anterior. Los de
+  /// origen `admin` no tienen `uuid_local` — para esos sigue usándose
+  /// [existePorServidorId], igual que en `guardarDescargadaDeAdmin`.
+  Future<CargaCapital?> obtenerPorUuidLocal(String uuidLocal, int usuarioId) {
+    return (select(cargasCapital)
+          ..where((tbl) => tbl.uuidLocal.equals(uuidLocal) & tbl.usuarioId.equals(usuarioId)))
+        .getSingleOrNull();
+  }
+
   Future<int> insertar(CargasCapitalCompanion cargaCapital) => into(cargasCapital).insert(cargaCapital);
 
   /// Soft-delete: nunca se borra la fila, solo se marca `eliminadoEn` (mismo

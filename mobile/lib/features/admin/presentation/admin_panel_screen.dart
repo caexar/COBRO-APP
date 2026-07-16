@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../auth/presentation/configuracion_seguridad_screen.dart';
 import 'admin_configuracion_screen.dart';
+import 'admin_exportar_reporte_screen.dart';
 import 'admin_resumen_screen.dart';
 import 'admin_usuarios_list_screen.dart';
 
@@ -27,6 +29,12 @@ class AdminPanelScreen extends StatelessWidget {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.security),
+            tooltip: 'Configuración de seguridad',
+            onPressed: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ConfiguracionSeguridadScreen())),
+          ),
           IconButton(icon: const Icon(Icons.logout), tooltip: 'Cerrar sesión', onPressed: onCerrarSesion),
         ],
       ),
@@ -51,6 +59,14 @@ class AdminPanelScreen extends StatelessWidget {
                 icon: const Icon(Icons.bar_chart),
                 label: const Text('Resumen', style: TextStyle(fontSize: 17)),
                 style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminExportarReporteScreen())),
+                icon: const Icon(Icons.ios_share),
+                label: const Text('Exportar reporte', style: TextStyle(fontSize: 17)),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(

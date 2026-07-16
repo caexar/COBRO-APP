@@ -10,6 +10,8 @@ import 'features/auth/presentation/bloqueo_screen.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/dashboard/data/dashboard_repository.dart';
 import 'features/dashboard/presentation/dashboard_screen.dart';
+import 'features/sincronizacion/data/restauracion_repository.dart';
+import 'features/sincronizacion/presentation/restaurar_datos_screen.dart';
 
 class CobroApp extends StatelessWidget {
   const CobroApp({super.key});
@@ -29,13 +31,20 @@ class CobroApp extends StatelessWidget {
 /// dashboard) y vuelve a exigir el bloqueo cada vez que la app se abre o
 /// vuelve de segundo plano.
 class AppEntryPoint extends StatefulWidget {
-  const AppEntryPoint({super.key, this.authRepository, this.bloqueoRepository, this.dashboardRepository});
+  const AppEntryPoint({
+    super.key,
+    this.authRepository,
+    this.bloqueoRepository,
+    this.dashboardRepository,
+    this.restauracionRepository,
+  });
 
   /// Inyectables solo para pruebas; en la app real siempre se usan las
   /// instancias por defecto (ver `_AppEntryPointState`).
   final AuthRepository? authRepository;
   final BloqueoRepository? bloqueoRepository;
   final DashboardRepository? dashboardRepository;
+  final RestauracionRepository? restauracionRepository;
 
   @override
   State<AppEntryPoint> createState() => _AppEntryPointState();
@@ -44,6 +53,7 @@ class AppEntryPoint extends StatefulWidget {
 class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserver {
   late final _authRepository = widget.authRepository ?? AuthRepository();
   late final _bloqueoRepository = widget.bloqueoRepository ?? BloqueoRepository();
+  late final _restauracionRepository = widget.restauracionRepository ?? RestauracionRepository();
 
   bool _cargandoInicial = true;
   bool _haySesion = false;
@@ -51,6 +61,14 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
   bool _desbloqueada = false;
   String? _rol;
   String? _nombre;
+
+  /// Solo se evalúa justo después de un login exitoso (no en cada apertura
+  /// de la app con una sesión ya guardada): si el cobrador todavía no tiene
+  /// ningún cliente en este dispositivo, se le ofrece restaurar sus datos
+  /// antes de entrar al dashboard. Si elige continuar sin restaurar (ej. sin
+  /// conexión), puede hacerlo después desde el botón de la tarjeta de
+  /// sincronización del dashboard.
+  bool _ofrecerRestauracion = false;
 
   @override
   void initState() {
@@ -100,6 +118,9 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
     final bloqueoConfigurado = await _bloqueoRepository.tieneBloqueoConfigurado();
     final rol = await _authRepository.rolUsuarioActual();
     final nombre = await _authRepository.nombreUsuarioActual();
+    // Las pantallas de restauración son exclusivas de cobrador (el panel
+    // admin no trabaja offline, no tiene nada que restaurar en Drift).
+    final ofrecerRestauracion = rol == 'cobrador' && !await _restauracionRepository.hayDatosLocales();
     if (!mounted) return;
 
     setState(() {
@@ -107,6 +128,7 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
       _bloqueoConfigurado = bloqueoConfigurado;
       _rol = rol;
       _nombre = nombre;
+      _ofrecerRestauracion = ofrecerRestauracion;
       // Si ya tenía el bloqueo configurado de una sesión anterior en este
       // mismo dispositivo, igual debe pasar por la pantalla de bloqueo.
       _desbloqueada = false;
@@ -164,6 +186,13 @@ class _AppEntryPointState extends State<AppEntryPoint> with WidgetsBindingObserv
     // de ese rol; un admin ve su propio panel.
     if (_rol == 'admin') {
       return AdminPanelScreen(onCerrarSesion: _cerrarSesion, nombre: _nombre ?? '');
+    }
+
+    if (_ofrecerRestauracion) {
+      return RestaurarDatosScreen(
+        onFinalizado: () => setState(() => _ofrecerRestauracion = false),
+        repository: _restauracionRepository,
+      );
     }
 
     return DashboardScreen(

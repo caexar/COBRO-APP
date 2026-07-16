@@ -17,6 +17,15 @@ class PrestamosExtrasDao extends DatabaseAccessor<AppDatabase> with _$PrestamosE
     return (select(prestamosExtras)..where((tbl) => tbl.sincronizado.equals(false))).get();
   }
 
+  /// Para detectar si un extra descargado por `GET /api/restaurar` ya se
+  /// insertó en un intento anterior (los extras no tienen `uuid_local`
+  /// propio, así que se deduplican por `servidorId`, mismo patrón que ya usa
+  /// `CargasCapitalDao.existePorServidorId`).
+  Future<bool> existePorServidorId(int servidorId) async {
+    final fila = await (select(prestamosExtras)..where((tbl) => tbl.servidorId.equals(servidorId))).getSingleOrNull();
+    return fila != null;
+  }
+
   Future<int> insertar(PrestamosExtrasCompanion extra) => into(prestamosExtras).insert(extra);
 
   /// Actualización parcial (ver nota en ClientesDao.actualizar). Requiere

@@ -5,11 +5,16 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Prestamo;
 use App\Models\User;
+use App\Services\CapitalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
 class AdminResumenController extends Controller
 {
+    public function __construct(
+        private readonly CapitalService $capitalService,
+    ) {}
+
     public function index(): JsonResponse
     {
         $capitalPorCobrador = Prestamo::where('estado', '!=', 'anulado')
@@ -50,6 +55,7 @@ class AdminResumenController extends Controller
                 'cartera_en_mora' => round((float) ($moraPorCobrador[$cobrador->id] ?? 0), 2),
                 'ganancia_interes' => round($gananciaInteresPorCobrador[$cobrador->id] ?? 0.0, 2),
                 'ganancia_extra' => round($gananciaExtraPorCobrador[$cobrador->id] ?? 0.0, 2),
+                'saldo_disponible' => $this->capitalService->calcularSaldoDisponible($cobrador->id),
             ]);
 
         return response()->json([
@@ -60,6 +66,7 @@ class AdminResumenController extends Controller
                     'cartera_en_mora' => round((float) $porCobrador->sum('cartera_en_mora'), 2),
                     'ganancia_interes' => round((float) $porCobrador->sum('ganancia_interes'), 2),
                     'ganancia_extra' => round((float) $porCobrador->sum('ganancia_extra'), 2),
+                    'saldo_disponible' => round((float) $porCobrador->sum('saldo_disponible'), 2),
                 ],
                 'por_cobrador' => $porCobrador->values(),
             ],

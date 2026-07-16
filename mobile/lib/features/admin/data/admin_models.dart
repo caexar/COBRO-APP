@@ -1,3 +1,5 @@
+import '../../../core/utils/json_numero.dart';
+
 /// Usuario tal como lo devuelve la API de administración (`GET/POST/PUT
 /// /admin/usuarios*`). Nunca incluye password/pin_hash/pin_maestro_hash —
 /// el backend ya los oculta.
@@ -31,6 +33,7 @@ class ResumenTotales {
     required this.carteraEnMora,
     required this.gananciaInteres,
     required this.gananciaExtra,
+    required this.saldoDisponible,
   });
 
   final double capitalPrestado;
@@ -39,13 +42,18 @@ class ResumenTotales {
   final double gananciaInteres;
   final double gananciaExtra;
 
+  /// Mismo cálculo que `DashboardRepository.calcularResumen` del lado
+  /// cobrador, replicado en el backend (`CapitalService::calcularSaldoDisponible`).
+  final double saldoDisponible;
+
   factory ResumenTotales.fromJson(Map<String, dynamic> json) {
     return ResumenTotales(
-      capitalPrestado: _comoDouble(json['capital_prestado']),
-      totalCobrado: _comoDouble(json['total_cobrado']),
-      carteraEnMora: _comoDouble(json['cartera_en_mora']),
-      gananciaInteres: _comoDouble(json['ganancia_interes']),
-      gananciaExtra: _comoDouble(json['ganancia_extra']),
+      capitalPrestado: comoDouble(json['capital_prestado']),
+      totalCobrado: comoDouble(json['total_cobrado']),
+      carteraEnMora: comoDouble(json['cartera_en_mora']),
+      gananciaInteres: comoDouble(json['ganancia_interes']),
+      gananciaExtra: comoDouble(json['ganancia_extra']),
+      saldoDisponible: comoDouble(json['saldo_disponible']),
     );
   }
 }
@@ -103,7 +111,7 @@ class ConfiguracionAdmin {
 
   factory ConfiguracionAdmin.fromJson(Map<String, dynamic> json) {
     return ConfiguracionAdmin(
-      tasasInteresDefault: (json['tasas_interes_default'] as List).map(_comoDouble).toList(),
+      tasasInteresDefault: (json['tasas_interes_default'] as List).map(comoDouble).toList(),
       politicaMoraDefault: json['politica_mora_default'] as String,
       pinMaestroConfigurado: json['pin_maestro_configurado'] as bool,
       intentosPinAntesDeMaestro: json['intentos_pin_antes_de_maestro'] as int? ?? 3,
@@ -140,30 +148,66 @@ class ExtraResumen {
   final double valor;
 
   factory ExtraResumen.fromJson(Map<String, dynamic> json) {
-    return ExtraResumen(concepto: json['concepto'] as String, valor: _comoDouble(json['valor']));
+    return ExtraResumen(concepto: json['concepto'] as String, valor: comoDouble(json['valor']));
   }
 }
 
 /// Cuota de un préstamo, tal como aparece dentro del detalle de un cobrador.
 class CuotaResumen {
   const CuotaResumen({
+    required this.id,
     required this.numeroCuota,
     required this.fechaEsperada,
     required this.montoEsperado,
     required this.estado,
+    this.fechaPago,
   });
 
+  final int id;
   final int numeroCuota;
   final DateTime fechaEsperada;
   final double montoEsperado;
   final String estado;
 
-  factory CuotaResumen.fromJson(Map<String, dynamic> json) {
+  /// Fecha real del pago que dejó esta cuota `pagada` (la más reciente entre
+  /// los pagos aplicados a esta cuota, si hubo más de uno); `null` si la
+  /// cuota todavía no está pagada.
+  final DateTime? fechaPago;
+
+  factory CuotaResumen.fromJson(Map<String, dynamic> json, {DateTime? fechaPago}) {
     return CuotaResumen(
+      id: json['id'] as int,
       numeroCuota: json['numero_cuota'] as int,
       fechaEsperada: DateTime.parse(json['fecha_esperada'] as String),
-      montoEsperado: _comoDouble(json['monto_esperado']),
+      montoEsperado: comoDouble(json['monto_esperado']),
       estado: json['estado'] as String,
+      fechaPago: fechaPago,
+    );
+  }
+}
+
+/// Pago tal como aparece dentro del detalle de un cobrador (uno por fila de
+/// `pagos`, ver reglas de negocio de pagos en CLAUDE.md — `cuota_id` puede
+/// repetirse entre varias filas del mismo préstamo).
+class PagoResumen {
+  const PagoResumen({
+    required this.fechaPago,
+    required this.montoAbonado,
+    required this.montoAplicado,
+    required this.saldoRestanteDespues,
+  });
+
+  final DateTime fechaPago;
+  final double montoAbonado;
+  final double montoAplicado;
+  final double saldoRestanteDespues;
+
+  factory PagoResumen.fromJson(Map<String, dynamic> json) {
+    return PagoResumen(
+      fechaPago: DateTime.parse(json['fecha_pago'] as String),
+      montoAbonado: comoDouble(json['monto_abonado']),
+      montoAplicado: comoDouble(json['monto_aplicado']),
+      saldoRestanteDespues: comoDouble(json['saldo_restante_despues']),
     );
   }
 }
@@ -185,7 +229,9 @@ class PrestamoResumen {
     required this.fechaInicio,
     required this.extras,
     required this.cuotas,
+    required this.pagos,
     required this.totalPagado,
+    required this.totalAbonado,
   });
 
   final int id;
@@ -200,11 +246,24 @@ class PrestamoResumen {
   final List<ExtraResumen> extras;
   final List<CuotaResumen> cuotas;
 
+  /// Historial de pagos del préstamo, para reportes que necesiten filtrar
+  /// por rango de `fecha_pago` (ej. el exportador de CSV del admin).
+  final List<PagoResumen> pagos;
+
   /// Σ `pagos.monto_aplicado`, ya sumado de los pagos que trae la misma
   /// respuesta (no se pide nada aparte).
   final double totalPagado;
 
+  /// Σ `pagos.monto_abonado`. Solo difiere de [totalPagado] cuando hubo un
+  /// excedente `cobro_extra` (no reduce deuda, pero sí es dinero cobrado).
+  final double totalAbonado;
+
   double get montoExtras => extras.fold<double>(0, (acumulado, extra) => acumulado + extra.valor);
+
+  /// Excedente de pagos `cobro_extra`: dinero real cobrado que no redujo la
+  /// deuda del préstamo — el dashboard ya lo contabiliza en "Ganancia
+  /// realizada", este detalle no lo mostraba (bug corregido).
+  double get extraCobrado => totalAbonado - totalPagado;
 
   /// Se obtiene restando de `montoTotal` (ya calculado por el backend) en
   /// vez de recalcular `capital * porcentaje / 100`, para no arriesgar un
@@ -213,17 +272,32 @@ class PrestamoResumen {
   double get montoInteres => montoTotal - montoCapital - montoExtras;
 
   factory PrestamoResumen.fromJson(Map<String, dynamic> json) {
-    final totalPagado = ((json['pagos'] as List?) ?? const [])
-        .map((pago) => _comoDouble((pago as Map<String, dynamic>)['monto_aplicado']))
-        .fold<double>(0, (acumulado, monto) => acumulado + monto);
+    final pagos = ((json['pagos'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    final totalPagado = pagos.fold<double>(0, (acumulado, pago) => acumulado + comoDouble(pago['monto_aplicado']));
+    final totalAbonado = pagos.fold<double>(0, (acumulado, pago) => acumulado + comoDouble(pago['monto_abonado']));
+
+    // Fecha de pago real por cuota (la más reciente, si una cuota recibió más
+    // de un pago) para mostrarla junto a la fecha esperada en el listado.
+    final fechaPagoPorCuota = <int, DateTime>{};
+    for (final pago in pagos) {
+      final cuotaId = pago['cuota_id'] as int?;
+      final fechaPagoStr = pago['fecha_pago'] as String?;
+      if (cuotaId == null || fechaPagoStr == null) continue;
+
+      final fechaPago = DateTime.parse(fechaPagoStr);
+      final actual = fechaPagoPorCuota[cuotaId];
+      if (actual == null || fechaPago.isAfter(actual)) {
+        fechaPagoPorCuota[cuotaId] = fechaPago;
+      }
+    }
 
     return PrestamoResumen(
       id: json['id'] as int,
       clienteId: json['cliente_id'] as int,
       referencia: json['referencia'] as String?,
-      montoCapital: _comoDouble(json['monto_capital']),
-      porcentajeInteres: _comoDouble(json['porcentaje_interes']),
-      montoTotal: _comoDouble(json['monto_total']),
+      montoCapital: comoDouble(json['monto_capital']),
+      porcentajeInteres: comoDouble(json['porcentaje_interes']),
+      montoTotal: comoDouble(json['monto_total']),
       estado: json['estado'] as String,
       plazoCuotas: json['plazo_cuotas'] as int,
       fechaInicio: DateTime.parse(json['fecha_inicio'] as String),
@@ -231,9 +305,14 @@ class PrestamoResumen {
           .map((e) => ExtraResumen.fromJson(e as Map<String, dynamic>))
           .toList(),
       cuotas: ((json['cuotas'] as List?) ?? const [])
-          .map((e) => CuotaResumen.fromJson(e as Map<String, dynamic>))
+          .map((e) {
+            final cuotaJson = e as Map<String, dynamic>;
+            return CuotaResumen.fromJson(cuotaJson, fechaPago: fechaPagoPorCuota[cuotaJson['id'] as int]);
+          })
           .toList(),
+      pagos: pagos.map(PagoResumen.fromJson).toList(),
       totalPagado: totalPagado,
+      totalAbonado: totalAbonado,
     );
   }
 }
@@ -258,11 +337,4 @@ class DetalleCobrador {
           .toList(),
     );
   }
-}
-
-/// El backend serializa los decimales como string (ej. "100000.00"); acepta
-/// tanto num como String para no romperse si algún campo llega distinto.
-double _comoDouble(Object? valor) {
-  if (valor is num) return valor.toDouble();
-  return double.parse(valor.toString());
 }

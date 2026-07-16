@@ -143,6 +143,7 @@ class _FilasTotales extends StatelessWidget {
         _fila(context, 'Capital prestado', totales.capitalPrestado),
         _fila(context, 'Total cobrado', totales.totalCobrado),
         _fila(context, 'Cartera en mora', totales.carteraEnMora, resaltarSiPositivo: true),
+        _fila(context, 'Saldo disponible', totales.saldoDisponible),
         const Divider(),
         _fila(context, 'Ganancia por interés', totales.gananciaInteres),
         _fila(context, 'Ganancia por extras', totales.gananciaExtra),

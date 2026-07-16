@@ -212,6 +212,7 @@ void main() {
               'cartera_en_mora': 6000,
               'ganancia_interes': 1000,
               'ganancia_extra': 500,
+              'saldo_disponible': 15000,
             },
             'por_cobrador': [
               {
@@ -223,6 +224,7 @@ void main() {
                 'cartera_en_mora': 6000,
                 'ganancia_interes': 1000,
                 'ganancia_extra': 500,
+                'saldo_disponible': 15000,
               },
             ],
           },
@@ -240,11 +242,13 @@ void main() {
       expect(resumen.global.carteraEnMora, 6000.0);
       expect(resumen.global.gananciaInteres, 1000.0);
       expect(resumen.global.gananciaExtra, 500.0);
+      expect(resumen.global.saldoDisponible, 15000.0);
       expect(resumen.porCobrador, hasLength(1));
       expect(resumen.porCobrador.first.nombre, 'Cobrador Uno');
       expect(resumen.porCobrador.first.totales.totalCobrado, 5000.0);
       expect(resumen.porCobrador.first.totales.gananciaInteres, 1000.0);
       expect(resumen.porCobrador.first.totales.gananciaExtra, 500.0);
+      expect(resumen.porCobrador.first.totales.saldoDisponible, 15000.0);
     });
 
     test('obtenerConfiguracion nunca expone el pin, solo si está configurado', () async {

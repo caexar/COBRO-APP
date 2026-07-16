@@ -34,6 +34,15 @@ class PrestamosDao extends DatabaseAccessor<AppDatabase> with _$PrestamosDaoMixi
         .getSingleOrNull();
   }
 
+  /// Para detectar si un préstamo descargado por `GET /api/restaurar` ya se
+  /// insertó en un intento anterior (mismo criterio de deduplicación que ya
+  /// usa `POST /api/sync` del lado servidor).
+  Future<Prestamo?> obtenerPorUuidLocal(String uuidLocal, int usuarioId) {
+    return (select(prestamos)
+          ..where((tbl) => tbl.uuidLocal.equals(uuidLocal) & tbl.usuarioId.equals(usuarioId)))
+        .getSingleOrNull();
+  }
+
   Future<List<Prestamo>> obtenerNoSincronizados() {
     return (select(prestamos)..where((tbl) => tbl.sincronizado.equals(false))).get();
   }

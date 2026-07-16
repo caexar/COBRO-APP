@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../core/utils/formato_dinero.dart';
+import '../../auth/presentation/configuracion_seguridad_screen.dart';
 import '../../capital/presentation/agregar_capital_screen.dart';
 import '../../capital/presentation/historial_capital_screen.dart';
 import '../../clientes/presentation/clientes_list_screen.dart';
@@ -10,7 +11,9 @@ import '../../prestamos/presentation/cobros_pendientes_screen.dart';
 import '../../prestamos/presentation/historial_prestamos_screen.dart';
 import '../../prestamos/presentation/prestamo_form_screen.dart';
 import '../../prestamos/presentation/simular_prestamo_screen.dart';
+import '../../sincronizacion/data/restauracion_repository.dart';
 import '../../sincronizacion/data/sincronizacion_repository.dart';
+import '../../sincronizacion/presentation/restaurar_datos_screen.dart';
 import '../data/dashboard_repository.dart';
 import 'exportar_reporte_screen.dart';
 
@@ -32,6 +35,7 @@ class DashboardScreen extends StatefulWidget {
     required this.nombre,
     this.dashboardRepository,
     this.sincronizacionRepository,
+    this.restauracionRepository,
   });
 
   final VoidCallback onCerrarSesion;
@@ -41,6 +45,7 @@ class DashboardScreen extends StatefulWidget {
   /// instancias por defecto (mismo patrón que `AppEntryPoint`).
   final DashboardRepository? dashboardRepository;
   final SincronizacionRepository? sincronizacionRepository;
+  final RestauracionRepository? restauracionRepository;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -49,6 +54,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   late final _repository = widget.dashboardRepository ?? DashboardRepository();
   late final _sincronizacionRepository = widget.sincronizacionRepository ?? SincronizacionRepository();
+  late final _restauracionRepository = widget.restauracionRepository ?? RestauracionRepository();
   final _secureStorage = SecureStorageService();
 
   ResumenDashboard? _resumen;
@@ -56,6 +62,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   bool _sincronizando = false;
   DateTime? _ultimaSincronizacion;
+
+  /// Mientras sea `false`, la tarjeta de sincronización también ofrece
+  /// "Restaurar mis datos" (mismo flujo que se ofrece justo tras el login si
+  /// el dispositivo llega vacío) — se oculta apenas haya algún cliente local,
+  /// para no confundir a un cobrador que ya tiene datos reales.
+  bool _hayDatosLocales = true;
 
   /// `'todo'` (default), `'capital'`, `'capital_interes'` o `'capital_extra'`
   /// — ver `SecureStorageService.leerVistaDashboard`.
@@ -67,6 +79,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _cargar();
     _cargarVista();
     _cargarUltimaSincronizacion();
+    _cargarHayDatosLocales();
+  }
+
+  Future<void> _cargarHayDatosLocales() async {
+    try {
+      final hayDatos = await _restauracionRepository.hayDatosLocales();
+      if (!mounted) return;
+      setState(() => _hayDatosLocales = hayDatos);
+    } catch (_) {
+      // Ante cualquier duda, no ofrecer restaurar (se asume que ya hay datos).
+    }
+  }
+
+  Future<void> _restaurarDatos() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RestaurarDatosScreen(
+          onFinalizado: () => Navigator.of(context).pop(),
+          repository: _restauracionRepository,
+        ),
+      ),
+    );
+    await _cargarHayDatosLocales();
+    _cargar();
   }
 
   Future<void> _cargarUltimaSincronizacion() async {
@@ -210,6 +246,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: _mostrarSelectorVista,
           ),
           IconButton(
+            icon: const Icon(Icons.security),
+            tooltip: 'Configuración de seguridad',
+            onPressed: () => _ir(const ConfiguracionSeguridadScreen()),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar sesión',
             onPressed: widget.onCerrarSesion,
@@ -226,6 +267,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ultimaSincronizacion: _ultimaSincronizacion,
                 sincronizando: _sincronizando,
                 onSincronizar: _sincronizar,
+                onRestaurar: _hayDatosLocales ? null : _restaurarDatos,
               ),
               const SizedBox(height: 16),
               if (_cargando && resumen == null)
@@ -358,39 +400,69 @@ class _TarjetaSincronizacion extends StatelessWidget {
     required this.ultimaSincronizacion,
     required this.sincronizando,
     required this.onSincronizar,
+    this.onRestaurar,
   });
 
   final DateTime? ultimaSincronizacion;
   final bool sincronizando;
   final VoidCallback onSincronizar;
 
+  /// `null` si este dispositivo ya tiene datos locales (no hace falta
+  /// ofrecer restaurar); si no es `null`, muestra el botón "Restaurar datos"
+  /// — mismo flujo que se ofrece justo tras un login en un dispositivo vacío.
+  final VoidCallback? onRestaurar;
+
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: Text(
-                ultimaSincronizacion == null
-                    ? 'Todavía no has sincronizado en este dispositivo.'
-                    : 'Última sincronización: ${_formatearRelativo(ultimaSincronizacion!)}',
-                style: Theme.of(context).textTheme.bodySmall,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    ultimaSincronizacion == null
+                        ? 'Todavía no has sincronizado en este dispositivo.'
+                        : 'Última sincronización: ${_formatearRelativo(ultimaSincronizacion!)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: sincronizando ? null : onSincronizar,
+                  icon: sincronizando
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sync, size: 18),
+                  label: Text(sincronizando ? 'Sincronizando…' : 'Sincronizar'),
+                ),
+              ],
+            ),
+            if (onRestaurar != null) ...[
+              const Divider(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Este dispositivo no tiene tus datos guardados.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: onRestaurar,
+                    icon: const Icon(Icons.cloud_download_outlined, size: 18),
+                    label: const Text('Restaurar datos'),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: sincronizando ? null : onSincronizar,
-              icon: sincronizando
-                  ? const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.sync, size: 18),
-              label: Text(sincronizando ? 'Sincronizando…' : 'Sincronizar'),
-            ),
+            ],
           ],
         ),
       ),

@@ -101,4 +101,40 @@ class AdminResumenControllerTest extends TestCase
         $this->assertEqualsWithDelta(0, $porCobrador['ganancia_interes'], 0.01);
         $this->assertEqualsWithDelta(0, $porCobrador['ganancia_extra'], 0.01);
     }
+
+    public function test_el_resumen_incluye_el_saldo_disponible_por_cobrador_y_a_nivel_global(): void
+    {
+        $cobrador = User::factory()->create();
+        $cliente = Cliente::create([
+            'usuario_id' => $cobrador->id,
+            'nombre' => 'Carlos Ruiz',
+            'cedula' => '999999',
+            'telefono' => '3005555555',
+            'direccion' => 'Calle 3',
+        ]);
+
+        Sanctum::actingAs($cobrador);
+
+        $this->postJson('/api/cargas-capital', ['monto' => 200000])->assertCreated();
+
+        $this->postJson('/api/prestamos', [
+            'cliente_id' => $cliente->id,
+            'monto_capital' => 50000,
+            'porcentaje_interes' => 10,
+            'frecuencia_pago' => 'diario',
+            'plazo_cuotas' => 5,
+            'fecha_inicio' => now()->toDateString(),
+        ])->assertCreated();
+
+        $admin = User::factory()->admin()->create();
+        Sanctum::actingAs($admin);
+
+        $respuesta = $this->getJson('/api/admin/resumen');
+        $respuesta->assertOk();
+        $porCobrador = collect($respuesta->json('data.por_cobrador'))->firstWhere('usuario_id', $cobrador->id);
+
+        // saldo = 200000 (carga) - 0 (retiros) + 0 (abonado) - 50000 (capital prestado) = 150000
+        $this->assertEqualsWithDelta(150000, $porCobrador['saldo_disponible'], 0.01);
+        $this->assertEqualsWithDelta(150000, $respuesta->json('data.global.saldo_disponible'), 0.01);
+    }
 }

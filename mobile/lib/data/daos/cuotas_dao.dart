@@ -20,6 +20,14 @@ class CuotasDao extends DatabaseAccessor<AppDatabase> with _$CuotasDaoMixin {
     return (select(cuotas)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
   }
 
+  /// Para detectar si una cuota descargada por `GET /api/restaurar` ya se
+  /// insertó en un intento anterior (las cuotas no tienen `uuid_local`
+  /// propio, así que se deduplican por `servidorId`, mismo patrón que ya usa
+  /// `CargasCapitalDao.existePorServidorId`).
+  Future<Cuota?> obtenerPorServidorId(int servidorId) {
+    return (select(cuotas)..where((tbl) => tbl.servidorId.equals(servidorId))).getSingleOrNull();
+  }
+
   Future<List<Cuota>> obtenerNoSincronizadas() {
     return (select(cuotas)..where((tbl) => tbl.sincronizado.equals(false))).get();
   }

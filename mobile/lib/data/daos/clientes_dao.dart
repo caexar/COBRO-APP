@@ -24,6 +24,15 @@ class ClientesDao extends DatabaseAccessor<AppDatabase> with _$ClientesDaoMixin 
         .getSingleOrNull();
   }
 
+  /// Para detectar si un cliente descargado por `GET /api/restaurar` ya se
+  /// insertó en un intento anterior (mismo criterio de deduplicación que ya
+  /// usa `POST /api/sync` del lado servidor).
+  Future<Cliente?> obtenerPorUuidLocal(String uuidLocal, int usuarioId) {
+    return (select(clientes)
+          ..where((tbl) => tbl.uuidLocal.equals(uuidLocal) & tbl.usuarioId.equals(usuarioId)))
+        .getSingleOrNull();
+  }
+
   Future<List<Cliente>> obtenerNoSincronizados() {
     return (select(clientes)..where((tbl) => tbl.sincronizado.equals(false))).get();
   }
