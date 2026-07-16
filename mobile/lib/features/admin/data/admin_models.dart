@@ -21,19 +21,31 @@ class UsuarioAdmin {
   }
 }
 
-/// Totales de cartera: capital prestado, total cobrado y cartera en mora.
+/// Totales de cartera: capital prestado, total cobrado, cartera en mora y
+/// ganancia realizada (repartida entre interés y extras, misma lógica que
+/// `DashboardRepository` del lado cobrador).
 class ResumenTotales {
-  const ResumenTotales({required this.capitalPrestado, required this.totalCobrado, required this.carteraEnMora});
+  const ResumenTotales({
+    required this.capitalPrestado,
+    required this.totalCobrado,
+    required this.carteraEnMora,
+    required this.gananciaInteres,
+    required this.gananciaExtra,
+  });
 
   final double capitalPrestado;
   final double totalCobrado;
   final double carteraEnMora;
+  final double gananciaInteres;
+  final double gananciaExtra;
 
   factory ResumenTotales.fromJson(Map<String, dynamic> json) {
     return ResumenTotales(
       capitalPrestado: _comoDouble(json['capital_prestado']),
       totalCobrado: _comoDouble(json['total_cobrado']),
       carteraEnMora: _comoDouble(json['cartera_en_mora']),
+      gananciaInteres: _comoDouble(json['ganancia_interes']),
+      gananciaExtra: _comoDouble(json['ganancia_extra']),
     );
   }
 }
@@ -119,35 +131,109 @@ class ClienteResumen {
   }
 }
 
-/// Préstamo tal como aparece dentro del detalle de un cobrador.
+/// Monto extra de un préstamo (ej. "papelería"), tal como aparece dentro del
+/// detalle de un cobrador.
+class ExtraResumen {
+  const ExtraResumen({required this.concepto, required this.valor});
+
+  final String concepto;
+  final double valor;
+
+  factory ExtraResumen.fromJson(Map<String, dynamic> json) {
+    return ExtraResumen(concepto: json['concepto'] as String, valor: _comoDouble(json['valor']));
+  }
+}
+
+/// Cuota de un préstamo, tal como aparece dentro del detalle de un cobrador.
+class CuotaResumen {
+  const CuotaResumen({
+    required this.numeroCuota,
+    required this.fechaEsperada,
+    required this.montoEsperado,
+    required this.estado,
+  });
+
+  final int numeroCuota;
+  final DateTime fechaEsperada;
+  final double montoEsperado;
+  final String estado;
+
+  factory CuotaResumen.fromJson(Map<String, dynamic> json) {
+    return CuotaResumen(
+      numeroCuota: json['numero_cuota'] as int,
+      fechaEsperada: DateTime.parse(json['fecha_esperada'] as String),
+      montoEsperado: _comoDouble(json['monto_esperado']),
+      estado: json['estado'] as String,
+    );
+  }
+}
+
+/// Préstamo tal como aparece dentro del detalle de un cobrador, con extras y
+/// cuotas completas (la respuesta ya las trae, no hace falta pedirlas
+/// aparte) y `montoTotal` calculado por el backend (`Prestamo::monto_total`,
+/// nunca se recalcula acá).
 class PrestamoResumen {
   const PrestamoResumen({
     required this.id,
     required this.clienteId,
+    required this.referencia,
     required this.montoCapital,
     required this.porcentajeInteres,
+    required this.montoTotal,
     required this.estado,
     required this.plazoCuotas,
     required this.fechaInicio,
+    required this.extras,
+    required this.cuotas,
+    required this.totalPagado,
   });
 
   final int id;
   final int clienteId;
+  final String? referencia;
   final double montoCapital;
   final double porcentajeInteres;
+  final double montoTotal;
   final String estado;
   final int plazoCuotas;
   final DateTime fechaInicio;
+  final List<ExtraResumen> extras;
+  final List<CuotaResumen> cuotas;
+
+  /// Σ `pagos.monto_aplicado`, ya sumado de los pagos que trae la misma
+  /// respuesta (no se pide nada aparte).
+  final double totalPagado;
+
+  double get montoExtras => extras.fold<double>(0, (acumulado, extra) => acumulado + extra.valor);
+
+  /// Se obtiene restando de `montoTotal` (ya calculado por el backend) en
+  /// vez de recalcular `capital * porcentaje / 100`, para no arriesgar un
+  /// desajuste de redondeo entre este valor y el total que sí vino del
+  /// servidor.
+  double get montoInteres => montoTotal - montoCapital - montoExtras;
 
   factory PrestamoResumen.fromJson(Map<String, dynamic> json) {
+    final totalPagado = ((json['pagos'] as List?) ?? const [])
+        .map((pago) => _comoDouble((pago as Map<String, dynamic>)['monto_aplicado']))
+        .fold<double>(0, (acumulado, monto) => acumulado + monto);
+
     return PrestamoResumen(
       id: json['id'] as int,
       clienteId: json['cliente_id'] as int,
+      referencia: json['referencia'] as String?,
       montoCapital: _comoDouble(json['monto_capital']),
       porcentajeInteres: _comoDouble(json['porcentaje_interes']),
+      montoTotal: _comoDouble(json['monto_total']),
       estado: json['estado'] as String,
       plazoCuotas: json['plazo_cuotas'] as int,
       fechaInicio: DateTime.parse(json['fecha_inicio'] as String),
+      extras: ((json['extras'] as List?) ?? const [])
+          .map((e) => ExtraResumen.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      cuotas: ((json['cuotas'] as List?) ?? const [])
+          .map((e) => CuotaResumen.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      totalPagado: totalPagado,
     );
   }
 }

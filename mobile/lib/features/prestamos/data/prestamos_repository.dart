@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:uuid/uuid.dart';
 
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../data/app_database.dart';
@@ -60,6 +61,7 @@ class PrestamosRepository {
   final SecureStorageService _secureStorage;
   final ClientesRepository _clientesRepository;
   final _calculadora = const PrestamoCalculator();
+  final _uuid = const Uuid();
 
   PrestamosDao get _prestamosDao => _database.prestamosDao;
   PrestamosExtrasDao get _extrasDao => _database.prestamosExtrasDao;
@@ -211,6 +213,7 @@ class PrestamosRepository {
         plazoCuotas: plazoCuotas,
         fechaInicio: fechaInicio,
         politicaMora: Value(politicaMora),
+        uuidLocal: Value(_uuid.v4()),
       ),
     );
 

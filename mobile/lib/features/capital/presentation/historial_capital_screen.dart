@@ -72,6 +72,7 @@ class _HistorialCapitalScreenState extends State<HistorialCapitalScreen> {
                   itemBuilder: (context, indice) {
                     final movimiento = movimientos[indice];
                     final esRetiro = movimiento.tipo == 'retiro';
+                    final asignadoPorAdmin = movimiento.origen == 'admin';
 
                     return Card(
                       child: ListTile(
@@ -83,18 +84,38 @@ class _HistorialCapitalScreenState extends State<HistorialCapitalScreen> {
                           '${esRetiro ? '-' : '+'} ${formatearMoneda(movimiento.monto)}',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        subtitle: Text(
-                          [
-                            _formatearFecha(movimiento.creadoEn),
-                            if (movimiento.descripcion != null && movimiento.descripcion!.isNotEmpty)
-                              movimiento.descripcion!,
-                          ].join(' · '),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              [
+                                _formatearFecha(movimiento.creadoEn),
+                                if (movimiento.descripcion != null && movimiento.descripcion!.isNotEmpty)
+                                  movimiento.descripcion!,
+                              ].join(' · '),
+                            ),
+                            if (asignadoPorAdmin) ...[
+                              const SizedBox(height: 4),
+                              const Chip(
+                                label: Text('Asignado por administrador', style: TextStyle(fontSize: 11)),
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ],
+                          ],
                         ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          tooltip: 'Eliminar',
-                          onPressed: () => _confirmarEliminar(movimiento),
-                        ),
+                        // Un movimiento asignado por un admin es autoridad del
+                        // servidor: el cobrador no puede deshacerlo desde acá
+                        // (y si lo hiciera, no hay forma de sincronizar esa
+                        // baja todavía — ver SincronizacionRepository).
+                        trailing: asignadoPorAdmin
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                tooltip: 'Eliminar',
+                                onPressed: () => _confirmarEliminar(movimiento),
+                              ),
                       ),
                     );
                   },

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Hashes de PIN maestro tal como quedaron guardados localmente (ninguno de
@@ -31,6 +33,8 @@ class SecureStorageService {
   static const _claveIntentosMaximosPin = 'bloqueo_intentos_maximos_pin';
   static const _claveIntentosFallidos = 'bloqueo_intentos_fallidos';
   static const _prefijoVistaDashboard = 'dashboard_vista_';
+  static const _prefijoUltimaSincronizacion = 'sync_ultima_';
+  static const _claveTasasInteresDefault = 'sync_tasas_interes_default';
 
   // --- Sesión ---
 
@@ -152,5 +156,34 @@ class SecureStorageService {
   Future<String> leerVistaDashboard(int usuarioId) async {
     final valor = await _storage.read(key: '$_prefijoVistaDashboard$usuarioId');
     return valor ?? 'todo';
+  }
+
+  // --- Sincronización ---
+
+  /// Fecha/hora de la última vez que `POST /api/sync` respondió con éxito
+  /// para [usuarioId] (independiente de si algún registro individual quedó
+  /// en conflicto o error). Clave por usuario por la misma razón que la
+  /// vista del dashboard: el dispositivo puede ser compartido.
+  Future<void> guardarUltimaSincronizacion(int usuarioId, DateTime fecha) =>
+      _storage.write(key: '$_prefijoUltimaSincronizacion$usuarioId', value: fecha.toIso8601String());
+
+  Future<DateTime?> leerUltimaSincronizacion(int usuarioId) async {
+    final valor = await _storage.read(key: '$_prefijoUltimaSincronizacion$usuarioId');
+    return valor != null ? DateTime.tryParse(valor) : null;
+  }
+
+  /// Tasas de interés sugeridas (`configuracion_global.tasas_interes_default`,
+  /// descargadas junto con el resto de la respuesta de `/sync`). No es por
+  /// usuario: es configuración global del negocio, igual en el servidor.
+  /// Puramente informativa — ver nota en `PrestamoCalculadoraFormulario`
+  /// sobre por qué los botones rápidos de interés siguen hardcodeados.
+  Future<void> guardarTasasInteresDefault(List<double> tasas) =>
+      _storage.write(key: _claveTasasInteresDefault, value: jsonEncode(tasas));
+
+  Future<List<double>> leerTasasInteresDefault() async {
+    final valor = await _storage.read(key: _claveTasasInteresDefault);
+    if (valor == null) return const [10, 20, 30, 40];
+
+    return (jsonDecode(valor) as List).map((tasa) => (tasa as num).toDouble()).toList();
   }
 }

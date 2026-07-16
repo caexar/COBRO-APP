@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:uuid/uuid.dart';
 
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../data/app_database.dart';
@@ -20,6 +21,7 @@ class CargasCapitalRepository {
 
   final AppDatabase _database;
   final SecureStorageService _secureStorage;
+  final _uuid = const Uuid();
 
   CargasCapitalDao get _cargasCapitalDao => _database.cargasCapitalDao;
   CambiosPendientesDao get _cambiosPendientesDao => _database.cambiosPendientesDao;
@@ -51,6 +53,7 @@ class CargasCapitalRepository {
         tipo: Value(tipo),
         descripcion: Value(descripcion),
         creadoEn: Value(ahora),
+        uuidLocal: Value(_uuid.v4()),
       ),
     );
 
@@ -76,6 +79,36 @@ class CargasCapitalRepository {
       tabla: 'cargas_capital',
       registroId: id,
       tipoOperacion: 'eliminar',
+    );
+  }
+
+  /// Guarda un movimiento que un admin le asignó a este cobrador
+  /// (`POST /admin/cargas-capital`), descargado vía `cargas_capital_admin`
+  /// en la respuesta de `POST /api/sync`. A diferencia de [crear], no tiene
+  /// `uuidLocal` (nunca se sube, ya nace con `servidorId`) ni se encola en
+  /// `cambios_pendientes` (ya está sincronizado por definición). Es
+  /// idempotente: si ya existe un movimiento con este [servidorId] (reintento
+  /// de una descarga), no hace nada.
+  Future<void> guardarDescargadaDeAdmin({
+    required int servidorId,
+    required String tipo,
+    required double monto,
+    String? descripcion,
+  }) async {
+    if (await _cargasCapitalDao.existePorServidorId(servidorId)) return;
+
+    final usuarioId = await _usuarioIdActual();
+
+    await _cargasCapitalDao.insertar(
+      CargasCapitalCompanion.insert(
+        usuarioId: usuarioId,
+        monto: monto,
+        tipo: Value(tipo),
+        descripcion: Value(descripcion),
+        servidorId: Value(servidorId),
+        origen: const Value('admin'),
+        sincronizado: const Value(true),
+      ),
     );
   }
 }

@@ -107,4 +107,12 @@ class ClientesDao extends DatabaseAccessor<AppDatabase> with _$ClientesDaoMixin 
       ),
     );
   }
+
+  /// Se llama tras confirmar en `POST /api/sync` que el servidor ya tiene
+  /// este registro (creado o reconciliado), para dejar de reintentarlo.
+  Future<int> marcarSincronizado(int id, int servidorId) {
+    return (update(clientes)..where((tbl) => tbl.id.equals(id))).write(
+      ClientesCompanion(servidorId: Value(servidorId), sincronizado: const Value(true)),
+    );
+  }
 }

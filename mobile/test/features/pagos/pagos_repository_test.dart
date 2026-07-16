@@ -151,7 +151,7 @@ void main() {
     expect(detalleFinal.cuotas.every((c) => c.estado == 'pagada'), isTrue);
   });
 
-  test('un excedente con abono_deuda genera varios pagos locales pero un solo cambio pendiente', () async {
+  test('un excedente con abono_deuda genera varios pagos locales, cada uno con su propio cambio pendiente', () async {
     final prestamoId = await crearPrestamoPrueba();
     final detalle = await prestamosRepository.obtenerDetalle(prestamoId);
 
@@ -164,8 +164,13 @@ void main() {
 
     expect(pagos, hasLength(3));
 
+    // Cada fila de pago es un registro propio en el servidor (pagos.cuota_id
+    // es una FK singular), así que cada una necesita su propio cambio
+    // pendiente para que POST /api/sync no pierda las que no son la primera.
     final pendientes = await db.cambiosPendientesDao.obtenerPendientes(1);
-    expect(pendientes.where((p) => p.tabla == 'pagos'), hasLength(1));
+    final pendientesDePagos = pendientes.where((p) => p.tabla == 'pagos');
+    expect(pendientesDePagos, hasLength(3));
+    expect(pendientesDePagos.map((p) => p.registroId), pagos.map((p) => p.id));
   });
 
   test('listarPorPrestamo devuelve los pagos ordenados por fecha', () async {

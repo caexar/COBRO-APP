@@ -33,6 +33,17 @@ class $ClientesTable extends Clientes with TableInfo<$ClientesTable, Cliente> {
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _uuidLocalMeta = const VerificationMeta(
+    'uuidLocal',
+  );
+  @override
+  late final GeneratedColumn<String> uuidLocal = GeneratedColumn<String>(
+    'uuid_local',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _usuarioIdMeta = const VerificationMeta(
     'usuarioId',
   );
@@ -169,6 +180,7 @@ class $ClientesTable extends Clientes with TableInfo<$ClientesTable, Cliente> {
   List<GeneratedColumn> get $columns => [
     id,
     servidorId,
+    uuidLocal,
     usuarioId,
     nombre,
     cedula,
@@ -200,6 +212,12 @@ class $ClientesTable extends Clientes with TableInfo<$ClientesTable, Cliente> {
       context.handle(
         _servidorIdMeta,
         servidorId.isAcceptableOrUnknown(data['servidor_id']!, _servidorIdMeta),
+      );
+    }
+    if (data.containsKey('uuid_local')) {
+      context.handle(
+        _uuidLocalMeta,
+        uuidLocal.isAcceptableOrUnknown(data['uuid_local']!, _uuidLocalMeta),
       );
     }
     if (data.containsKey('usuario_id')) {
@@ -304,6 +322,10 @@ class $ClientesTable extends Clientes with TableInfo<$ClientesTable, Cliente> {
         DriftSqlType.int,
         data['${effectivePrefix}servidor_id'],
       ),
+      uuidLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid_local'],
+      ),
       usuarioId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}usuario_id'],
@@ -360,6 +382,11 @@ class $ClientesTable extends Clientes with TableInfo<$ClientesTable, Cliente> {
 class Cliente extends DataClass implements Insertable<Cliente> {
   final int id;
   final int? servidorId;
+
+  /// Generado al crear el registro localmente (no al sincronizar); es la
+  /// clave que usa `POST /api/sync` para deduplicar reintentos y resolver
+  /// referencias cruzadas entre registros del mismo batch.
+  final String? uuidLocal;
   final int usuarioId;
   final String nombre;
   final String cedula;
@@ -374,6 +401,7 @@ class Cliente extends DataClass implements Insertable<Cliente> {
   const Cliente({
     required this.id,
     this.servidorId,
+    this.uuidLocal,
     required this.usuarioId,
     required this.nombre,
     required this.cedula,
@@ -392,6 +420,9 @@ class Cliente extends DataClass implements Insertable<Cliente> {
     map['id'] = Variable<int>(id);
     if (!nullToAbsent || servidorId != null) {
       map['servidor_id'] = Variable<int>(servidorId);
+    }
+    if (!nullToAbsent || uuidLocal != null) {
+      map['uuid_local'] = Variable<String>(uuidLocal);
     }
     map['usuario_id'] = Variable<int>(usuarioId);
     map['nombre'] = Variable<String>(nombre);
@@ -419,6 +450,9 @@ class Cliente extends DataClass implements Insertable<Cliente> {
       servidorId: servidorId == null && nullToAbsent
           ? const Value.absent()
           : Value(servidorId),
+      uuidLocal: uuidLocal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uuidLocal),
       usuarioId: Value(usuarioId),
       nombre: Value(nombre),
       cedula: Value(cedula),
@@ -447,6 +481,7 @@ class Cliente extends DataClass implements Insertable<Cliente> {
     return Cliente(
       id: serializer.fromJson<int>(json['id']),
       servidorId: serializer.fromJson<int?>(json['servidorId']),
+      uuidLocal: serializer.fromJson<String?>(json['uuidLocal']),
       usuarioId: serializer.fromJson<int>(json['usuarioId']),
       nombre: serializer.fromJson<String>(json['nombre']),
       cedula: serializer.fromJson<String>(json['cedula']),
@@ -466,6 +501,7 @@ class Cliente extends DataClass implements Insertable<Cliente> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'servidorId': serializer.toJson<int?>(servidorId),
+      'uuidLocal': serializer.toJson<String?>(uuidLocal),
       'usuarioId': serializer.toJson<int>(usuarioId),
       'nombre': serializer.toJson<String>(nombre),
       'cedula': serializer.toJson<String>(cedula),
@@ -483,6 +519,7 @@ class Cliente extends DataClass implements Insertable<Cliente> {
   Cliente copyWith({
     int? id,
     Value<int?> servidorId = const Value.absent(),
+    Value<String?> uuidLocal = const Value.absent(),
     int? usuarioId,
     String? nombre,
     String? cedula,
@@ -497,6 +534,7 @@ class Cliente extends DataClass implements Insertable<Cliente> {
   }) => Cliente(
     id: id ?? this.id,
     servidorId: servidorId.present ? servidorId.value : this.servidorId,
+    uuidLocal: uuidLocal.present ? uuidLocal.value : this.uuidLocal,
     usuarioId: usuarioId ?? this.usuarioId,
     nombre: nombre ?? this.nombre,
     cedula: cedula ?? this.cedula,
@@ -515,6 +553,7 @@ class Cliente extends DataClass implements Insertable<Cliente> {
       servidorId: data.servidorId.present
           ? data.servidorId.value
           : this.servidorId,
+      uuidLocal: data.uuidLocal.present ? data.uuidLocal.value : this.uuidLocal,
       usuarioId: data.usuarioId.present ? data.usuarioId.value : this.usuarioId,
       nombre: data.nombre.present ? data.nombre.value : this.nombre,
       cedula: data.cedula.present ? data.cedula.value : this.cedula,
@@ -542,6 +581,7 @@ class Cliente extends DataClass implements Insertable<Cliente> {
     return (StringBuffer('Cliente(')
           ..write('id: $id, ')
           ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
           ..write('usuarioId: $usuarioId, ')
           ..write('nombre: $nombre, ')
           ..write('cedula: $cedula, ')
@@ -561,6 +601,7 @@ class Cliente extends DataClass implements Insertable<Cliente> {
   int get hashCode => Object.hash(
     id,
     servidorId,
+    uuidLocal,
     usuarioId,
     nombre,
     cedula,
@@ -579,6 +620,7 @@ class Cliente extends DataClass implements Insertable<Cliente> {
       (other is Cliente &&
           other.id == this.id &&
           other.servidorId == this.servidorId &&
+          other.uuidLocal == this.uuidLocal &&
           other.usuarioId == this.usuarioId &&
           other.nombre == this.nombre &&
           other.cedula == this.cedula &&
@@ -595,6 +637,7 @@ class Cliente extends DataClass implements Insertable<Cliente> {
 class ClientesCompanion extends UpdateCompanion<Cliente> {
   final Value<int> id;
   final Value<int?> servidorId;
+  final Value<String?> uuidLocal;
   final Value<int> usuarioId;
   final Value<String> nombre;
   final Value<String> cedula;
@@ -609,6 +652,7 @@ class ClientesCompanion extends UpdateCompanion<Cliente> {
   const ClientesCompanion({
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
     this.usuarioId = const Value.absent(),
     this.nombre = const Value.absent(),
     this.cedula = const Value.absent(),
@@ -624,6 +668,7 @@ class ClientesCompanion extends UpdateCompanion<Cliente> {
   ClientesCompanion.insert({
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
     required int usuarioId,
     required String nombre,
     required String cedula,
@@ -643,6 +688,7 @@ class ClientesCompanion extends UpdateCompanion<Cliente> {
   static Insertable<Cliente> custom({
     Expression<int>? id,
     Expression<int>? servidorId,
+    Expression<String>? uuidLocal,
     Expression<int>? usuarioId,
     Expression<String>? nombre,
     Expression<String>? cedula,
@@ -658,6 +704,7 @@ class ClientesCompanion extends UpdateCompanion<Cliente> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (servidorId != null) 'servidor_id': servidorId,
+      if (uuidLocal != null) 'uuid_local': uuidLocal,
       if (usuarioId != null) 'usuario_id': usuarioId,
       if (nombre != null) 'nombre': nombre,
       if (cedula != null) 'cedula': cedula,
@@ -675,6 +722,7 @@ class ClientesCompanion extends UpdateCompanion<Cliente> {
   ClientesCompanion copyWith({
     Value<int>? id,
     Value<int?>? servidorId,
+    Value<String?>? uuidLocal,
     Value<int>? usuarioId,
     Value<String>? nombre,
     Value<String>? cedula,
@@ -690,6 +738,7 @@ class ClientesCompanion extends UpdateCompanion<Cliente> {
     return ClientesCompanion(
       id: id ?? this.id,
       servidorId: servidorId ?? this.servidorId,
+      uuidLocal: uuidLocal ?? this.uuidLocal,
       usuarioId: usuarioId ?? this.usuarioId,
       nombre: nombre ?? this.nombre,
       cedula: cedula ?? this.cedula,
@@ -712,6 +761,9 @@ class ClientesCompanion extends UpdateCompanion<Cliente> {
     }
     if (servidorId.present) {
       map['servidor_id'] = Variable<int>(servidorId.value);
+    }
+    if (uuidLocal.present) {
+      map['uuid_local'] = Variable<String>(uuidLocal.value);
     }
     if (usuarioId.present) {
       map['usuario_id'] = Variable<int>(usuarioId.value);
@@ -754,6 +806,7 @@ class ClientesCompanion extends UpdateCompanion<Cliente> {
     return (StringBuffer('ClientesCompanion(')
           ..write('id: $id, ')
           ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
           ..write('usuarioId: $usuarioId, ')
           ..write('nombre: $nombre, ')
           ..write('cedula: $cedula, ')
@@ -800,6 +853,17 @@ class $PrestamosTable extends Prestamos
     type: DriftSqlType.int,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _uuidLocalMeta = const VerificationMeta(
+    'uuidLocal',
+  );
+  @override
+  late final GeneratedColumn<String> uuidLocal = GeneratedColumn<String>(
+    'uuid_local',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _clienteIdMeta = const VerificationMeta(
     'clienteId',
@@ -980,6 +1044,7 @@ class $PrestamosTable extends Prestamos
   List<GeneratedColumn> get $columns => [
     id,
     servidorId,
+    uuidLocal,
     clienteId,
     referencia,
     usuarioId,
@@ -1015,6 +1080,12 @@ class $PrestamosTable extends Prestamos
       context.handle(
         _servidorIdMeta,
         servidorId.isAcceptableOrUnknown(data['servidor_id']!, _servidorIdMeta),
+      );
+    }
+    if (data.containsKey('uuid_local')) {
+      context.handle(
+        _uuidLocalMeta,
+        uuidLocal.isAcceptableOrUnknown(data['uuid_local']!, _uuidLocalMeta),
       );
     }
     if (data.containsKey('cliente_id')) {
@@ -1168,6 +1239,10 @@ class $PrestamosTable extends Prestamos
         DriftSqlType.int,
         data['${effectivePrefix}servidor_id'],
       ),
+      uuidLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid_local'],
+      ),
       clienteId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}cliente_id'],
@@ -1240,6 +1315,10 @@ class $PrestamosTable extends Prestamos
 class Prestamo extends DataClass implements Insertable<Prestamo> {
   final int id;
   final int? servidorId;
+
+  /// Generado al crear el registro localmente (no al sincronizar); ver nota
+  /// equivalente en `Clientes.uuidLocal`.
+  final String? uuidLocal;
   final int clienteId;
   final String? referencia;
   final int usuarioId;
@@ -1258,6 +1337,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
   const Prestamo({
     required this.id,
     this.servidorId,
+    this.uuidLocal,
     required this.clienteId,
     this.referencia,
     required this.usuarioId,
@@ -1280,6 +1360,9 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
     map['id'] = Variable<int>(id);
     if (!nullToAbsent || servidorId != null) {
       map['servidor_id'] = Variable<int>(servidorId);
+    }
+    if (!nullToAbsent || uuidLocal != null) {
+      map['uuid_local'] = Variable<String>(uuidLocal);
     }
     map['cliente_id'] = Variable<int>(clienteId);
     if (!nullToAbsent || referencia != null) {
@@ -1313,6 +1396,9 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
       servidorId: servidorId == null && nullToAbsent
           ? const Value.absent()
           : Value(servidorId),
+      uuidLocal: uuidLocal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uuidLocal),
       clienteId: Value(clienteId),
       referencia: referencia == null && nullToAbsent
           ? const Value.absent()
@@ -1347,6 +1433,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
     return Prestamo(
       id: serializer.fromJson<int>(json['id']),
       servidorId: serializer.fromJson<int?>(json['servidorId']),
+      uuidLocal: serializer.fromJson<String?>(json['uuidLocal']),
       clienteId: serializer.fromJson<int>(json['clienteId']),
       referencia: serializer.fromJson<String?>(json['referencia']),
       usuarioId: serializer.fromJson<int>(json['usuarioId']),
@@ -1370,6 +1457,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'servidorId': serializer.toJson<int?>(servidorId),
+      'uuidLocal': serializer.toJson<String?>(uuidLocal),
       'clienteId': serializer.toJson<int>(clienteId),
       'referencia': serializer.toJson<String?>(referencia),
       'usuarioId': serializer.toJson<int>(usuarioId),
@@ -1391,6 +1479,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
   Prestamo copyWith({
     int? id,
     Value<int?> servidorId = const Value.absent(),
+    Value<String?> uuidLocal = const Value.absent(),
     int? clienteId,
     Value<String?> referencia = const Value.absent(),
     int? usuarioId,
@@ -1409,6 +1498,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
   }) => Prestamo(
     id: id ?? this.id,
     servidorId: servidorId.present ? servidorId.value : this.servidorId,
+    uuidLocal: uuidLocal.present ? uuidLocal.value : this.uuidLocal,
     clienteId: clienteId ?? this.clienteId,
     referencia: referencia.present ? referencia.value : this.referencia,
     usuarioId: usuarioId ?? this.usuarioId,
@@ -1433,6 +1523,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
       servidorId: data.servidorId.present
           ? data.servidorId.value
           : this.servidorId,
+      uuidLocal: data.uuidLocal.present ? data.uuidLocal.value : this.uuidLocal,
       clienteId: data.clienteId.present ? data.clienteId.value : this.clienteId,
       referencia: data.referencia.present
           ? data.referencia.value
@@ -1478,6 +1569,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
     return (StringBuffer('Prestamo(')
           ..write('id: $id, ')
           ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
           ..write('clienteId: $clienteId, ')
           ..write('referencia: $referencia, ')
           ..write('usuarioId: $usuarioId, ')
@@ -1501,6 +1593,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
   int get hashCode => Object.hash(
     id,
     servidorId,
+    uuidLocal,
     clienteId,
     referencia,
     usuarioId,
@@ -1523,6 +1616,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
       (other is Prestamo &&
           other.id == this.id &&
           other.servidorId == this.servidorId &&
+          other.uuidLocal == this.uuidLocal &&
           other.clienteId == this.clienteId &&
           other.referencia == this.referencia &&
           other.usuarioId == this.usuarioId &&
@@ -1543,6 +1637,7 @@ class Prestamo extends DataClass implements Insertable<Prestamo> {
 class PrestamosCompanion extends UpdateCompanion<Prestamo> {
   final Value<int> id;
   final Value<int?> servidorId;
+  final Value<String?> uuidLocal;
   final Value<int> clienteId;
   final Value<String?> referencia;
   final Value<int> usuarioId;
@@ -1561,6 +1656,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
   const PrestamosCompanion({
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
     this.clienteId = const Value.absent(),
     this.referencia = const Value.absent(),
     this.usuarioId = const Value.absent(),
@@ -1580,6 +1676,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
   PrestamosCompanion.insert({
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
     required int clienteId,
     this.referencia = const Value.absent(),
     required int usuarioId,
@@ -1605,6 +1702,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
   static Insertable<Prestamo> custom({
     Expression<int>? id,
     Expression<int>? servidorId,
+    Expression<String>? uuidLocal,
     Expression<int>? clienteId,
     Expression<String>? referencia,
     Expression<int>? usuarioId,
@@ -1624,6 +1722,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (servidorId != null) 'servidor_id': servidorId,
+      if (uuidLocal != null) 'uuid_local': uuidLocal,
       if (clienteId != null) 'cliente_id': clienteId,
       if (referencia != null) 'referencia': referencia,
       if (usuarioId != null) 'usuario_id': usuarioId,
@@ -1645,6 +1744,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
   PrestamosCompanion copyWith({
     Value<int>? id,
     Value<int?>? servidorId,
+    Value<String?>? uuidLocal,
     Value<int>? clienteId,
     Value<String?>? referencia,
     Value<int>? usuarioId,
@@ -1664,6 +1764,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
     return PrestamosCompanion(
       id: id ?? this.id,
       servidorId: servidorId ?? this.servidorId,
+      uuidLocal: uuidLocal ?? this.uuidLocal,
       clienteId: clienteId ?? this.clienteId,
       referencia: referencia ?? this.referencia,
       usuarioId: usuarioId ?? this.usuarioId,
@@ -1690,6 +1791,9 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
     }
     if (servidorId.present) {
       map['servidor_id'] = Variable<int>(servidorId.value);
+    }
+    if (uuidLocal.present) {
+      map['uuid_local'] = Variable<String>(uuidLocal.value);
     }
     if (clienteId.present) {
       map['cliente_id'] = Variable<int>(clienteId.value);
@@ -1744,6 +1848,7 @@ class PrestamosCompanion extends UpdateCompanion<Prestamo> {
     return (StringBuffer('PrestamosCompanion(')
           ..write('id: $id, ')
           ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
           ..write('clienteId: $clienteId, ')
           ..write('referencia: $referencia, ')
           ..write('usuarioId: $usuarioId, ')
@@ -2937,6 +3042,17 @@ class $PagosTable extends Pagos with TableInfo<$PagosTable, Pago> {
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _uuidLocalMeta = const VerificationMeta(
+    'uuidLocal',
+  );
+  @override
+  late final GeneratedColumn<String> uuidLocal = GeneratedColumn<String>(
+    'uuid_local',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _prestamoIdMeta = const VerificationMeta(
     'prestamoId',
   );
@@ -3076,6 +3192,7 @@ class $PagosTable extends Pagos with TableInfo<$PagosTable, Pago> {
   List<GeneratedColumn> get $columns => [
     id,
     servidorId,
+    uuidLocal,
     prestamoId,
     cuotaId,
     montoAbonado,
@@ -3107,6 +3224,12 @@ class $PagosTable extends Pagos with TableInfo<$PagosTable, Pago> {
       context.handle(
         _servidorIdMeta,
         servidorId.isAcceptableOrUnknown(data['servidor_id']!, _servidorIdMeta),
+      );
+    }
+    if (data.containsKey('uuid_local')) {
+      context.handle(
+        _uuidLocalMeta,
+        uuidLocal.isAcceptableOrUnknown(data['uuid_local']!, _uuidLocalMeta),
       );
     }
     if (data.containsKey('prestamo_id')) {
@@ -3220,6 +3343,10 @@ class $PagosTable extends Pagos with TableInfo<$PagosTable, Pago> {
         DriftSqlType.int,
         data['${effectivePrefix}servidor_id'],
       ),
+      uuidLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid_local'],
+      ),
       prestamoId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}prestamo_id'],
@@ -3276,6 +3403,10 @@ class $PagosTable extends Pagos with TableInfo<$PagosTable, Pago> {
 class Pago extends DataClass implements Insertable<Pago> {
   final int id;
   final int? servidorId;
+
+  /// Generado al crear el registro localmente (no al sincronizar); ver nota
+  /// equivalente en `Clientes.uuidLocal`.
+  final String? uuidLocal;
   final int prestamoId;
   final int? cuotaId;
   final double montoAbonado;
@@ -3290,6 +3421,7 @@ class Pago extends DataClass implements Insertable<Pago> {
   const Pago({
     required this.id,
     this.servidorId,
+    this.uuidLocal,
     required this.prestamoId,
     this.cuotaId,
     required this.montoAbonado,
@@ -3308,6 +3440,9 @@ class Pago extends DataClass implements Insertable<Pago> {
     map['id'] = Variable<int>(id);
     if (!nullToAbsent || servidorId != null) {
       map['servidor_id'] = Variable<int>(servidorId);
+    }
+    if (!nullToAbsent || uuidLocal != null) {
+      map['uuid_local'] = Variable<String>(uuidLocal);
     }
     map['prestamo_id'] = Variable<int>(prestamoId);
     if (!nullToAbsent || cuotaId != null) {
@@ -3333,6 +3468,9 @@ class Pago extends DataClass implements Insertable<Pago> {
       servidorId: servidorId == null && nullToAbsent
           ? const Value.absent()
           : Value(servidorId),
+      uuidLocal: uuidLocal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uuidLocal),
       prestamoId: Value(prestamoId),
       cuotaId: cuotaId == null && nullToAbsent
           ? const Value.absent()
@@ -3359,6 +3497,7 @@ class Pago extends DataClass implements Insertable<Pago> {
     return Pago(
       id: serializer.fromJson<int>(json['id']),
       servidorId: serializer.fromJson<int?>(json['servidorId']),
+      uuidLocal: serializer.fromJson<String?>(json['uuidLocal']),
       prestamoId: serializer.fromJson<int>(json['prestamoId']),
       cuotaId: serializer.fromJson<int?>(json['cuotaId']),
       montoAbonado: serializer.fromJson<double>(json['montoAbonado']),
@@ -3380,6 +3519,7 @@ class Pago extends DataClass implements Insertable<Pago> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'servidorId': serializer.toJson<int?>(servidorId),
+      'uuidLocal': serializer.toJson<String?>(uuidLocal),
       'prestamoId': serializer.toJson<int>(prestamoId),
       'cuotaId': serializer.toJson<int?>(cuotaId),
       'montoAbonado': serializer.toJson<double>(montoAbonado),
@@ -3397,6 +3537,7 @@ class Pago extends DataClass implements Insertable<Pago> {
   Pago copyWith({
     int? id,
     Value<int?> servidorId = const Value.absent(),
+    Value<String?> uuidLocal = const Value.absent(),
     int? prestamoId,
     Value<int?> cuotaId = const Value.absent(),
     double? montoAbonado,
@@ -3411,6 +3552,7 @@ class Pago extends DataClass implements Insertable<Pago> {
   }) => Pago(
     id: id ?? this.id,
     servidorId: servidorId.present ? servidorId.value : this.servidorId,
+    uuidLocal: uuidLocal.present ? uuidLocal.value : this.uuidLocal,
     prestamoId: prestamoId ?? this.prestamoId,
     cuotaId: cuotaId.present ? cuotaId.value : this.cuotaId,
     montoAbonado: montoAbonado ?? this.montoAbonado,
@@ -3429,6 +3571,7 @@ class Pago extends DataClass implements Insertable<Pago> {
       servidorId: data.servidorId.present
           ? data.servidorId.value
           : this.servidorId,
+      uuidLocal: data.uuidLocal.present ? data.uuidLocal.value : this.uuidLocal,
       prestamoId: data.prestamoId.present
           ? data.prestamoId.value
           : this.prestamoId,
@@ -3462,6 +3605,7 @@ class Pago extends DataClass implements Insertable<Pago> {
     return (StringBuffer('Pago(')
           ..write('id: $id, ')
           ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
           ..write('prestamoId: $prestamoId, ')
           ..write('cuotaId: $cuotaId, ')
           ..write('montoAbonado: $montoAbonado, ')
@@ -3481,6 +3625,7 @@ class Pago extends DataClass implements Insertable<Pago> {
   int get hashCode => Object.hash(
     id,
     servidorId,
+    uuidLocal,
     prestamoId,
     cuotaId,
     montoAbonado,
@@ -3499,6 +3644,7 @@ class Pago extends DataClass implements Insertable<Pago> {
       (other is Pago &&
           other.id == this.id &&
           other.servidorId == this.servidorId &&
+          other.uuidLocal == this.uuidLocal &&
           other.prestamoId == this.prestamoId &&
           other.cuotaId == this.cuotaId &&
           other.montoAbonado == this.montoAbonado &&
@@ -3515,6 +3661,7 @@ class Pago extends DataClass implements Insertable<Pago> {
 class PagosCompanion extends UpdateCompanion<Pago> {
   final Value<int> id;
   final Value<int?> servidorId;
+  final Value<String?> uuidLocal;
   final Value<int> prestamoId;
   final Value<int?> cuotaId;
   final Value<double> montoAbonado;
@@ -3529,6 +3676,7 @@ class PagosCompanion extends UpdateCompanion<Pago> {
   const PagosCompanion({
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
     this.prestamoId = const Value.absent(),
     this.cuotaId = const Value.absent(),
     this.montoAbonado = const Value.absent(),
@@ -3544,6 +3692,7 @@ class PagosCompanion extends UpdateCompanion<Pago> {
   PagosCompanion.insert({
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
     required int prestamoId,
     this.cuotaId = const Value.absent(),
     required double montoAbonado,
@@ -3563,6 +3712,7 @@ class PagosCompanion extends UpdateCompanion<Pago> {
   static Insertable<Pago> custom({
     Expression<int>? id,
     Expression<int>? servidorId,
+    Expression<String>? uuidLocal,
     Expression<int>? prestamoId,
     Expression<int>? cuotaId,
     Expression<double>? montoAbonado,
@@ -3578,6 +3728,7 @@ class PagosCompanion extends UpdateCompanion<Pago> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (servidorId != null) 'servidor_id': servidorId,
+      if (uuidLocal != null) 'uuid_local': uuidLocal,
       if (prestamoId != null) 'prestamo_id': prestamoId,
       if (cuotaId != null) 'cuota_id': cuotaId,
       if (montoAbonado != null) 'monto_abonado': montoAbonado,
@@ -3596,6 +3747,7 @@ class PagosCompanion extends UpdateCompanion<Pago> {
   PagosCompanion copyWith({
     Value<int>? id,
     Value<int?>? servidorId,
+    Value<String?>? uuidLocal,
     Value<int>? prestamoId,
     Value<int?>? cuotaId,
     Value<double>? montoAbonado,
@@ -3611,6 +3763,7 @@ class PagosCompanion extends UpdateCompanion<Pago> {
     return PagosCompanion(
       id: id ?? this.id,
       servidorId: servidorId ?? this.servidorId,
+      uuidLocal: uuidLocal ?? this.uuidLocal,
       prestamoId: prestamoId ?? this.prestamoId,
       cuotaId: cuotaId ?? this.cuotaId,
       montoAbonado: montoAbonado ?? this.montoAbonado,
@@ -3633,6 +3786,9 @@ class PagosCompanion extends UpdateCompanion<Pago> {
     }
     if (servidorId.present) {
       map['servidor_id'] = Variable<int>(servidorId.value);
+    }
+    if (uuidLocal.present) {
+      map['uuid_local'] = Variable<String>(uuidLocal.value);
     }
     if (prestamoId.present) {
       map['prestamo_id'] = Variable<int>(prestamoId.value);
@@ -3677,6 +3833,7 @@ class PagosCompanion extends UpdateCompanion<Pago> {
     return (StringBuffer('PagosCompanion(')
           ..write('id: $id, ')
           ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
           ..write('prestamoId: $prestamoId, ')
           ..write('cuotaId: $cuotaId, ')
           ..write('montoAbonado: $montoAbonado, ')
@@ -4297,6 +4454,17 @@ class $CargasCapitalTable extends CargasCapital
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
   );
+  static const VerificationMeta _uuidLocalMeta = const VerificationMeta(
+    'uuidLocal',
+  );
+  @override
+  late final GeneratedColumn<String> uuidLocal = GeneratedColumn<String>(
+    'uuid_local',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _usuarioIdMeta = const VerificationMeta(
     'usuarioId',
   );
@@ -4336,6 +4504,26 @@ class $CargasCapitalTable extends CargasCapital
     aliasedName,
     true,
     type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _origenMeta = const VerificationMeta('origen');
+  @override
+  late final GeneratedColumn<String> origen = GeneratedColumn<String>(
+    'origen',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('cobrador'),
+  );
+  static const VerificationMeta _creadoPorUsuarioIdMeta =
+      const VerificationMeta('creadoPorUsuarioId');
+  @override
+  late final GeneratedColumn<int> creadoPorUsuarioId = GeneratedColumn<int>(
+    'creado_por_usuario_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
   static const VerificationMeta _creadoEnMeta = const VerificationMeta(
@@ -4380,10 +4568,13 @@ class $CargasCapitalTable extends CargasCapital
   List<GeneratedColumn> get $columns => [
     id,
     servidorId,
+    uuidLocal,
     usuarioId,
     monto,
     tipo,
     descripcion,
+    origen,
+    creadoPorUsuarioId,
     creadoEn,
     eliminadoEn,
     sincronizado,
@@ -4407,6 +4598,12 @@ class $CargasCapitalTable extends CargasCapital
       context.handle(
         _servidorIdMeta,
         servidorId.isAcceptableOrUnknown(data['servidor_id']!, _servidorIdMeta),
+      );
+    }
+    if (data.containsKey('uuid_local')) {
+      context.handle(
+        _uuidLocalMeta,
+        uuidLocal.isAcceptableOrUnknown(data['uuid_local']!, _uuidLocalMeta),
       );
     }
     if (data.containsKey('usuario_id')) {
@@ -4437,6 +4634,21 @@ class $CargasCapitalTable extends CargasCapital
         descripcion.isAcceptableOrUnknown(
           data['descripcion']!,
           _descripcionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('origen')) {
+      context.handle(
+        _origenMeta,
+        origen.isAcceptableOrUnknown(data['origen']!, _origenMeta),
+      );
+    }
+    if (data.containsKey('creado_por_usuario_id')) {
+      context.handle(
+        _creadoPorUsuarioIdMeta,
+        creadoPorUsuarioId.isAcceptableOrUnknown(
+          data['creado_por_usuario_id']!,
+          _creadoPorUsuarioIdMeta,
         ),
       );
     }
@@ -4481,6 +4693,10 @@ class $CargasCapitalTable extends CargasCapital
         DriftSqlType.int,
         data['${effectivePrefix}servidor_id'],
       ),
+      uuidLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid_local'],
+      ),
       usuarioId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}usuario_id'],
@@ -4496,6 +4712,14 @@ class $CargasCapitalTable extends CargasCapital
       descripcion: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}descripcion'],
+      ),
+      origen: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}origen'],
+      )!,
+      creadoPorUsuarioId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}creado_por_usuario_id'],
       ),
       creadoEn: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -4521,20 +4745,38 @@ class $CargasCapitalTable extends CargasCapital
 class CargaCapital extends DataClass implements Insertable<CargaCapital> {
   final int id;
   final int? servidorId;
+
+  /// Generado al crear el registro localmente (no al sincronizar) para los
+  /// movimientos que registra el propio cobrador; en los que llegan
+  /// descargados de un admin (ver `origen`) queda nulo, porque ya traen
+  /// `servidorId` desde el primer momento y nunca se suben.
+  final String? uuidLocal;
   final int usuarioId;
   final double monto;
   final String tipo;
   final String? descripcion;
+
+  /// 'cobrador' (default, registrado desde este dispositivo) o 'admin'
+  /// (descargado de `POST /sync` -> `cargas_capital_admin`, asignado por un
+  /// admin vía `POST /admin/cargas-capital`).
+  final String origen;
+
+  /// Solo viene informado cuando `origen = 'admin'` (id del admin que lo
+  /// asignó, tal como lo manda el servidor); null en el flujo normal.
+  final int? creadoPorUsuarioId;
   final DateTime creadoEn;
   final DateTime? eliminadoEn;
   final bool sincronizado;
   const CargaCapital({
     required this.id,
     this.servidorId,
+    this.uuidLocal,
     required this.usuarioId,
     required this.monto,
     required this.tipo,
     this.descripcion,
+    required this.origen,
+    this.creadoPorUsuarioId,
     required this.creadoEn,
     this.eliminadoEn,
     required this.sincronizado,
@@ -4546,11 +4788,18 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
     if (!nullToAbsent || servidorId != null) {
       map['servidor_id'] = Variable<int>(servidorId);
     }
+    if (!nullToAbsent || uuidLocal != null) {
+      map['uuid_local'] = Variable<String>(uuidLocal);
+    }
     map['usuario_id'] = Variable<int>(usuarioId);
     map['monto'] = Variable<double>(monto);
     map['tipo'] = Variable<String>(tipo);
     if (!nullToAbsent || descripcion != null) {
       map['descripcion'] = Variable<String>(descripcion);
+    }
+    map['origen'] = Variable<String>(origen);
+    if (!nullToAbsent || creadoPorUsuarioId != null) {
+      map['creado_por_usuario_id'] = Variable<int>(creadoPorUsuarioId);
     }
     map['creado_en'] = Variable<DateTime>(creadoEn);
     if (!nullToAbsent || eliminadoEn != null) {
@@ -4566,12 +4815,19 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
       servidorId: servidorId == null && nullToAbsent
           ? const Value.absent()
           : Value(servidorId),
+      uuidLocal: uuidLocal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uuidLocal),
       usuarioId: Value(usuarioId),
       monto: Value(monto),
       tipo: Value(tipo),
       descripcion: descripcion == null && nullToAbsent
           ? const Value.absent()
           : Value(descripcion),
+      origen: Value(origen),
+      creadoPorUsuarioId: creadoPorUsuarioId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(creadoPorUsuarioId),
       creadoEn: Value(creadoEn),
       eliminadoEn: eliminadoEn == null && nullToAbsent
           ? const Value.absent()
@@ -4588,10 +4844,13 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
     return CargaCapital(
       id: serializer.fromJson<int>(json['id']),
       servidorId: serializer.fromJson<int?>(json['servidorId']),
+      uuidLocal: serializer.fromJson<String?>(json['uuidLocal']),
       usuarioId: serializer.fromJson<int>(json['usuarioId']),
       monto: serializer.fromJson<double>(json['monto']),
       tipo: serializer.fromJson<String>(json['tipo']),
       descripcion: serializer.fromJson<String?>(json['descripcion']),
+      origen: serializer.fromJson<String>(json['origen']),
+      creadoPorUsuarioId: serializer.fromJson<int?>(json['creadoPorUsuarioId']),
       creadoEn: serializer.fromJson<DateTime>(json['creadoEn']),
       eliminadoEn: serializer.fromJson<DateTime?>(json['eliminadoEn']),
       sincronizado: serializer.fromJson<bool>(json['sincronizado']),
@@ -4603,10 +4862,13 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
       'servidorId': serializer.toJson<int?>(servidorId),
+      'uuidLocal': serializer.toJson<String?>(uuidLocal),
       'usuarioId': serializer.toJson<int>(usuarioId),
       'monto': serializer.toJson<double>(monto),
       'tipo': serializer.toJson<String>(tipo),
       'descripcion': serializer.toJson<String?>(descripcion),
+      'origen': serializer.toJson<String>(origen),
+      'creadoPorUsuarioId': serializer.toJson<int?>(creadoPorUsuarioId),
       'creadoEn': serializer.toJson<DateTime>(creadoEn),
       'eliminadoEn': serializer.toJson<DateTime?>(eliminadoEn),
       'sincronizado': serializer.toJson<bool>(sincronizado),
@@ -4616,20 +4878,28 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
   CargaCapital copyWith({
     int? id,
     Value<int?> servidorId = const Value.absent(),
+    Value<String?> uuidLocal = const Value.absent(),
     int? usuarioId,
     double? monto,
     String? tipo,
     Value<String?> descripcion = const Value.absent(),
+    String? origen,
+    Value<int?> creadoPorUsuarioId = const Value.absent(),
     DateTime? creadoEn,
     Value<DateTime?> eliminadoEn = const Value.absent(),
     bool? sincronizado,
   }) => CargaCapital(
     id: id ?? this.id,
     servidorId: servidorId.present ? servidorId.value : this.servidorId,
+    uuidLocal: uuidLocal.present ? uuidLocal.value : this.uuidLocal,
     usuarioId: usuarioId ?? this.usuarioId,
     monto: monto ?? this.monto,
     tipo: tipo ?? this.tipo,
     descripcion: descripcion.present ? descripcion.value : this.descripcion,
+    origen: origen ?? this.origen,
+    creadoPorUsuarioId: creadoPorUsuarioId.present
+        ? creadoPorUsuarioId.value
+        : this.creadoPorUsuarioId,
     creadoEn: creadoEn ?? this.creadoEn,
     eliminadoEn: eliminadoEn.present ? eliminadoEn.value : this.eliminadoEn,
     sincronizado: sincronizado ?? this.sincronizado,
@@ -4640,12 +4910,17 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
       servidorId: data.servidorId.present
           ? data.servidorId.value
           : this.servidorId,
+      uuidLocal: data.uuidLocal.present ? data.uuidLocal.value : this.uuidLocal,
       usuarioId: data.usuarioId.present ? data.usuarioId.value : this.usuarioId,
       monto: data.monto.present ? data.monto.value : this.monto,
       tipo: data.tipo.present ? data.tipo.value : this.tipo,
       descripcion: data.descripcion.present
           ? data.descripcion.value
           : this.descripcion,
+      origen: data.origen.present ? data.origen.value : this.origen,
+      creadoPorUsuarioId: data.creadoPorUsuarioId.present
+          ? data.creadoPorUsuarioId.value
+          : this.creadoPorUsuarioId,
       creadoEn: data.creadoEn.present ? data.creadoEn.value : this.creadoEn,
       eliminadoEn: data.eliminadoEn.present
           ? data.eliminadoEn.value
@@ -4661,10 +4936,13 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
     return (StringBuffer('CargaCapital(')
           ..write('id: $id, ')
           ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
           ..write('usuarioId: $usuarioId, ')
           ..write('monto: $monto, ')
           ..write('tipo: $tipo, ')
           ..write('descripcion: $descripcion, ')
+          ..write('origen: $origen, ')
+          ..write('creadoPorUsuarioId: $creadoPorUsuarioId, ')
           ..write('creadoEn: $creadoEn, ')
           ..write('eliminadoEn: $eliminadoEn, ')
           ..write('sincronizado: $sincronizado')
@@ -4676,10 +4954,13 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
   int get hashCode => Object.hash(
     id,
     servidorId,
+    uuidLocal,
     usuarioId,
     monto,
     tipo,
     descripcion,
+    origen,
+    creadoPorUsuarioId,
     creadoEn,
     eliminadoEn,
     sincronizado,
@@ -4690,10 +4971,13 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
       (other is CargaCapital &&
           other.id == this.id &&
           other.servidorId == this.servidorId &&
+          other.uuidLocal == this.uuidLocal &&
           other.usuarioId == this.usuarioId &&
           other.monto == this.monto &&
           other.tipo == this.tipo &&
           other.descripcion == this.descripcion &&
+          other.origen == this.origen &&
+          other.creadoPorUsuarioId == this.creadoPorUsuarioId &&
           other.creadoEn == this.creadoEn &&
           other.eliminadoEn == this.eliminadoEn &&
           other.sincronizado == this.sincronizado);
@@ -4702,20 +4986,26 @@ class CargaCapital extends DataClass implements Insertable<CargaCapital> {
 class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
   final Value<int> id;
   final Value<int?> servidorId;
+  final Value<String?> uuidLocal;
   final Value<int> usuarioId;
   final Value<double> monto;
   final Value<String> tipo;
   final Value<String?> descripcion;
+  final Value<String> origen;
+  final Value<int?> creadoPorUsuarioId;
   final Value<DateTime> creadoEn;
   final Value<DateTime?> eliminadoEn;
   final Value<bool> sincronizado;
   const CargasCapitalCompanion({
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
     this.usuarioId = const Value.absent(),
     this.monto = const Value.absent(),
     this.tipo = const Value.absent(),
     this.descripcion = const Value.absent(),
+    this.origen = const Value.absent(),
+    this.creadoPorUsuarioId = const Value.absent(),
     this.creadoEn = const Value.absent(),
     this.eliminadoEn = const Value.absent(),
     this.sincronizado = const Value.absent(),
@@ -4723,10 +5013,13 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
   CargasCapitalCompanion.insert({
     this.id = const Value.absent(),
     this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
     required int usuarioId,
     required double monto,
     this.tipo = const Value.absent(),
     this.descripcion = const Value.absent(),
+    this.origen = const Value.absent(),
+    this.creadoPorUsuarioId = const Value.absent(),
     this.creadoEn = const Value.absent(),
     this.eliminadoEn = const Value.absent(),
     this.sincronizado = const Value.absent(),
@@ -4735,10 +5028,13 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
   static Insertable<CargaCapital> custom({
     Expression<int>? id,
     Expression<int>? servidorId,
+    Expression<String>? uuidLocal,
     Expression<int>? usuarioId,
     Expression<double>? monto,
     Expression<String>? tipo,
     Expression<String>? descripcion,
+    Expression<String>? origen,
+    Expression<int>? creadoPorUsuarioId,
     Expression<DateTime>? creadoEn,
     Expression<DateTime>? eliminadoEn,
     Expression<bool>? sincronizado,
@@ -4746,10 +5042,14 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (servidorId != null) 'servidor_id': servidorId,
+      if (uuidLocal != null) 'uuid_local': uuidLocal,
       if (usuarioId != null) 'usuario_id': usuarioId,
       if (monto != null) 'monto': monto,
       if (tipo != null) 'tipo': tipo,
       if (descripcion != null) 'descripcion': descripcion,
+      if (origen != null) 'origen': origen,
+      if (creadoPorUsuarioId != null)
+        'creado_por_usuario_id': creadoPorUsuarioId,
       if (creadoEn != null) 'creado_en': creadoEn,
       if (eliminadoEn != null) 'eliminado_en': eliminadoEn,
       if (sincronizado != null) 'sincronizado': sincronizado,
@@ -4759,10 +5059,13 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
   CargasCapitalCompanion copyWith({
     Value<int>? id,
     Value<int?>? servidorId,
+    Value<String?>? uuidLocal,
     Value<int>? usuarioId,
     Value<double>? monto,
     Value<String>? tipo,
     Value<String?>? descripcion,
+    Value<String>? origen,
+    Value<int?>? creadoPorUsuarioId,
     Value<DateTime>? creadoEn,
     Value<DateTime?>? eliminadoEn,
     Value<bool>? sincronizado,
@@ -4770,10 +5073,13 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
     return CargasCapitalCompanion(
       id: id ?? this.id,
       servidorId: servidorId ?? this.servidorId,
+      uuidLocal: uuidLocal ?? this.uuidLocal,
       usuarioId: usuarioId ?? this.usuarioId,
       monto: monto ?? this.monto,
       tipo: tipo ?? this.tipo,
       descripcion: descripcion ?? this.descripcion,
+      origen: origen ?? this.origen,
+      creadoPorUsuarioId: creadoPorUsuarioId ?? this.creadoPorUsuarioId,
       creadoEn: creadoEn ?? this.creadoEn,
       eliminadoEn: eliminadoEn ?? this.eliminadoEn,
       sincronizado: sincronizado ?? this.sincronizado,
@@ -4789,6 +5095,9 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
     if (servidorId.present) {
       map['servidor_id'] = Variable<int>(servidorId.value);
     }
+    if (uuidLocal.present) {
+      map['uuid_local'] = Variable<String>(uuidLocal.value);
+    }
     if (usuarioId.present) {
       map['usuario_id'] = Variable<int>(usuarioId.value);
     }
@@ -4800,6 +5109,12 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
     }
     if (descripcion.present) {
       map['descripcion'] = Variable<String>(descripcion.value);
+    }
+    if (origen.present) {
+      map['origen'] = Variable<String>(origen.value);
+    }
+    if (creadoPorUsuarioId.present) {
+      map['creado_por_usuario_id'] = Variable<int>(creadoPorUsuarioId.value);
     }
     if (creadoEn.present) {
       map['creado_en'] = Variable<DateTime>(creadoEn.value);
@@ -4818,10 +5133,13 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
     return (StringBuffer('CargasCapitalCompanion(')
           ..write('id: $id, ')
           ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
           ..write('usuarioId: $usuarioId, ')
           ..write('monto: $monto, ')
           ..write('tipo: $tipo, ')
           ..write('descripcion: $descripcion, ')
+          ..write('origen: $origen, ')
+          ..write('creadoPorUsuarioId: $creadoPorUsuarioId, ')
           ..write('creadoEn: $creadoEn, ')
           ..write('eliminadoEn: $eliminadoEn, ')
           ..write('sincronizado: $sincronizado')
@@ -4875,6 +5193,7 @@ typedef $$ClientesTableCreateCompanionBuilder =
     ClientesCompanion Function({
       Value<int> id,
       Value<int?> servidorId,
+      Value<String?> uuidLocal,
       required int usuarioId,
       required String nombre,
       required String cedula,
@@ -4891,6 +5210,7 @@ typedef $$ClientesTableUpdateCompanionBuilder =
     ClientesCompanion Function({
       Value<int> id,
       Value<int?> servidorId,
+      Value<String?> uuidLocal,
       Value<int> usuarioId,
       Value<String> nombre,
       Value<String> cedula,
@@ -4943,6 +5263,11 @@ class $$ClientesTableFilterComposer
 
   ColumnFilters<int> get servidorId => $composableBuilder(
     column: $table.servidorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5046,6 +5371,11 @@ class $$ClientesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get usuarioId => $composableBuilder(
     column: $table.usuarioId,
     builder: (column) => ColumnOrderings(column),
@@ -5118,6 +5448,9 @@ class $$ClientesTableAnnotationComposer
     column: $table.servidorId,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get uuidLocal =>
+      $composableBuilder(column: $table.uuidLocal, builder: (column) => column);
 
   GeneratedColumn<int> get usuarioId =>
       $composableBuilder(column: $table.usuarioId, builder: (column) => column);
@@ -5216,6 +5549,7 @@ class $$ClientesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
                 Value<int> usuarioId = const Value.absent(),
                 Value<String> nombre = const Value.absent(),
                 Value<String> cedula = const Value.absent(),
@@ -5230,6 +5564,7 @@ class $$ClientesTableTableManager
               }) => ClientesCompanion(
                 id: id,
                 servidorId: servidorId,
+                uuidLocal: uuidLocal,
                 usuarioId: usuarioId,
                 nombre: nombre,
                 cedula: cedula,
@@ -5246,6 +5581,7 @@ class $$ClientesTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
                 required int usuarioId,
                 required String nombre,
                 required String cedula,
@@ -5260,6 +5596,7 @@ class $$ClientesTableTableManager
               }) => ClientesCompanion.insert(
                 id: id,
                 servidorId: servidorId,
+                uuidLocal: uuidLocal,
                 usuarioId: usuarioId,
                 nombre: nombre,
                 cedula: cedula,
@@ -5331,6 +5668,7 @@ typedef $$PrestamosTableCreateCompanionBuilder =
     PrestamosCompanion Function({
       Value<int> id,
       Value<int?> servidorId,
+      Value<String?> uuidLocal,
       required int clienteId,
       Value<String?> referencia,
       required int usuarioId,
@@ -5351,6 +5689,7 @@ typedef $$PrestamosTableUpdateCompanionBuilder =
     PrestamosCompanion Function({
       Value<int> id,
       Value<int?> servidorId,
+      Value<String?> uuidLocal,
       Value<int> clienteId,
       Value<String?> referencia,
       Value<int> usuarioId,
@@ -5464,6 +5803,11 @@ class $$PrestamosTableFilterComposer
 
   ColumnFilters<int> get servidorId => $composableBuilder(
     column: $table.servidorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5655,6 +5999,11 @@ class $$PrestamosTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get referencia => $composableBuilder(
     column: $table.referencia,
     builder: (column) => ColumnOrderings(column),
@@ -5765,6 +6114,9 @@ class $$PrestamosTableAnnotationComposer
     column: $table.servidorId,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get uuidLocal =>
+      $composableBuilder(column: $table.uuidLocal, builder: (column) => column);
 
   GeneratedColumn<String> get referencia => $composableBuilder(
     column: $table.referencia,
@@ -5964,6 +6316,7 @@ class $$PrestamosTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
                 Value<int> clienteId = const Value.absent(),
                 Value<String?> referencia = const Value.absent(),
                 Value<int> usuarioId = const Value.absent(),
@@ -5982,6 +6335,7 @@ class $$PrestamosTableTableManager
               }) => PrestamosCompanion(
                 id: id,
                 servidorId: servidorId,
+                uuidLocal: uuidLocal,
                 clienteId: clienteId,
                 referencia: referencia,
                 usuarioId: usuarioId,
@@ -6002,6 +6356,7 @@ class $$PrestamosTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
                 required int clienteId,
                 Value<String?> referencia = const Value.absent(),
                 required int usuarioId,
@@ -6020,6 +6375,7 @@ class $$PrestamosTableTableManager
               }) => PrestamosCompanion.insert(
                 id: id,
                 servidorId: servidorId,
+                uuidLocal: uuidLocal,
                 clienteId: clienteId,
                 referencia: referencia,
                 usuarioId: usuarioId,
@@ -7067,6 +7423,7 @@ typedef $$PagosTableCreateCompanionBuilder =
     PagosCompanion Function({
       Value<int> id,
       Value<int?> servidorId,
+      Value<String?> uuidLocal,
       required int prestamoId,
       Value<int?> cuotaId,
       required double montoAbonado,
@@ -7083,6 +7440,7 @@ typedef $$PagosTableUpdateCompanionBuilder =
     PagosCompanion Function({
       Value<int> id,
       Value<int?> servidorId,
+      Value<String?> uuidLocal,
       Value<int> prestamoId,
       Value<int?> cuotaId,
       Value<double> montoAbonado,
@@ -7150,6 +7508,11 @@ class $$PagosTableFilterComposer extends Composer<_$AppDatabase, $PagosTable> {
 
   ColumnFilters<int> get servidorId => $composableBuilder(
     column: $table.servidorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7264,6 +7627,11 @@ class $$PagosTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get montoAbonado => $composableBuilder(
     column: $table.montoAbonado,
     builder: (column) => ColumnOrderings(column),
@@ -7372,6 +7740,9 @@ class $$PagosTableAnnotationComposer
     column: $table.servidorId,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get uuidLocal =>
+      $composableBuilder(column: $table.uuidLocal, builder: (column) => column);
 
   GeneratedColumn<double> get montoAbonado => $composableBuilder(
     column: $table.montoAbonado,
@@ -7489,6 +7860,7 @@ class $$PagosTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
                 Value<int> prestamoId = const Value.absent(),
                 Value<int?> cuotaId = const Value.absent(),
                 Value<double> montoAbonado = const Value.absent(),
@@ -7503,6 +7875,7 @@ class $$PagosTableTableManager
               }) => PagosCompanion(
                 id: id,
                 servidorId: servidorId,
+                uuidLocal: uuidLocal,
                 prestamoId: prestamoId,
                 cuotaId: cuotaId,
                 montoAbonado: montoAbonado,
@@ -7519,6 +7892,7 @@ class $$PagosTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
                 required int prestamoId,
                 Value<int?> cuotaId = const Value.absent(),
                 required double montoAbonado,
@@ -7533,6 +7907,7 @@ class $$PagosTableTableManager
               }) => PagosCompanion.insert(
                 id: id,
                 servidorId: servidorId,
+                uuidLocal: uuidLocal,
                 prestamoId: prestamoId,
                 cuotaId: cuotaId,
                 montoAbonado: montoAbonado,
@@ -7916,10 +8291,13 @@ typedef $$CargasCapitalTableCreateCompanionBuilder =
     CargasCapitalCompanion Function({
       Value<int> id,
       Value<int?> servidorId,
+      Value<String?> uuidLocal,
       required int usuarioId,
       required double monto,
       Value<String> tipo,
       Value<String?> descripcion,
+      Value<String> origen,
+      Value<int?> creadoPorUsuarioId,
       Value<DateTime> creadoEn,
       Value<DateTime?> eliminadoEn,
       Value<bool> sincronizado,
@@ -7928,10 +8306,13 @@ typedef $$CargasCapitalTableUpdateCompanionBuilder =
     CargasCapitalCompanion Function({
       Value<int> id,
       Value<int?> servidorId,
+      Value<String?> uuidLocal,
       Value<int> usuarioId,
       Value<double> monto,
       Value<String> tipo,
       Value<String?> descripcion,
+      Value<String> origen,
+      Value<int?> creadoPorUsuarioId,
       Value<DateTime> creadoEn,
       Value<DateTime?> eliminadoEn,
       Value<bool> sincronizado,
@@ -7956,6 +8337,11 @@ class $$CargasCapitalTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get usuarioId => $composableBuilder(
     column: $table.usuarioId,
     builder: (column) => ColumnFilters(column),
@@ -7973,6 +8359,16 @@ class $$CargasCapitalTableFilterComposer
 
   ColumnFilters<String> get descripcion => $composableBuilder(
     column: $table.descripcion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get origen => $composableBuilder(
+    column: $table.origen,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get creadoPorUsuarioId => $composableBuilder(
+    column: $table.creadoPorUsuarioId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8011,6 +8407,11 @@ class $$CargasCapitalTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get usuarioId => $composableBuilder(
     column: $table.usuarioId,
     builder: (column) => ColumnOrderings(column),
@@ -8028,6 +8429,16 @@ class $$CargasCapitalTableOrderingComposer
 
   ColumnOrderings<String> get descripcion => $composableBuilder(
     column: $table.descripcion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get origen => $composableBuilder(
+    column: $table.origen,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get creadoPorUsuarioId => $composableBuilder(
+    column: $table.creadoPorUsuarioId,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8064,6 +8475,9 @@ class $$CargasCapitalTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get uuidLocal =>
+      $composableBuilder(column: $table.uuidLocal, builder: (column) => column);
+
   GeneratedColumn<int> get usuarioId =>
       $composableBuilder(column: $table.usuarioId, builder: (column) => column);
 
@@ -8075,6 +8489,14 @@ class $$CargasCapitalTableAnnotationComposer
 
   GeneratedColumn<String> get descripcion => $composableBuilder(
     column: $table.descripcion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get origen =>
+      $composableBuilder(column: $table.origen, builder: (column) => column);
+
+  GeneratedColumn<int> get creadoPorUsuarioId => $composableBuilder(
+    column: $table.creadoPorUsuarioId,
     builder: (column) => column,
   );
 
@@ -8125,20 +8547,26 @@ class $$CargasCapitalTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
                 Value<int> usuarioId = const Value.absent(),
                 Value<double> monto = const Value.absent(),
                 Value<String> tipo = const Value.absent(),
                 Value<String?> descripcion = const Value.absent(),
+                Value<String> origen = const Value.absent(),
+                Value<int?> creadoPorUsuarioId = const Value.absent(),
                 Value<DateTime> creadoEn = const Value.absent(),
                 Value<DateTime?> eliminadoEn = const Value.absent(),
                 Value<bool> sincronizado = const Value.absent(),
               }) => CargasCapitalCompanion(
                 id: id,
                 servidorId: servidorId,
+                uuidLocal: uuidLocal,
                 usuarioId: usuarioId,
                 monto: monto,
                 tipo: tipo,
                 descripcion: descripcion,
+                origen: origen,
+                creadoPorUsuarioId: creadoPorUsuarioId,
                 creadoEn: creadoEn,
                 eliminadoEn: eliminadoEn,
                 sincronizado: sincronizado,
@@ -8147,20 +8575,26 @@ class $$CargasCapitalTableTableManager
               ({
                 Value<int> id = const Value.absent(),
                 Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
                 required int usuarioId,
                 required double monto,
                 Value<String> tipo = const Value.absent(),
                 Value<String?> descripcion = const Value.absent(),
+                Value<String> origen = const Value.absent(),
+                Value<int?> creadoPorUsuarioId = const Value.absent(),
                 Value<DateTime> creadoEn = const Value.absent(),
                 Value<DateTime?> eliminadoEn = const Value.absent(),
                 Value<bool> sincronizado = const Value.absent(),
               }) => CargasCapitalCompanion.insert(
                 id: id,
                 servidorId: servidorId,
+                uuidLocal: uuidLocal,
                 usuarioId: usuarioId,
                 monto: monto,
                 tipo: tipo,
                 descripcion: descripcion,
+                origen: origen,
+                creadoPorUsuarioId: creadoPorUsuarioId,
                 creadoEn: creadoEn,
                 eliminadoEn: eliminadoEn,
                 sincronizado: sincronizado,

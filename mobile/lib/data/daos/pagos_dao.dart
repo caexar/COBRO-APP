@@ -36,11 +36,24 @@ class PagosDao extends DatabaseAccessor<AppDatabase> with _$PagosDaoMixin {
     return (select(pagos)..where((tbl) => tbl.sincronizado.equals(false))).get();
   }
 
+  Future<Pago?> obtenerPorId(int id) {
+    return (select(pagos)..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+  }
+
   Future<int> insertar(PagosCompanion pago) => into(pagos).insert(pago);
 
   /// Actualización parcial (ver nota en ClientesDao.actualizar). Requiere
   /// que `pago.id` esté seteado.
   Future<int> actualizar(PagosCompanion pago) {
     return (update(pagos)..where((tbl) => tbl.id.equals(pago.id.value))).write(pago);
+  }
+
+  /// Se llama tras confirmar en `POST /api/sync` que el servidor ya tiene
+  /// este registro, para dejar de reintentarlo. Los pagos nunca se editan
+  /// después de creados, así que esto solo pasa una vez por pago.
+  Future<int> marcarSincronizado(int id, int servidorId) {
+    return (update(pagos)..where((tbl) => tbl.id.equals(id))).write(
+      PagosCompanion(servidorId: Value(servidorId), sincronizado: const Value(true)),
+    );
   }
 }

@@ -39,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   static final AppDatabase instance = AppDatabase();
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -70,6 +70,34 @@ class AppDatabase extends _$AppDatabase {
       if (from >= 3 && from < 5) {
         await m.addColumn(cargasCapital, cargasCapital.tipo);
         await m.addColumn(cargasCapital, cargasCapital.eliminadoEn);
+      }
+      // v5 -> v6: soporte para POST /api/sync.
+      // - uuid_local en clientes/prestamos/pagos/cargas_capital: clave de
+      //   deduplicación que genera la app al crear el registro localmente (no
+      //   al sincronizar), la misma que ya usa el backend (ver columna
+      //   equivalente agregada del lado servidor).
+      // - origen/creadoPorUsuarioId en cargas_capital: para distinguir un
+      //   movimiento que descargó `POST /sync` (asignado por un admin vía
+      //   `POST /admin/cargas-capital`) de uno que registró el propio
+      //   cobrador, y resaltarlo en HistorialCapitalScreen.
+      //
+      // clientes/prestamos/pagos existen desde v1, así que agregar su
+      // columna nueva es un addColumn incondicional. cargas_capital es la
+      // única de las cuatro que puede haber nacido recién en este mismo
+      // upgrade (paso v2->v3 de arriba, `m.createTable`, que usa la
+      // definición *actual* de la tabla): si `from < 3`, esa tabla ya nació
+      // con estas tres columnas incluidas y agregarlas de nuevo fallaría con
+      // "duplicate column" — mismo cuidado ya aplicado arriba para
+      // tipo/eliminadoEn.
+      if (from < 6) {
+        await m.addColumn(clientes, clientes.uuidLocal);
+        await m.addColumn(prestamos, prestamos.uuidLocal);
+        await m.addColumn(pagos, pagos.uuidLocal);
+      }
+      if (from >= 3 && from < 6) {
+        await m.addColumn(cargasCapital, cargasCapital.uuidLocal);
+        await m.addColumn(cargasCapital, cargasCapital.origen);
+        await m.addColumn(cargasCapital, cargasCapital.creadoPorUsuarioId);
       }
     },
   );

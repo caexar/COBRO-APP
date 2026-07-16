@@ -41,6 +41,102 @@ const _crearCargasCapitalV3a4 = '''
   );
 ''';
 
+/// `cargas_capital` tal como quedó entre v5 y v6 (con `tipo`/`eliminado_en`,
+/// pero sin `uuid_local`/`origen`/`creado_por_usuario_id`, agregadas recién
+/// en v6).
+const _crearCargasCapitalV5a6 = '''
+  CREATE TABLE cargas_capital (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "servidor_id" INTEGER NULL UNIQUE,
+    "usuario_id" INTEGER NOT NULL,
+    "monto" REAL NOT NULL,
+    "tipo" TEXT NOT NULL DEFAULT 'carga',
+    "descripcion" TEXT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "eliminado_en" INTEGER NULL,
+    "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1))
+  );
+''';
+
+/// `cambios_pendientes` tal como quedó desde v4 en adelante (con `usuario_id`).
+const _crearCambiosPendientesV4masAdelante = '''
+  CREATE TABLE cambios_pendientes (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "usuario_id" INTEGER NULL,
+    "tabla" TEXT NOT NULL,
+    "registro_id" INTEGER NOT NULL,
+    "tipo_operacion" TEXT NOT NULL,
+    "payload" TEXT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "intentos" INTEGER NOT NULL DEFAULT 0,
+    "ultimo_error" TEXT NULL
+  );
+''';
+
+/// `clientes` tal como existió desde v1 hasta v6 (sin `uuid_local`, agregada
+/// recién en v6).
+const _crearClientesV1a6 = '''
+  CREATE TABLE clientes (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "servidor_id" INTEGER NULL UNIQUE,
+    "usuario_id" INTEGER NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "cedula" TEXT NOT NULL,
+    "telefono" TEXT NOT NULL,
+    "direccion" TEXT NOT NULL,
+    "referencia" TEXT NULL,
+    "foto_url" TEXT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "actualizado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "eliminado_en" INTEGER NULL,
+    "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1))
+  );
+''';
+
+/// `prestamos` tal como quedó entre v2 y v6 (con `referencia`, sin
+/// `uuid_local`, agregada recién en v6).
+const _crearPrestamosV2a6 = '''
+  CREATE TABLE prestamos (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "servidor_id" INTEGER NULL UNIQUE,
+    "cliente_id" INTEGER NOT NULL,
+    "referencia" TEXT NULL,
+    "usuario_id" INTEGER NOT NULL,
+    "monto_capital" REAL NOT NULL,
+    "porcentaje_interes" REAL NOT NULL,
+    "frecuencia_pago" TEXT NOT NULL,
+    "dias_personalizado" INTEGER NULL,
+    "plazo_cuotas" INTEGER NOT NULL,
+    "fecha_inicio" INTEGER NOT NULL,
+    "estado" TEXT NOT NULL DEFAULT 'activo',
+    "politica_mora" TEXT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "actualizado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "eliminado_en" INTEGER NULL,
+    "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1))
+  );
+''';
+
+/// `pagos` tal como existió desde v1 hasta v6 (sin `uuid_local`, agregada
+/// recién en v6).
+const _crearPagosV1a6 = '''
+  CREATE TABLE pagos (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "servidor_id" INTEGER NULL UNIQUE,
+    "prestamo_id" INTEGER NOT NULL,
+    "cuota_id" INTEGER NULL,
+    "monto_abonado" REAL NOT NULL,
+    "monto_aplicado" REAL NOT NULL,
+    "fecha_pago" INTEGER NOT NULL,
+    "dias_mora" INTEGER NOT NULL DEFAULT 0,
+    "saldo_restante_despues" REAL NOT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "actualizado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "eliminado_en" INTEGER NULL,
+    "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1))
+  );
+''';
+
 void main() {
   late Directory carpetaTemporal;
   late File archivoDb;
@@ -90,6 +186,12 @@ void main() {
       VALUES
         (1, 1, 100000.0, 20.0, 'diario', 10, 1752192000, 1752192000, 1752192000);
     ''');
+    // clientes y pagos existen desde v1 igual que prestamos (aunque este
+    // test no las use directamente): sin ellas, el paso v5->v6 (agregar
+    // uuid_local) fallaría con "no such table" al migrar desde v1, algo que
+    // no pasaría en un dispositivo real.
+    db.execute(_crearClientesV1a6);
+    db.execute(_crearPagosV1a6);
     // cambios_pendientes existe desde v1 igual que prestamos; sin esta
     // tabla el paso v3->v4 (agregar usuario_id) fallaría con "no such
     // table" al migrar desde v1, algo que no pasaría en un dispositivo real.
@@ -113,13 +215,14 @@ void main() {
     await db.close();
 
     // La migración debe quedar registrada (incluye los pasos v2->v3 de
-    // cargas_capital, v3->v4 de cambios_pendientes.usuarioId y v4->v5 de
-    // cargas_capital.tipo/eliminadoEn, porque venía desde v1): reabrir el
-    // mismo archivo no debe volver a intentar migrar ni fallar.
+    // cargas_capital, v3->v4 de cambios_pendientes.usuarioId, v4->v5 de
+    // cargas_capital.tipo/eliminadoEn y v5->v6 de uuid_local/origen, porque
+    // venía desde v1): reabrir el mismo archivo no debe volver a intentar
+    // migrar ni fallar.
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 5);
+    expect(version, 6);
 
     final dbReabierta = AppDatabase.paraPruebas(NativeDatabase(archivoDb));
     addTearDown(dbReabierta.close);
@@ -149,33 +252,16 @@ void main() {
   /// `cargas_capital`, con un préstamo ya guardado.
   void crearBaseDeDatosV2() {
     final db = sqlite3.sqlite3.open(archivoDb.path);
-    db.execute('''
-      CREATE TABLE prestamos (
-        "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-        "servidor_id" INTEGER NULL UNIQUE,
-        "cliente_id" INTEGER NOT NULL,
-        "referencia" TEXT NULL,
-        "usuario_id" INTEGER NOT NULL,
-        "monto_capital" REAL NOT NULL,
-        "porcentaje_interes" REAL NOT NULL,
-        "frecuencia_pago" TEXT NOT NULL,
-        "dias_personalizado" INTEGER NULL,
-        "plazo_cuotas" INTEGER NOT NULL,
-        "fecha_inicio" INTEGER NOT NULL,
-        "estado" TEXT NOT NULL DEFAULT 'activo',
-        "politica_mora" TEXT NULL,
-        "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
-        "actualizado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
-        "eliminado_en" INTEGER NULL,
-        "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1))
-      );
-    ''');
+    db.execute(_crearPrestamosV2a6);
     db.execute('''
       INSERT INTO prestamos
         (cliente_id, referencia, usuario_id, monto_capital, porcentaje_interes, frecuencia_pago, plazo_cuotas, fecha_inicio, creado_en, actualizado_en)
       VALUES
         (1, 'Préstamo moto', 1, 100000.0, 20.0, 'diario', 10, 1752192000, 1752192000, 1752192000);
     ''');
+    // clientes y pagos: mismo motivo que en crearBaseDeDatosVieja arriba.
+    db.execute(_crearClientesV1a6);
+    db.execute(_crearPagosV1a6);
     db.execute(_crearCambiosPendientesV1a3);
     db.execute('PRAGMA user_version = 2;');
     db.close();
@@ -211,10 +297,14 @@ void main() {
       INSERT INTO cambios_pendientes (tabla, registro_id, tipo_operacion, payload)
       VALUES ('clientes', 1, 'crear', '{}');
     ''');
-    // La tabla ya existe desde v3 (aunque este test no la use directamente):
-    // sin ella, el paso v4->v5 (agregar tipo/eliminadoEn) fallaría con "no
-    // such table" al migrar desde v3, algo que no pasaría en un dispositivo real.
+    // Estas tablas ya existen desde v1-v3 (aunque este test no las use
+    // directamente): sin ellas, los pasos v4->v5 (tipo/eliminadoEn) y v5->v6
+    // (uuid_local) fallarían con "no such table" al migrar desde v3, algo
+    // que no pasaría en un dispositivo real.
     db.execute(_crearCargasCapitalV3a4);
+    db.execute(_crearClientesV1a6);
+    db.execute(_crearPrestamosV2a6);
+    db.execute(_crearPagosV1a6);
     db.execute('PRAGMA user_version = 3;');
     db.close();
   }
@@ -254,24 +344,16 @@ void main() {
   /// `eliminado_en`, con una carga de capital ya guardada.
   void crearBaseDeDatosV4() {
     final db = sqlite3.sqlite3.open(archivoDb.path);
-    db.execute('''
-      CREATE TABLE cambios_pendientes (
-        "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-        "usuario_id" INTEGER NULL,
-        "tabla" TEXT NOT NULL,
-        "registro_id" INTEGER NOT NULL,
-        "tipo_operacion" TEXT NOT NULL,
-        "payload" TEXT NULL,
-        "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
-        "intentos" INTEGER NOT NULL DEFAULT 0,
-        "ultimo_error" TEXT NULL
-      );
-    ''');
+    db.execute(_crearCambiosPendientesV4masAdelante);
     db.execute(_crearCargasCapitalV3a4);
     db.execute('''
       INSERT INTO cargas_capital (usuario_id, monto, descripcion, creado_en)
       VALUES (1, 500000.0, 'Aporte inicial', 1752192000);
     ''');
+    // clientes/prestamos/pagos: mismo motivo que en crearBaseDeDatosV3 arriba.
+    db.execute(_crearClientesV1a6);
+    db.execute(_crearPrestamosV2a6);
+    db.execute(_crearPagosV1a6);
     db.execute('PRAGMA user_version = 4;');
     db.close();
   }
@@ -303,6 +385,103 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 5);
+    expect(version, 6);
+  });
+
+  /// Crea el archivo con el esquema "v5": clientes/prestamos/pagos/cargas_capital
+  /// ya con su forma final salvo por `uuid_local` (y `origen`/
+  /// `creado_por_usuario_id` en cargas_capital), agregadas recién en v6, con
+  /// un cliente, un préstamo, un pago y una carga de capital ya guardados.
+  void crearBaseDeDatosV5() {
+    final db = sqlite3.sqlite3.open(archivoDb.path);
+    db.execute(_crearCambiosPendientesV4masAdelante);
+    db.execute(_crearClientesV1a6);
+    db.execute(_crearPrestamosV2a6);
+    db.execute(_crearPagosV1a6);
+    db.execute(_crearCargasCapitalV5a6);
+
+    db.execute('''
+      INSERT INTO clientes (usuario_id, nombre, cedula, telefono, direccion, creado_en, actualizado_en)
+      VALUES (1, 'Juan Perez', '111', '3000000001', 'Calle 1', 1752192000, 1752192000);
+    ''');
+    db.execute('''
+      INSERT INTO prestamos
+        (cliente_id, usuario_id, monto_capital, porcentaje_interes, frecuencia_pago, plazo_cuotas, fecha_inicio, creado_en, actualizado_en)
+      VALUES
+        (1, 1, 100000.0, 20.0, 'diario', 10, 1752192000, 1752192000, 1752192000);
+    ''');
+    db.execute('''
+      INSERT INTO pagos (prestamo_id, monto_abonado, monto_aplicado, fecha_pago, saldo_restante_despues, creado_en, actualizado_en)
+      VALUES (1, 12500.0, 12500.0, 1752192000, 112500.0, 1752192000, 1752192000);
+    ''');
+    db.execute('''
+      INSERT INTO cargas_capital (usuario_id, monto, tipo, descripcion, creado_en)
+      VALUES (1, 500000.0, 'carga', 'Aporte inicial', 1752192000);
+    ''');
+    db.execute('PRAGMA user_version = 5;');
+    db.close();
+  }
+
+  test('agrega uuid_local (y origen/creadoPorUsuarioId en cargas_capital) sin perder lo ya guardado', () async {
+    crearBaseDeDatosV5();
+
+    final db = AppDatabase.paraPruebas(NativeDatabase(archivoDb));
+    addTearDown(db.close);
+
+    final cliente = await db.clientesDao.obtenerPorId(1, 1);
+    expect(cliente, isNotNull);
+    expect(cliente!.nombre, 'Juan Perez');
+    expect(cliente.uuidLocal, isNull);
+
+    final prestamo = await db.prestamosDao.obtenerPorId(1, 1);
+    expect(prestamo, isNotNull);
+    expect(prestamo!.montoCapital, 100000.0);
+    expect(prestamo.uuidLocal, isNull);
+
+    final pago = await db.pagosDao.obtenerPorId(1);
+    expect(pago, isNotNull);
+    expect(pago!.montoAbonado, 12500.0);
+    expect(pago.uuidLocal, isNull);
+
+    final cargas = await db.cargasCapitalDao.obtenerTodas(1);
+    expect(cargas, hasLength(1));
+    expect(cargas.first.descripcion, 'Aporte inicial');
+    expect(cargas.first.uuidLocal, isNull);
+    // Filas viejas: todas eran del propio cobrador, nunca de un admin.
+    expect(cargas.first.origen, 'cobrador');
+    expect(cargas.first.creadoPorUsuarioId, isNull);
+
+    // Las columnas nuevas deben quedar utilizables para registros nuevos.
+    final nuevoClienteId = await db.clientesDao.insertar(
+      ClientesCompanion.insert(
+        usuarioId: 1,
+        nombre: 'Maria Gomez',
+        cedula: '222',
+        telefono: '3000000002',
+        direccion: 'Calle 2',
+        uuidLocal: const Value('uuid-cliente-2'),
+      ),
+    );
+    final nuevoCliente = await db.clientesDao.obtenerPorId(nuevoClienteId, 1);
+    expect(nuevoCliente?.uuidLocal, 'uuid-cliente-2');
+
+    final cargaAdminId = await db.cargasCapitalDao.insertar(
+      CargasCapitalCompanion.insert(
+        usuarioId: 1,
+        monto: 200000,
+        servidorId: const Value(99),
+        origen: const Value('admin'),
+        creadoPorUsuarioId: const Value(7),
+        sincronizado: const Value(true),
+      ),
+    );
+    final cargaAdmin = await (db.select(db.cargasCapital)..where((t) => t.id.equals(cargaAdminId))).getSingle();
+    expect(cargaAdmin.origen, 'admin');
+    expect(cargaAdmin.creadoPorUsuarioId, 7);
+
+    final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
+    final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
+    rawDespues.close();
+    expect(version, 6);
   });
 }

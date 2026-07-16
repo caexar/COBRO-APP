@@ -11,6 +11,10 @@ import 'clientes_table.dart';
 class Prestamos extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get servidorId => integer().nullable().unique()();
+
+  /// Generado al crear el registro localmente (no al sincronizar); ver nota
+  /// equivalente en `Clientes.uuidLocal`.
+  TextColumn get uuidLocal => text().nullable()();
   IntColumn get clienteId => integer().references(Clientes, #id)();
   TextColumn get referencia => text().nullable()();
   IntColumn get usuarioId => integer()();

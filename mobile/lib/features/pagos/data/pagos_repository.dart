@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:uuid/uuid.dart';
 
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../data/app_database.dart';
@@ -32,6 +33,7 @@ class PagosRepository {
   final SecureStorageService _secureStorage;
   final PrestamosRepository _prestamosRepository;
   final _procesador = const PagoProcessor();
+  final _uuid = const Uuid();
 
   PagosDao get _pagosDao => _database.pagosDao;
   CuotasDao get _cuotasDao => _database.cuotasDao;
@@ -97,6 +99,7 @@ class PagosRepository {
 
     final pagosInsertados = <Pago>[];
     for (final pago in plan.pagos) {
+      final uuidLocal = _uuid.v4();
       final id = await _pagosDao.insertar(
         PagosCompanion.insert(
           prestamoId: prestamoId,
@@ -106,6 +109,7 @@ class PagosRepository {
           fechaPago: pago.fechaPago,
           diasMora: Value(pago.diasMora),
           saldoRestanteDespues: pago.saldoRestanteDespues,
+          uuidLocal: Value(uuidLocal),
         ),
       );
       pagosInsertados.add(
@@ -118,10 +122,30 @@ class PagosRepository {
           fechaPago: pago.fechaPago,
           diasMora: pago.diasMora,
           saldoRestanteDespues: pago.saldoRestanteDespues,
+          uuidLocal: uuidLocal,
           creadoEn: DateTime.now(),
           actualizadoEn: DateTime.now(),
           sincronizado: false,
         ),
+      );
+
+      // Un cambio pendiente por cada fila de pago, no solo la primera: una
+      // cascada de excedente (abono_deuda) puede insertar varias filas en
+      // una sola llamada a registrar(), y cada una es un registro propio en
+      // el servidor (pagos.cuota_id es una FK singular).
+      await _cambiosPendientesDao.encolar(
+        usuarioId: detalle.prestamo.usuarioId,
+        tabla: 'pagos',
+        registroId: id,
+        tipoOperacion: 'crear',
+        payload: jsonEncode({
+          'prestamo_id': prestamoId,
+          'cuota_id': pago.cuotaId,
+          'monto_abonado': pago.montoAbonado,
+          'monto_aplicado': pago.montoAplicado,
+          'fecha_pago': pago.fechaPago.toIso8601String(),
+          'dias_mora': pago.diasMora,
+        }),
       );
     }
 
@@ -149,19 +173,6 @@ class PagosRepository {
         );
       }
     }
-
-    await _cambiosPendientesDao.encolar(
-      usuarioId: detalle.prestamo.usuarioId,
-      tabla: 'pagos',
-      registroId: pagosInsertados.first.id,
-      tipoOperacion: 'crear',
-      payload: jsonEncode({
-        'prestamo_id': prestamoId,
-        'monto_abonado': montoAbonado,
-        'fecha_pago': fechaPago.toIso8601String(),
-        'manejo_excedente': manejoExcedente,
-      }),
-    );
 
     return pagosInsertados;
   }

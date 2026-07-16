@@ -10,6 +10,7 @@ import '../../prestamos/presentation/cobros_pendientes_screen.dart';
 import '../../prestamos/presentation/historial_prestamos_screen.dart';
 import '../../prestamos/presentation/prestamo_form_screen.dart';
 import '../../prestamos/presentation/simular_prestamo_screen.dart';
+import '../../sincronizacion/data/sincronizacion_repository.dart';
 import '../data/dashboard_repository.dart';
 import 'exportar_reporte_screen.dart';
 
@@ -30,14 +31,16 @@ class DashboardScreen extends StatefulWidget {
     required this.onCerrarSesion,
     required this.nombre,
     this.dashboardRepository,
+    this.sincronizacionRepository,
   });
 
   final VoidCallback onCerrarSesion;
   final String nombre;
 
-  /// Inyectable solo para pruebas; en la app real siempre se usa la
-  /// instancia por defecto (mismo patrón que `AppEntryPoint`).
+  /// Inyectables solo para pruebas; en la app real siempre se usan las
+  /// instancias por defecto (mismo patrón que `AppEntryPoint`).
   final DashboardRepository? dashboardRepository;
+  final SincronizacionRepository? sincronizacionRepository;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -45,10 +48,14 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late final _repository = widget.dashboardRepository ?? DashboardRepository();
+  late final _sincronizacionRepository = widget.sincronizacionRepository ?? SincronizacionRepository();
   final _secureStorage = SecureStorageService();
 
   ResumenDashboard? _resumen;
   bool _cargando = true;
+
+  bool _sincronizando = false;
+  DateTime? _ultimaSincronizacion;
 
   /// `'todo'` (default), `'capital'`, `'capital_interes'` o `'capital_extra'`
   /// — ver `SecureStorageService.leerVistaDashboard`.
@@ -59,6 +66,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _cargar();
     _cargarVista();
+    _cargarUltimaSincronizacion();
+  }
+
+  Future<void> _cargarUltimaSincronizacion() async {
+    try {
+      final fecha = await _sincronizacionRepository.ultimaSincronizacionExitosa();
+      if (!mounted) return;
+      setState(() => _ultimaSincronizacion = fecha);
+    } catch (_) {
+      // Sin sesión todavía (o sin soporte de secure storage en pruebas): se
+      // queda mostrando "todavía no has sincronizado", no bloquea la pantalla.
+    }
+  }
+
+  Future<void> _sincronizar() async {
+    if (_sincronizando) return;
+    setState(() => _sincronizando = true);
+
+    final resultado = await _sincronizacionRepository.sincronizar();
+
+    if (!mounted) return;
+    setState(() => _sincronizando = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(resultado.mensaje),
+        backgroundColor: resultado.exitosa ? null : Theme.of(context).colorScheme.error,
+      ),
+    );
+
+    if (resultado.exitosa) {
+      await _cargarUltimaSincronizacion();
+      // Puede haber traído cargas de capital de un admin: refresca el saldo.
+      _cargar();
+    }
   }
 
   Future<void> _cargar() async {
@@ -180,6 +222,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              _TarjetaSincronizacion(
+                ultimaSincronizacion: _ultimaSincronizacion,
+                sincronizando: _sincronizando,
+                onSincronizar: _sincronizar,
+              ),
+              const SizedBox(height: 16),
               if (_cargando && resumen == null)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 40),
@@ -303,6 +351,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+}
+
+class _TarjetaSincronizacion extends StatelessWidget {
+  const _TarjetaSincronizacion({
+    required this.ultimaSincronizacion,
+    required this.sincronizando,
+    required this.onSincronizar,
+  });
+
+  final DateTime? ultimaSincronizacion;
+  final bool sincronizando;
+  final VoidCallback onSincronizar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                ultimaSincronizacion == null
+                    ? 'Todavía no has sincronizado en este dispositivo.'
+                    : 'Última sincronización: ${_formatearRelativo(ultimaSincronizacion!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: sincronizando ? null : onSincronizar,
+              icon: sincronizando
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync, size: 18),
+              label: Text(sincronizando ? 'Sincronizando…' : 'Sincronizar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatearRelativo(DateTime fecha) {
+  final ahora = DateTime.now();
+  final diferencia = ahora.difference(fecha);
+
+  if (diferencia.inMinutes < 1) return 'justo ahora';
+  if (diferencia.inMinutes < 60) return 'hace ${diferencia.inMinutes} min';
+  if (diferencia.inHours < 24 && fecha.day == ahora.day) return 'hoy a las ${_formatearHora(fecha)}';
+
+  final dia = fecha.day.toString().padLeft(2, '0');
+  final mes = fecha.month.toString().padLeft(2, '0');
+  return '$dia/$mes/${fecha.year} a las ${_formatearHora(fecha)}';
+}
+
+String _formatearHora(DateTime fecha) {
+  final hora = fecha.hour.toString().padLeft(2, '0');
+  final minuto = fecha.minute.toString().padLeft(2, '0');
+  return '$hora:$minuto';
 }
 
 class _TarjetaSaldoDisponible extends StatelessWidget {

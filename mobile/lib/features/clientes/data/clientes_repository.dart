@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:uuid/uuid.dart';
 
 import '../../../core/storage/secure_storage_service.dart';
 import '../../../data/app_database.dart';
@@ -32,6 +33,7 @@ class ClientesRepository {
 
   final AppDatabase _database;
   final SecureStorageService _secureStorage;
+  final _uuid = const Uuid();
 
   ClientesDao get _clientesDao => _database.clientesDao;
   CambiosPendientesDao get _cambiosPendientesDao => _database.cambiosPendientesDao;
@@ -109,6 +111,7 @@ class ClientesRepository {
         direccion: direccion,
         referencia: Value(referencia),
         fotoUrl: Value(fotoUrl),
+        uuidLocal: Value(_uuid.v4()),
       ),
     );
 

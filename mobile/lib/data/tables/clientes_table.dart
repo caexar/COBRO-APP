@@ -8,6 +8,11 @@ import 'package:drift/drift.dart';
 class Clientes extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get servidorId => integer().nullable().unique()();
+
+  /// Generado al crear el registro localmente (no al sincronizar); es la
+  /// clave que usa `POST /api/sync` para deduplicar reintentos y resolver
+  /// referencias cruzadas entre registros del mismo batch.
+  TextColumn get uuidLocal => text().nullable()();
   IntColumn get usuarioId => integer()();
   TextColumn get nombre => text().withLength(min: 1, max: 255)();
   TextColumn get cedula => text().withLength(min: 1, max: 50)();

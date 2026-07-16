@@ -96,20 +96,27 @@ original) registra cuánto de cada fila realmente redujo la deuda — es distint
 `monto_abonado` solo en el caso `cobro_extra`.
 
 `saldo_restante_despues` de cada pago se calcula como
-`Prestamo::montoTotal() - suma_total_de(pagos.monto_aplicado)` **hasta ese momento**
-(`Prestamo::montoTotal()` es un método calculado, no una columna). El estado del préstamo se
+`Prestamo::monto_total - suma_total_de(pagos.monto_aplicado)` **hasta ese momento**
+(`monto_total` es un *accessor* de Eloquent — `protected function montoTotal(): Attribute` +
+`protected $appends = ['monto_total']` — no una columna; se serializa solo en cualquier
+respuesta que incluya el modelo, incluida `GET /api/admin/usuarios/{id}/detalle`. Antes era un
+método PHP plano (`->montoTotal()`) que no aparecía en el JSON; si se necesita en código PHP
+ahora se usa como propiedad: `$prestamo->monto_total`, no `$prestamo->montoTotal()`). El
+estado del préstamo se
 recalcula después de cada pago: `pagado` si ya no quedan cuotas sin pagar, `en_mora` si
 alguna cuota quedó en `en_mora`, si no `activo`. `anulado` es un estado aparte que solo se
 setea vía `PUT /api/prestamos/{id}/anular` y bloquea nuevos pagos.
 
 ### Auditoría
 
-`crear_prestamo`, `registrar_pago`, `anular_prestamo`, y del lado admin `crear_usuario`,
-`actualizar_usuario`, `desactivar_usuario`, `actualizar_configuracion` dejan registro en
-`auditoria` vía `App\Services\AuditoriaLogger`. Cualquier acción nueva que el negocio
-considere "relevante" debe usar ese mismo servicio en lugar de escribir en el modelo
-`Auditoria` directamente. Nunca se registra un PIN en texto plano en `auditoria` (ver
-`actualizar_configuracion`, que solo guarda si el PIN maestro cambió, no su valor).
+`crear_prestamo`, `registrar_pago`, `anular_prestamo`, `registrar_carga_capital`, y del lado
+admin `crear_usuario`, `actualizar_usuario`, `desactivar_usuario`, `actualizar_configuracion`,
+`asignar_capital` dejan registro en `auditoria` vía `App\Services\AuditoriaLogger`. Cualquier
+acción nueva que el negocio considere "relevante" debe usar ese mismo servicio en lugar de
+escribir en el modelo `Auditoria` directamente. Nunca se registra un PIN en texto plano en
+`auditoria` (ver `actualizar_configuracion`, que solo guarda si el PIN maestro cambió, no su
+valor). `conflicto_resuelto` (ver sección de sincronización más abajo) sigue el mismo patrón:
+`datos_anteriores` es la versión perdedora, `datos_nuevos` la ganadora.
 
 ## Administración: usuarios, resumen y configuración global
 
@@ -154,7 +161,22 @@ patrón** — agregarla a `GET /api/pin-maestro`, no asumir que se puede leer di
   redujo deuda).
 - `cartera_en_mora` es el saldo **pendiente real** de las cuotas en `estado = en_mora`
   (`monto_esperado` menos lo ya aplicado a esa cuota), no el monto bruto de la cuota.
+- `ganancia_interes`/`ganancia_extra` (por cobrador y global,
+  `AdminResumenController::calcularGananciaPorCobrador()`): réplica en PHP de la misma lógica
+  de reparto proporcional que ya existía en `DashboardRepository` del lado móvil — por cada
+  préstamo del cobrador (**cualquier estado**, uno ya `pagado`/`anulado` sigue contando
+  históricamente) se reparte `Σpagos.monto_aplicado` proporcional al peso de interés/extras
+  sobre `monto_total`; el excedente de un pago `cobro_extra` se suma íntegro a `ganancia_extra`.
+  Si se vuelve a tocar la fórmula de ganancia en el móvil, hay que replicar el cambio acá
+  también (mismo cuidado que ya existe entre `PrestamoCalculator` y su equivalente en Dart).
 - Se calcula por cobrador y como total global; incluye cobradores sin actividad (con ceros).
+- No existe (ni se agregó) un endpoint `GET /admin/prestamos/{id}` para el detalle de un solo
+  préstamo con sus cuotas — confirmado explícitamente que no existe. El detalle completo
+  (extras + cuotas + pagos por préstamo) sigue viajando solo dentro de
+  `GET /api/admin/usuarios/{id}/detalle` (todos los préstamos del cobrador de una vez); el
+  panel admin del móvil arma su modal de detalle de préstamo con esos datos ya descargados, sin
+  pedir nada nuevo (ver sección de móvil más abajo). Tampoco existe un endpoint que devuelva
+  conteo de préstamos por cliente — se resuelve agrupando en memoria del lado móvil.
 
 ### Configuración global (`configuracion_global`)
 
@@ -175,6 +197,75 @@ Tabla clave/valor genérica; el admin gestiona 4 claves conocidas vía
 
 `ConfiguracionGlobal::obtener()`/`::guardar()` son los helpers para leer/escribir por clave;
 usarlos en vez de consultar la tabla directamente.
+
+## Sincronización con la app móvil (backend)
+
+`POST /api/sync` (`App\Http\Controllers\Api\SyncController`, `App\Services\SyncService`) recibe
+el batch de `clientes`/`prestamos`/`pagos`/`cargas_capital` pendientes que la app arrastra en su
+cola local `cambios_pendientes`. Ver `API.md` para el contrato completo del request/response;
+acá quedan las decisiones de diseño que no son obvias del código.
+
+- **`uuid_local`** (columna nueva, nullable, en `clientes`/`prestamos`/`pagos`/`cargas_capital`)
+  es la clave de deduplicación: la genera la app al crear el registro localmente. Sirve para
+  dos cosas a la vez: decidir si un registro ya se recibió antes (reintento tras un corte a
+  mitad de sync) y resolver las referencias cruzadas **dentro del mismo batch**
+  (`prestamos[].cliente_uuid_local`, `pagos[].prestamo_uuid_local`) sin que la app tenga que
+  aprenderse ids del servidor — coherente con que el resto de la app es offline-first.
+  Único junto con `usuario_id` en clientes/prestamos/cargas_capital; en `pagos` es único junto
+  con `prestamo_id` en su lugar, porque `pagos` no tiene columna `usuario_id` propia (ver nota
+  ya existente sobre esto en la sección de reglas de negocio de pagos).
+- **Pagos: `PagoProcessor.php` NO se vuelve a correr sobre lo que llega por sync.** Cada
+  registro de `pagos[]` ya trae `monto_aplicado`, `dias_mora`, `saldo_restante_despues` y
+  `cuotas_afectadas` (qué cuotas cambiaron de estado/`monto_esperado` como resultado del pago,
+  identificadas por `numero_cuota` — no por id, porque `PrestamoCalculator`/su réplica en Dart
+  generan siempre las mismas cuotas 1..N en ambos lados) calculados por el equivalente en Dart
+  del mismo servicio. `SyncService` solo persiste esos valores tal cual y aplica
+  `estado_prestamo` (también recibido, no recalculado) al préstamo. `PagoProcessor.php` sigue
+  siendo la única fuente de verdad para pagos creados directo contra `POST /pagos` (fuera de
+  sync) — no reimplementar su lógica de mora/excedente acá.
+- **Reconciliación es deliberadamente angosta, no un PATCH genérico**: cuando un `uuid_local` de
+  `prestamos` ya existe, el único campo que se reconcilia es `politica_mora` (el único que la
+  app realmente vuelve a encolar como `actualizar` — ver `PagosRepository.registrar` en
+  Flutter). El resto de un préstamo (capital, interés, cuotas) nunca se reescribe después de
+  creado. `clientes` sí acepta reconciliar todos sus campos editables (coherente con que
+  `ClientesRepository.actualizar()` sí permite edición completa). `cargas_capital` no
+  reconcilia nada — solo crea o confirma que ya existe — porque no hay flujo de edición de una
+  carga ya sincronizada desde el móvil.
+- **Conflictos** (`clientes`/`prestamos` con el mismo `uuid_local` pero contenido distinto):
+  gana quien tenga `actualizado_en` más reciente comparado contra `updated_at` del registro ya
+  guardado. Si gana el que ya estaba guardado (el cambio entrante llegó con fecha más vieja o
+  igual), se descarta el entrante y se registra `auditoria` (`accion = conflicto_resuelto`,
+  `datos_anteriores` = versión perdedora, `datos_nuevos` = versión ganadora) — nunca se lanza
+  una excepción por esto, es un resultado de negocio esperado, no un error.
+- **Validación de forma vs. resultado de negocio**: `StoreSyncRequest` solo valida tipos/formas
+  (lo mismo que `StoreClienteRequest`/`StorePrestamoRequest`/etc., más `uuid_local`); un fallo
+  ahí es 422 para todo el batch (bug real del cliente). Referencias cruzadas rotas
+  (`cliente_uuid_local` que no aparece ni en este batch ni en la base) y conflictos **no** son
+  422 — son un `estado: "error"`/`"conflicto"` por registro dentro de una respuesta 200, porque
+  son resultados esperados de una sincronización real, no errores de formato.
+- **`configuracion` viaja en la misma respuesta de `/sync`** (no es un endpoint aparte) para que
+  el móvil no gaste un segundo viaje de red: mismas claves que `GET /admin/configuracion`
+  (`tasas_interes_default`, `politica_mora_default`, `pin_maestro_configurado`,
+  `intentos_pin_antes_de_maestro`), **sin** el hash del PIN maestro — eso sigue siendo
+  exclusivo de `GET /pin-maestro`, no se duplica acá.
+- **`cargas_capital`: `origen` (`cobrador`|`admin`) y `creado_por_usuario_id`** distinguen un
+  aporte/retiro que el propio cobrador registró (vía `/cargas-capital` o `/sync`, `origen`
+  siempre `cobrador`, `creado_por_usuario_id` siempre `null`) de uno que un admin le asignó
+  directamente (`POST /admin/cargas-capital`, `App\Http\Controllers\Api\Admin\AdminCargaCapitalController`,
+  `origen = admin`, `creado_por_usuario_id` = id del admin). El admin gestiona sus propios
+  cobradores igual que en el resto del panel admin (sin Policy de objeto, la única barrera es
+  `role:admin` — mismo patrón que el resto de `/admin/*`).
+- **`cargas_capital.tipo` (`carga`|`retiro`, default `carga`)** no estaba pedida en el encargo
+  original de esta tarea de sync, pero se agregó como gap-fill necesario: el lado móvil
+  (Drift) ya tenía este campo de una fase anterior (retiros de capital), y sin la columna en el
+  servidor ni `POST /admin/cargas-capital` ni `POST /sync` podían aceptar/persistir un retiro.
+- **Bug real encontrado y corregido de paso**: el modelo `CargaCapital` nunca definió
+  `protected $table`, así que Eloquent infería `carga_capitals` (pluraliza "CargaCapital" como
+  una sola palabra) en vez de `cargas_capital` (el nombre real de la tabla, ver
+  `create_cargas_capital_table`). No se había detectado porque no existía ningún test
+  automatizado tocando este modelo hasta los tests de esta tarea — cualquier interacción real
+  vía Eloquent con `cargas_capital` (incluida `POST /cargas-capital`, la ruta de cobrador que
+  ya existía) estaba silenciosamente rota antes de este fix.
 
 ## App móvil: autenticación y bloqueo (`mobile/lib/features/auth`)
 
@@ -344,9 +435,52 @@ usarlos en vez de consultar la tabla directamente.
   edición (`AdminUsuarioFormScreen`) arma su propio mapa de `cambios` con solo lo que el admin
   realmente modificó (nombre/email siempre; password solo si no quedó vacío), igual que el
   patrón ya usado en `ClientesRepository`/`PrestamosRepository`.
-- `AdminCobradorDetalleScreen` es deliberadamente de solo lectura (sin botones de editar ni
-  eliminar sobre clientes/préstamos) — el admin puede *ver* la cartera de un cobrador pero el
-  CRUD operativo sigue siendo exclusivo del cobrador dueño, desde su propia app.
+- `AdminCobradorDetalleScreen` es deliberadamente de solo lectura sobre clientes/préstamos (sin
+  botones de editar ni eliminar) — el admin puede *ver* la cartera de un cobrador pero el CRUD
+  operativo sigue siendo exclusivo del cobrador dueño, desde su propia app. La única acción de
+  escritura que sí tiene es el FAB "Asignar saldo" (ver más abajo), que no toca clientes ni
+  préstamos.
+- **Listado de préstamos y modal de detalle** (`AdminCobradorDetalleScreen`): cada ítem del
+  listado muestra `referencia` (o el nombre del cliente como *fallback* si viene vacía —
+  `_tituloPrestamo`, para no dejar el título en blanco), `monto_total` (del backend, nunca
+  recalculado), `porcentaje_interes`, `plazo_cuotas` y `fecha_inicio`. Tocar un préstamo abre
+  un `showModalBottomSheet`/`DraggableScrollableSheet` (`_DetallePrestamoModal`, mismo patrón
+  visual que `PrestamoDetalleScreen` del lado cobrador, pero reimplementado localmente porque
+  Dart no permite importar los widgets privados de esa pantalla) con capital, interés, extras,
+  `monto_total`, total pagado y el listado completo de cuotas — **todo sale de los datos que ya
+  trajo `GET /admin/usuarios/{id}/detalle`**, sin ninguna llamada de red nueva.
+  `PrestamoResumen.montoInteres` se obtiene restando `montoTotal - montoCapital - montoExtras`
+  (no recalculando `capital * porcentaje / 100`) para no arriesgar un desajuste de redondeo
+  contra el `monto_total` que sí vino calculado del servidor.
+- **Badge de conteo de préstamos por cliente** (`_BadgeConteoPrestamos`, "activos/totales"):
+  se arma en memoria agrupando el array `prestamos` ya descargado por `cliente_id` — "activos"
+  cuenta `activo`+`en_mora`, "totales" cuenta cualquier estado. No hay ni hace falta un
+  endpoint de conteo aparte.
+- **Asignar saldo a un cobrador** (`AdminAsignarCapitalScreen`, botón FAB en
+  `AdminCobradorDetalleScreen`): mismo patrón visual que `AgregarCapitalScreen` del lado
+  cobrador (`SegmentedButton` carga/retiro, `FormateadorDinero`, descripción opcional), pero
+  llama a `AdminRepository.asignarCapital()` → `POST /admin/cargas-capital` con el
+  `usuario_id` del cobrador que se está viendo (no el admin autenticado). El mensaje de éxito
+  aclara explícitamente que el saldo no llega al dispositivo del cobrador hasta su próxima
+  sincronización (`cargas_capital_admin` en la respuesta de `POST /sync`, ver sección de
+  sincronización más arriba) — el `SnackBar` de confirmación lo muestra
+  `AdminCobradorDetalleScreen` después de que el formulario hace `pop(true)`, no el propio
+  formulario (para que sobreviva a la animación de salida de la pantalla).
+- **`AdminResumenScreen`** también muestra `ganancia_interes`/`ganancia_extra` (ya calculados
+  por el backend) junto a los 3 campos que ya tenía, tanto en la tarjeta global como en la de
+  cada cobrador (`_FilasTotales`, reutilizada en ambos casos).
+- `AdminCobradorDetalleScreen` y `AdminAsignarCapitalScreen` aceptan su `AdminRepository` como
+  parámetro opcional del constructor (mismo patrón de inyección para pruebas que
+  `DashboardScreen`/`AppEntryPoint`) — antes solo `AdminAsignarCapitalScreen` lo necesitaba,
+  pero se agregó a `AdminCobradorDetalleScreen` también para poder testear el badge de conteo
+  con un `AdminRepository` mockeado (`ApiClient(httpClient: MockClient(...))`) en vez de contra
+  red real. Si se agregan más pantallas de admin con lógica no trivial, seguir el mismo patrón.
+- **Gotcha real de pruebas de widgets con `SegmentedButton`**: tras `tester.enterText(...)` en
+  un campo cuyo controller determina si un botón queda habilitado (`onPressed: null` vs. un
+  callback), hace falta un `await tester.pump()` antes de `tester.tap()` sobre ese botón — sin
+  eso, el árbol de widgets todavía no refleja el `setState` que habilita el botón y el tap cae
+  sobre una versión con `onPressed: null` (no lanza error, simplemente no hace nada, y el mock
+  HTTP nunca se invoca). Ver `test/features/admin/admin_asignar_capital_screen_test.dart`.
 - El PIN maestro global (`AdminConfiguracionScreen`) sigue la misma regla que el resto de la
   app: nunca se lee/muestra en texto plano, solo `pin_maestro_configurado` (bool). Escribir un
   valor nuevo lo reemplaza; el checkbox "Quitar el PIN maestro actual" manda
@@ -427,6 +561,75 @@ movimientos no eliminados con opción de eliminar cada uno.
   pagos por rango de fechas y cliente opcional; el resumen de cartera y el listado de
   préstamos siempre salen completos, sin filtrar.
 
+## App móvil: sincronización (`mobile/lib/features/sincronizacion`)
+
+`SincronizacionRepository.sincronizar()` es el consumidor del backend de sincronización (ver
+sección "Sincronización con la app móvil (backend)" más arriba y `API.md`): sube la cola local
+`cambios_pendientes` del cobrador con sesión activa contra `POST /api/sync` y, en la misma
+respuesta, descarga configuración y cargas de capital asignadas por un admin. Botón
+"Sincronizar" + indicador de última sincronización en `DashboardScreen` (pantalla principal del
+cobrador), inyectable para pruebas igual que el resto de dependencias de esa pantalla.
+
+- **`uuid_local` se genera al crear el registro, no al sincronizar** (`package:uuid`, `Uuid().v4()`):
+  cada `crear()` de `ClientesRepository`/`PrestamosRepository`/`CargasCapitalRepository` y cada
+  fila insertada por `PagosRepository.registrar()` lo asigna en el momento de guardar
+  localmente. Columna nueva (nullable) en `clientes`/`prestamos`/`pagos`/`cargas_capital` —
+  ver sección de versionado de Drift más abajo.
+- **Gotcha real corregido de paso**: `PagosRepository.registrar()` solo encolaba **un** cambio
+  pendiente (`pagosInsertados.first.id`) sin importar cuántas filas de pago insertara — una
+  cascada de excedente `abono_deuda` genera varias filas (`pagos.cuota_id` es una FK singular,
+  ver reglas de negocio de pagos), así que solo la primera se habría sincronizado nunca. Ahora
+  encola un cambio por cada fila insertada, dentro del mismo `for`.
+- **Construcción del batch**: por cada `CambiosPendiente` pendiente del usuario activo, agrupado
+  por tabla y luego por `registroId` (varios cambios encolados para el mismo registro colapsan
+  en un solo item, reconstruido desde el estado **actual** de la fila en Drift — nunca desde el
+  JSON viejo guardado en `cambios_pendientes.payload`, que no alcanza a describir el contrato
+  del servidor, ej. trae `cliente_id` local en vez de `cliente_uuid_local`). Las referencias
+  cruzadas (`prestamos[].cliente_uuid_local`, `pagos[].prestamo_uuid_local`) se resuelven
+  leyendo el `uuidLocal` del registro relacionado, nunca con el id local.
+- **`pagos[].cuotas_afectadas` se arma con el estado *actual* de TODAS las cuotas del préstamo**,
+  no solo la que ese pago tocó — es idempotente reenviar el mismo estado final en cada pago del
+  mismo préstamo dentro del batch, y evita reconstruir un historial de "qué cuota cambió por
+  cuál pago" que Drift no guarda en ningún lado una vez que `PagoProcessor.dart` ya aplicó los
+  cambios (`plan.actualizacionesCuotas` se descarta después de aplicarse). Mismo razonamiento
+  para `estado_prestamo`: se manda el `estado` actual del préstamo, no uno reconstruido
+  históricamente.
+- **Qué se limpia de `cambios_pendientes` y qué no**: por cada registro devuelto en la
+  respuesta, `creado`/`actualizado`/`ya_existia` marcan la fila local `sincronizado = true` +
+  `servidorId` y eliminan **todos** los `CambiosPendiente` de ese `registroId` (pueden ser
+  varios, si se editó más de una vez antes de sincronizar). `conflicto`/`error` no tocan nada:
+  la fila se queda pendiente y se reintenta sola en el próximo `/sync` — nunca se pierde ni se
+  duplica. Un fallo de red/timeout tampoco toca nada (la mutación local solo ocurre después de
+  que la respuesta HTTP llegó y se decodificó bien).
+- **cargas_capital con `eliminadoEn` no nulo, o de `origen != 'cobrador'`, se excluyen del
+  batch de subida sin tocar su `CambiosPendiente`**: el backend todavía no soporta borrar una
+  carga por sync (ver sección de backend más arriba, "cargas_capital... no reconcilia nada"),
+  así que una carga creada y eliminada localmente antes de sincronizar se queda pendiente para
+  siempre — no se pierde el registro local, simplemente no hay forma de representarlo en el
+  servidor todavía. Una carga de `origen = 'admin'` nunca debería tener un cambio pendiente
+  propio (se guarda ya con `sincronizado = true`), el filtro es solo defensivo.
+- **Descarga de cargas de capital de admin**: `cargas_capital_admin` de la respuesta se guarda
+  vía `CargasCapitalRepository.guardarDescargadaDeAdmin()` — sin `uuidLocal` (nunca se sube,
+  ya nace con `servidorId`), `origen = 'admin'`, `sincronizado = true` desde el primer momento;
+  idempotente por `servidorId` (`CargasCapitalDao.existePorServidorId`) para no duplicar si
+  llegara dos veces. `HistorialCapitalScreen` les muestra un chip "Asignado por administrador"
+  y les oculta el botón de eliminar (no tiene sentido deshacer localmente algo que es autoridad
+  del servidor y que, de todos modos, hoy no se podría sincronizar de vuelta).
+- **Descarga de configuración**: `tasas_interes_default` (`SecureStorageService.guardar/leerTasasInteresDefault`,
+  hoy sin ningún consumidor en la UI — ver nota de los botones rápidos de interés en la sección
+  de préstamos, sigue siendo una decisión explícita, esto solo la deja disponible para cuando
+  haga falta) e `intentos_pin_antes_de_maestro` (reutiliza el `SecureStorageService.guardarIntentosMaximosPin`
+  que ya existía, la misma clave que usa `GET /pin-maestro`, para no tener dos fuentes de
+  verdad para ese número). **A propósito NO vuelve a llamar `AuthRepository.sincronizarPinMaestro()`**
+  — eso sigue pasando solo justo después del login; duplicar esa llamada aquí violaría la regla
+  ya documentada de que el hash del PIN maestro es exclusivo de `GET /pin-maestro`.
+- **`última sincronización exitosa`** (`SecureStorageService.guardar/leerUltimaSincronizacion`,
+  por `usuarioId` igual que la vista del dashboard, mismo motivo: dispositivo compartido) se
+  graba recién al final de un `sincronizar()` que llegó a decodificar la respuesta del
+  servidor — no antes. Un resultado con `conflictos`/`errores` sigue contando como
+  "sincronización exitosa" a este efecto (el request en sí funcionó); el mensaje que ve el
+  cobrador sí distingue cuántos registros quedaron pendientes por eso.
+
 ## App móvil: base de datos local (Drift) — versionado y aislamiento entre cobradores
 
 Dos reglas que ya causaron bugs reales y no deben repetirse:
@@ -437,15 +640,19 @@ Dos reglas que ya causaron bugs reales y no deben repetirse:
    mano con `package:sqlite3` crudo, verificado contra `sqlite_master` real, no de memoria).
    Sin esto, un dispositivo con la app ya instalada rompe en silencio (`no such column`/`no
    such table`) la primera vez que se toca esa tabla — ya pasó con `prestamos.referencia`.
-   Versión actual: `5` (v1→v2 `referencia`, v2→v3 tabla `cargas_capital`, v3→v4
-   `cambios_pendientes.usuario_id`, v4→v5 `cargas_capital.tipo`/`eliminadoEn`). **Cuidado con
+   Versión actual: `6` (v1→v2 `referencia`, v2→v3 tabla `cargas_capital`, v3→v4
+   `cambios_pendientes.usuario_id`, v4→v5 `cargas_capital.tipo`/`eliminadoEn`, v5→v6
+   `uuid_local` en `clientes`/`prestamos`/`pagos`/`cargas_capital` +
+   `cargas_capital.origen`/`creadoPorUsuarioId`, todo para `POST /api/sync`). **Cuidado con
    `m.createTable(tabla)` en un paso `if (from < N)`**: siempre crea la tabla con la definición
    *actual* del código, no con la forma histórica de esa versión — si más adelante se agregan
    columnas a esa misma tabla en un paso posterior (`m.addColumn`), un dispositivo que migra
    desde antes de que la tabla existiera ya la recibe completa vía `createTable` y el
    `addColumn` posterior debe excluir ese caso (`if (from >= N && from < M)`, no solo
-   `if (from < M)`) o falla con "duplicate column" — pasó exactamente esto con
-   `cargas_capital.tipo`/`eliminadoEn` en el paso v4→v5.
+   `if (from < M)`) o falla con "duplicate column" — pasó con `cargas_capital.tipo`/`eliminadoEn`
+   en el paso v4→v5, y de nuevo con `cargas_capital.uuidLocal`/`origen`/`creadoPorUsuarioId` en
+   v5→v6 (`clientes`/`prestamos`/`pagos`, en cambio, existen desde v1 sin excepción — su paso
+   v5→v6 es un `addColumn` incondicional).
 2. **Todo método de lectura de un DAO que devuelva datos propios de un cobrador debe filtrar
    por `usuarioId`** — el dispositivo es compartido potencialmente por varios cobradores
    (login/logout), todos sobre el mismo archivo SQLite. Antes de esta regla, `obtenerTodos`/

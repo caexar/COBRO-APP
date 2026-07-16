@@ -86,6 +86,24 @@ class AdminRepository {
     return ResumenAdmin.fromJson(respuesta['data'] as Map<String, dynamic>);
   }
 
+  /// Asigna (o retira, según [tipo]) saldo de capital a [usuarioId] — el
+  /// cobrador destino, no necesariamente el admin autenticado. Este dinero
+  /// no llega al dispositivo del cobrador hasta su próxima sincronización
+  /// (`POST /api/sync` -> `cargas_capital_admin`).
+  Future<void> asignarCapital({
+    required int usuarioId,
+    required String tipo,
+    required double monto,
+    String? descripcion,
+  }) async {
+    final token = await _tokenActual();
+    await _apiClient.post(
+      '/admin/cargas-capital',
+      token: token,
+      body: {'usuario_id': usuarioId, 'tipo': tipo, 'monto': monto, 'descripcion': ?descripcion},
+    );
+  }
+
   Future<ConfiguracionAdmin> obtenerConfiguracion() async {
     final token = await _tokenActual();
     final respuesta = await _apiClient.get('/admin/configuracion', token: token);
