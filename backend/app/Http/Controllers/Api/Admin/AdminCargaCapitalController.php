@@ -2,10 +2,9 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Exceptions\SaldoInsuficienteException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreAdminCargaCapitalRequest;
-use App\Models\CargaCapital;
-use App\Services\AuditoriaLogger;
 use App\Services\CapitalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -13,7 +12,6 @@ use Illuminate\Validation\ValidationException;
 class AdminCargaCapitalController extends Controller
 {
     public function __construct(
-        private readonly AuditoriaLogger $auditoria,
         private readonly CapitalService $capitalService,
     ) {}
 
@@ -26,38 +24,17 @@ class AdminCargaCapitalController extends Controller
     {
         $datos = $request->validated();
 
-        if ($datos['tipo'] === 'retiro') {
-            $saldoDisponible = $this->capitalService->calcularSaldoDisponible($datos['usuario_id']);
-
-            if ((float) $datos['monto'] > $saldoDisponible) {
-                throw ValidationException::withMessages([
-                    'monto' => 'El monto del retiro excede el saldo disponible del cobrador ($'.number_format($saldoDisponible, 2).').',
-                ]);
-            }
+        try {
+            $carga = $this->capitalService->asignar(
+                usuarioId: $datos['usuario_id'],
+                tipo: $datos['tipo'],
+                monto: (float) $datos['monto'],
+                descripcion: $datos['descripcion'] ?? null,
+                actor: $request->user(),
+            );
+        } catch (SaldoInsuficienteException $e) {
+            throw ValidationException::withMessages(['monto' => $e->getMessage()]);
         }
-
-        $carga = CargaCapital::create([
-            'usuario_id' => $datos['usuario_id'],
-            'tipo' => $datos['tipo'],
-            'monto' => $datos['monto'],
-            'descripcion' => $datos['descripcion'] ?? null,
-            'origen' => 'admin',
-            'creado_por_usuario_id' => $request->user()->id,
-        ]);
-
-        $this->auditoria->registrar(
-            usuario: $request->user(),
-            accion: 'asignar_capital',
-            entidad: 'CargaCapital',
-            entidadId: $carga->id,
-            datosAnteriores: null,
-            datosNuevos: [
-                'usuario_id' => $carga->usuario_id,
-                'tipo' => $carga->tipo,
-                'monto' => (float) $carga->monto,
-                'descripcion' => $carga->descripcion,
-            ],
-        );
 
         return response()->json(['data' => $carga], 201);
     }

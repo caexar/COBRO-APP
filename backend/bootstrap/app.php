@@ -17,6 +17,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
         ]);
+
+        // El panel de administración web (routes/web.php) es la única autenticación basada en
+        // sesión de esta app — la API móvil siempre habla JSON (auth:sanctum, nunca pasa por
+        // acá porque expectsJson() es true). Sin esto, un acceso no autenticado a /admin/*
+        // fallaría con RouteNotFoundException al buscar la ruta 'login' por defecto de Laravel.
+        $middleware->redirectGuestsTo(fn () => route('admin.login'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

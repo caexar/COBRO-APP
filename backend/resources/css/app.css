@@ -7,3 +7,9 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/* Evita el parpadeo de elementos con x-show antes de que Alpine (incluido con Livewire)
+   se inicialice — usado en las pestañas del panel admin (ver resumen/detalle-cobrador). */
+[x-cloak] {
+    display: none !important;
+}

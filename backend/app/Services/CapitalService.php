@@ -2,18 +2,24 @@
 
 namespace App\Services;
 
+use App\Exceptions\SaldoInsuficienteException;
 use App\Models\CargaCapital;
 use App\Models\Prestamo;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 class CapitalService
 {
+    public function __construct(
+        private readonly AuditoriaLogger $auditoria,
+    ) {}
+
     /**
      * Réplica del cálculo de `DashboardRepository.calcularResumen` del lado móvil (ver
      * CLAUDE.md): cargas - retiros + Σpagos.monto_abonado - Σmonto_capital de préstamos no
      * anulados, todo filtrado por el cobrador destino. Usado tanto para validar un retiro
-     * (`AdminCargaCapitalController`) como para mostrarlo en el resumen consolidado
-     * (`AdminResumenController`) — una sola fuente de verdad para la fórmula.
+     * ([asignar]) como para mostrarlo en el resumen consolidado (`ResumenAdminService`) — una
+     * sola fuente de verdad para la fórmula.
      */
     public function calcularSaldoDisponible(int $usuarioId): float
     {
@@ -30,5 +36,51 @@ class CapitalService
             ->sum('monto_capital');
 
         return round($totalCargas - $totalRetiros + $totalAbonado - $capitalPrestadoNoAnulado, 2);
+    }
+
+    /**
+     * El admin asigna (o retira) saldo de capital a un cobrador puntual. Única fuente de
+     * verdad para esta acción — usada tanto por `Api\Admin\AdminCargaCapitalController` (móvil)
+     * como por el panel web (`App\Livewire\Admin\Resumen\DetalleCobrador`).
+     *
+     * @throws SaldoInsuficienteException si $tipo es 'retiro' y $monto excede el saldo
+     *                                     disponible del cobrador.
+     */
+    public function asignar(int $usuarioId, string $tipo, float $monto, ?string $descripcion, User $actor): CargaCapital
+    {
+        if ($tipo === 'retiro') {
+            $saldoDisponible = $this->calcularSaldoDisponible($usuarioId);
+
+            if ($monto > $saldoDisponible) {
+                throw new SaldoInsuficienteException(
+                    'El monto del retiro excede el saldo disponible del cobrador ($'.number_format($saldoDisponible, 2).').',
+                );
+            }
+        }
+
+        $carga = CargaCapital::create([
+            'usuario_id' => $usuarioId,
+            'tipo' => $tipo,
+            'monto' => $monto,
+            'descripcion' => $descripcion,
+            'origen' => 'admin',
+            'creado_por_usuario_id' => $actor->id,
+        ]);
+
+        $this->auditoria->registrar(
+            usuario: $actor,
+            accion: 'asignar_capital',
+            entidad: 'CargaCapital',
+            entidadId: $carga->id,
+            datosAnteriores: null,
+            datosNuevos: [
+                'usuario_id' => $carga->usuario_id,
+                'tipo' => $carga->tipo,
+                'monto' => (float) $carga->monto,
+                'descripcion' => $carga->descripcion,
+            ],
+        );
+
+        return $carga;
     }
 }
