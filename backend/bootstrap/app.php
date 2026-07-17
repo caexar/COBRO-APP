@@ -18,6 +18,15 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureUserHasRole::class,
         ]);
 
+        // Laravel Cloud (como cualquier PaaS gestionado) sirve la app detrás de un balanceador
+        // que termina TLS y reenvía la petición por HTTP interno con cabeceras X-Forwarded-*.
+        // Sin confiar en ese proxy, Request::isSecure() vería HTTP y rompería todo lo que
+        // depende de detectar HTTPS (SESSION_SECURE_COOKIE, URLs absolutas con https://,
+        // redirects). '*' confía en cualquier proxy inmediato — la práctica estándar
+        // recomendada por Laravel para este tipo de entornos, donde no se conoce la IP fija
+        // del balanceador de antemano.
+        $middleware->trustProxies(at: '*');
+
         // El panel de administración web (routes/web.php) es la única autenticación basada en
         // sesión de esta app — la API móvil siempre habla JSON (auth:sanctum, nunca pasa por
         // acá porque expectsJson() es true). Sin esto, un acceso no autenticado a /admin/*

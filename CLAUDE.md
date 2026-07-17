@@ -170,13 +170,18 @@ cálculos en un controlador ni en un componente Livewire nuevo.
 - `cartera_en_mora` es el saldo **pendiente real** de las cuotas en `estado = en_mora`
   (`monto_esperado` menos lo ya aplicado a esa cuota), no el monto bruto de la cuota.
 - `ganancia_interes`/`ganancia_extra` (por cobrador y global,
-  `AdminResumenController::calcularGananciaPorCobrador()`): réplica en PHP de la misma lógica
-  de reparto proporcional que ya existía en `DashboardRepository` del lado móvil — por cada
-  préstamo del cobrador (**cualquier estado**, uno ya `pagado`/`anulado` sigue contando
+  `ResumenAdminService::calcularGananciaPorCobrador()`, privado): réplica en PHP de la misma
+  lógica de reparto proporcional que ya existía en `DashboardRepository` del lado móvil — por
+  cada préstamo del cobrador (**cualquier estado**, uno ya `pagado`/`anulado` sigue contando
   históricamente) se reparte `Σpagos.monto_aplicado` proporcional al peso de interés/extras
   sobre `monto_total`; el excedente de un pago `cobro_extra` se suma íntegro a `ganancia_extra`.
   Si se vuelve a tocar la fórmula de ganancia en el móvil, hay que replicar el cambio acá
   también (mismo cuidado que ya existe entre `PrestamoCalculator` y su equivalente en Dart).
+  El cálculo por-préstamo se extrajo a **`ResumenAdminService::gananciaDePrestamo(Prestamo
+  $prestamo, ?Carbon $desde = null, ?Carbon $hasta = null)`** (público): sin rango, es
+  exactamente lo mismo de siempre (histórico completo); con rango, prorratea solo sobre los
+  pagos con `fecha_pago` dentro de `[$desde, $hasta]` — usado por `ExportarReporteService`
+  para el reporte financiero (ver esa sección más abajo), no solo por el resumen consolidado.
 - `saldo_disponible` (por cobrador y global): `App\Services\CapitalService::calcularSaldoDisponible()`
   — misma fórmula que `DashboardRepository.calcularResumen` del lado móvil (cargas − retiros +
   Σ`pagos.monto_abonado` − Σ`monto_capital` de préstamos no anulados). Única fuente de verdad,
@@ -318,10 +323,26 @@ extiende `admin.layout` y solo hace `@livewire('admin.modulo.nombre', [...])`.
   pagado/**extra cobrado**/saldo pendiente + cuotas con fecha esperada vs. fecha de pago real),
   Clientes (badge "pagados/totales"), Movimientos de capital (chip visual para `origen = admin`
   vs. `cobrador`, mismo criterio que el chip "Asignado por administrador" de
-  `HistorialCapitalScreen` en mobile), Historial de pagos (agrupado por préstamo+`fecha_pago`,
-  resumen corto expandible — ver `ResumenAdminService::historialPagosAgrupado()`). Incluye el
-  formulario de asignar saldo (carga/retiro + monto + descripción), llamando a
-  `CapitalService::asignar()`.
+  `HistorialCapitalScreen` en mobile — **nota**: `HistorialCapitalScreen` ya no tiene botón de
+  eliminar, ver sección de capital móvil más abajo, pero este chip visual sigue igual, no era
+  el mismo control), Historial de pagos (agrupado por préstamo+`fecha_pago`, resumen corto
+  expandible — ver `ResumenAdminService::historialPagosAgrupado()`). Incluye el formulario de
+  asignar saldo (carga/retiro + monto + **categoria** + descripción), llamando a
+  `CapitalService::asignar()`:
+  - **Campo "Monto"**: no es un `<input type="number">` — es un `<input type="text">` con
+    Alpine.js (`x-data="{ raw: $wire.entangle('monto'), get display() {...} }"`) que formatea
+    con separador de miles (`toLocaleString('en-US')`, coma) **mientras se escribe**, sin
+    round-trip a Livewire por cada tecla (`$wire.entangle` sincroniza el valor crudo, no el
+    formateado); solo el valor limpio (sin comas) llega a `$wire.monto`. Distinto del criterio
+    de "punto" que usa `formatearMoneda()`/`FormateadorDinero` del lado móvil — decisión
+    explícita para este campo puntual, no una inconsistencia a corregir.
+  - **Campo "Categoría"** (`categoria`, select): solo visible (`x-show="$wire.tipoMovimiento
+    === 'retiro'"`) y solo requerido/validado cuando `tipoMovimiento = 'retiro'`
+    (`Rule::excludeIf` en las `rules()` del componente — para una carga, el valor del `<select>`
+    se descarta sin importar lo que haya quedado seleccionado, así el registro siempre queda
+    con `categoria = null`). Mismas 4 opciones que la API (`gasto_operativo`, `decision_jefe`,
+    `salario`, `otro`) — ver `cargas_capital.categoria` en la sección del reporte financiero
+    más abajo.
 - **`Configuracion\Formulario`**: tasas de interés (array editable), política de mora por
   defecto (select), intentos antes del PIN maestro, y el PIN maestro global — **nunca** muestra
   el hash, solo `pin_maestro_configurado` (bool); un campo de texto para uno nuevo y un
@@ -332,16 +353,15 @@ extiende `admin.layout` y solo hace `@livewire('admin.modulo.nombre', [...])`.
   `accion` (select) y rango de fecha — puramente de consulta, **sin ningún método de
   mutación** en el componente. El detalle de `datos_anteriores`/`datos_nuevos` de cada fila pasa
   por `AuditoriaPresentador::datosSeguros()` antes de mostrarse.
-- **Exportar CSV (`/admin/exportar`) es la única pantalla del panel que NO usa Livewire a
+- **Exportar (`/admin/exportar`) es la única pantalla del panel que NO usa Livewire a
   propósito**: es un `<form>` HTML plano que hace POST directo a
   `App\Http\Controllers\Admin\AdminExportarController@descargar`, para que la descarga sea una
   respuesta HTTP normal (`Content-Disposition: attachment`) en vez de depender de streaming vía
-  AJAX. Llama a `App\Services\ExportarReporteService`, que reutiliza
-  `ResumenAdminService::prestamosDeCobrador()` (no repite esas queries) y solo filtra los pagos
-  por rango de `fecha_pago` — una fila de CSV por pago, con el nombre del cobrador siempre en su
-  propia columna (puede haber varios cobradores en un mismo export). Mismo fix de BOM UTF-8 que
-  el lado móvil (bytes `\xEF\xBB\xBF` antepuestos al contenido antes de servir el archivo), ver
-  bullet de `ReportesRepository` en la sección de dashboard/reportes móvil.
+  AJAX. Ya no genera un `.csv`: desde la fase del "reporte financiero" genera un **`.xlsx` de 3
+  hojas** (`maatwebsite/excel`, `Excel::raw()` — devuelve los bytes directo, sin tocar disco).
+  Filtro nuevo de **categoria** (select, mismas 4 opciones que `cargas_capital.categoria`) que
+  solo afecta la Hoja 3. Ver la sección "Reporte financiero (.xlsx web / CSV mobile)" más abajo
+  para el detalle completo de las 3 hojas y por qué se abandonó el CSV plano en la web.
 
 ### Tests (`backend/tests/Feature/Admin/*LivewireTest.php`, `AdminPanelAccessTest.php`)
 
@@ -349,6 +369,92 @@ Cada módulo tiene tests mínimos usando `Livewire::actingAs($admin)->test(Compo
 — no se duplicó la cobertura ya existente de los controllers `Api\Admin\*` (que siguen
 pasando sin cambios tras cada extracción a Service). `AdminPanelAccessTest` cubre el guard/
 middleware: guest redirigido, admin entra, cobrador rechazado con mensaje y sesión cerrada.
+
+## Reporte financiero: categoría de retiros y exportación (.xlsx web / CSV mobile)
+
+### `cargas_capital.categoria`
+
+Migración `add_categoria_to_cargas_capital_table`: enum nullable (`gasto_operativo`,
+`decision_jefe`, `salario`, `otro`), después de `tipo`. Solo aplica a un **retiro**; para una
+`carga` siempre queda `null`, sin importar lo que mande el cliente — reforzado con el mismo
+criterio en 3 lugares, no uno solo (`Rule::excludeIf(fn () => tipo !== 'retiro')` +
+`required`/`in:...` cuando sí aplica):
+- `StoreAdminCargaCapitalRequest` (`POST /api/admin/cargas-capital`).
+- `App\Livewire\Admin\Resumen\DetalleCobrador::rules()` (formulario "Asignar saldo" web).
+- `CapitalService::asignar()` recibe `categoria` como parámetro opcional y fuerza `null` si
+  `$tipo !== 'retiro'` como última línea de defensa.
+
+**Fuera de alcance a propósito**: `StoreCargaCapitalRequest` (la ruta del propio cobrador,
+`POST /cargas-capital`) y el lado móvil (`AgregarCapitalScreen`/`CargasCapitalRepository`) **no**
+tienen este campo — `categoria` es exclusivamente una clasificación que hace el admin al
+asignar/retirar saldo, no algo que el cobrador declare sobre sus propios movimientos.
+
+### `ExportarReporteService`: una sola fuente de verdad para 2 formatos
+
+`datosReporte(array $usuarioIds, ?Carbon $desde, ?Carbon $hasta, ?string $categoriaCapital):
+array` es el método central — arma los 3 bloques (`prestamos`, `resumen_por_cobrador`,
+`movimientos_capital`), cada uno como `{titulo, columnas, filas}` (filas ya en el mismo orden
+que las columnas, sin formatear: números crudos, sin símbolo de moneda). **Dos consumidores, un
+solo cálculo**:
+- `generarXlsx(...)` (panel web, `/admin/exportar`): llama a `datosReporte()` y arma un
+  `App\Exports\Admin\ReporteAdminExport` (`WithMultipleSheets`) con 3
+  `App\Exports\Admin\ArraySheetExport` (clase genérica reutilizable — no 3 clases casi
+  idénticas), devuelve `Excel::raw($export, Excel::XLSX)` (bytes directo, sin tocar disco).
+- `GET /api/admin/reporte` (`App\Http\Controllers\Api\Admin\AdminReporteController`, móvil):
+  llama al mismo `datosReporte()` y lo devuelve tal cual como JSON.
+
+Si se necesita ajustar una fórmula o agregar una columna, **tocar solo `datosReporte()`** (o los
+métodos privados `filasPrestamos()`/`filasResumenCobrador()`/`filasMovimientosCapital()` que
+llama) — nunca duplicar el cálculo en el controller de la API ni en el de la web.
+
+**Hoja/bloque 1 — Detalle de préstamos** (`Cobrador, Cliente, Cédula, Capital, % Interés, Valor
+de cada cuota, Ganancia, Capital + Interés (sin extras), Plazo (cuotas), Frecuencia de pago,
+Estado`): todos los préstamos existentes de los cobradores filtrados, **sin importar estado ni
+fecha_inicio** — el rango de fechas del formulario NO aplica acá (a propósito: es un detalle
+punto-en-el-tiempo, no una evolución; ver Hoja 2 para eso). "Ganancia" es
+`gananciaDePrestamo($prestamo)` sin rango (interés + extra, histórico completo de ESE préstamo,
+no el total del cobrador). Reutiliza `ResumenAdminService::prestamosDeCobrador()`.
+
+**Hoja/bloque 2 — Resumen por cobrador** (`Cobrador, Cartera pendiente al inicio, Total cobrado
+en el periodo, Total prestado en el periodo, Cartera pendiente al final, Ganancia por interés
+(periodo), Ganancia por extra (periodo)`): evolución **dentro** del rango filtrado.
+- "Cartera pendiente al inicio/al final" (`ExportarReporteService::carteraPendienteAlCorte()`):
+  reconstrucción histórica, no el estado actual de las cuotas — suma el saldo pendiente
+  (`monto_esperado - Σpagos.monto_aplicado con fecha_pago hasta ese corte`) de las cuotas cuya
+  `fecha_esperada` es anterior (o anterior-o-igual, para "al final") al corte. Si `desde` es
+  `null`, "al inicio" es `0` (no hay nada "antes" de un rango sin arrancar); si `hasta` es
+  `null`, "al final" usa `Carbon::now()` como corte.
+- "Total cobrado en el periodo"/"Total prestado en el periodo": `Σpagos.monto_aplicado`/
+  `Σprestamos.monto_capital` filtrados por `fecha_pago`/`fecha_inicio` dentro del rango.
+- "Ganancia por interés/extra (periodo)": `Σ gananciaDePrestamo($prestamo, $desde, $hasta)`
+  sobre todos los préstamos del cobrador — a diferencia de la Hoja 1, acá sí se acota a los
+  pagos con `fecha_pago` en el rango.
+
+**Hoja/bloque 3 — Movimientos de capital** (`Cobrador, Fecha, Tipo, Monto, Categoría,
+Descripción, Origen`): una fila por `cargas_capital` de los cobradores filtrados, con
+`created_at` dentro del rango y, si se dio, filtrada además por `categoria` (el filtro
+naturalmente no afecta las `carga`, porque esas siempre tienen `categoria = null`).
+
+**Bug real encontrado y corregido**: `PhpSpreadsheet\Worksheet::fromArray()` compara cada valor
+contra `null` con `!=` (comparación floja) por defecto — y en PHP `0.0 != null` es `false` (son
+"iguales" con comparación floja), así que cualquier celda con el número **0** quedaba en blanco
+en vez de mostrar "0" (se detectó con los totales en cero de la Hoja 2). Se corrigió
+implementando `Maatwebsite\Excel\Concerns\WithStrictNullComparison` en `ArraySheetExport` —
+**cualquier Export nuevo basado en `FromArray` con datos que puedan ser exactamente `0` debe
+implementar esta interfaz también**, si no, no hay warning ni error, la celda simplemente sale
+vacía.
+
+### `GET /api/admin/reporte` (móvil) y `AdminReportesRepository` — CSV, no `.xlsx`
+
+Decisión explícita de mantener CSV en mobile (no replicar `.xlsx` en Dart): la app comparte el
+archivo por WhatsApp/correo vía `share_plus`, donde un CSV es más liviano y compatible.
+`AdminReportesRepository.construirCsv()` pide `GET /admin/reporte` (nuevo endpoint,
+`Api\Admin\AdminReporteController`, mismos filtros `usuario_ids[]`/`desde`/`hasta`/`categoria`
+que la web, protegido por `role:admin` igual que el resto de `/api/admin/*`) y arma **un solo
+CSV con las 3 secciones** (título + encabezados + filas de cada bloque, tal cual vienen del
+JSON, sin reformatear ningún valor — mismos números crudos que el `.xlsx`) en vez de 3 archivos
+separados. Reutiliza `exportarCsvYCompartir()` (BOM de UTF-8, ver bullet de `ReportesRepository`
+en la sección de dashboard/reportes móvil) — no reimplementa el fix de encoding.
 
 ## Sincronización con la app móvil (backend)
 
@@ -658,11 +764,25 @@ descarga de una vez **todo** lo que ya existe en el servidor para ese cobrador.
   edición (`AdminUsuarioFormScreen`) arma su propio mapa de `cambios` con solo lo que el admin
   realmente modificó (nombre/email siempre; password solo si no quedó vacío), igual que el
   patrón ya usado en `ClientesRepository`/`PrestamosRepository`.
+- **Navegación reorganizada**: el detalle financiero de un cobrador (clientes, préstamos,
+  movimientos de capital) cuelga de **`AdminResumenScreen`** — tocar un cobrador en la tabla
+  "Por cobrador" abre `AdminCobradorDetalleScreen`. `AdminUsuariosListScreen` **ya no navega
+  ahí**: volvió a ser solo gestión de cuenta (crear, editar, activar/desactivar) — tocar una
+  fila abre el formulario de edición (`onTap: onEditar`), no el detalle financiero. Antes
+  ambas pantallas llevaban al mismo detalle; se separó porque "gestión de cuenta" y "ver la
+  cartera de un cobrador" son tareas distintas del admin, y mezclarlas en un solo listado no
+  dejaba claro cuál era el propósito de cada pantalla.
 - `AdminCobradorDetalleScreen` es deliberadamente de solo lectura sobre clientes/préstamos (sin
   botones de editar ni eliminar) — el admin puede *ver* la cartera de un cobrador pero el CRUD
   operativo sigue siendo exclusivo del cobrador dueño, desde su propia app. La única acción de
   escritura que sí tiene es el FAB "Asignar saldo" (ver más abajo), que no toca clientes ni
-  préstamos.
+  préstamos. Incluye una sección **"Movimientos de capital"** (antes no existía en esta
+  pantalla): lista `detalle.cargasCapital` (nuevo campo de `DetalleCobrador`, poblado por
+  `GET /admin/usuarios/{id}/detalle` — el backend ahora eager-carga la relación
+  `User::cargasCapital()` ahí, antes esa ruta no la devolvía en absoluto) con el mismo patrón
+  visual que `HistorialCapitalScreen` (icono/color por tipo, chip "Asignado por administrador"
+  para `origen = admin`) — mismos datos que la pestaña equivalente del panel web
+  (`ResumenAdminService::cargasCapitalDeCobrador()`).
 - **Listado de préstamos y modal de detalle** (`AdminCobradorDetalleScreen`): cada ítem del
   listado (y el título dentro del modal) muestra **"Nombre del cliente - Referencia"**
   (`_tituloPrestamo`, solo el nombre del cliente si no hay referencia), truncado con
@@ -714,13 +834,17 @@ descarga de una vez **todo** lo que ya existe en el servidor para ese cobrador.
 - **`AdminResumenScreen`** también muestra `ganancia_interes`/`ganancia_extra` y
   `saldo_disponible` (ya calculados por el backend) junto a los campos que ya tenía, tanto en
   la tarjeta global como en la de cada cobrador (`_FilasTotales`, reutilizada en ambos casos).
-- **Exportar CSV** (`AdminExportarReporteScreen` + `AdminReportesRepository`): rango de fechas +
-  multi-select de cobradores (uno, varios, o todos), trae los datos vía `AdminRepository`
-  (`listarUsuarios` + `obtenerDetalleCobrador` por cobrador seleccionado) y arma el CSV con el
-  mismo patrón de generación que `ReportesRepository` del cobrador (préstamos siempre completos,
-  historial de pagos sí filtrado por `fecha_pago`) — reutiliza el mismo
-  `exportarCsvYCompartir()` compartido (ver bug de encoding más abajo) en vez de reimplementar
-  el guardado/share del archivo.
+- **Exportar reporte financiero** (`AdminExportarReporteScreen` + `AdminReportesRepository`):
+  rango de fechas + multi-select de cobradores + filtro de categoria (solo afecta la sección de
+  movimientos de capital) — mismo formulario de antes, **extendido, no reescrito**, más el
+  `DropdownButtonFormField` de categoria. Ya no arma el CSV recorriendo
+  `obtenerDetalleCobrador()` por cobrador: pide `GET /admin/reporte` una sola vez
+  (`AdminRepository.obtenerReporte()`) y arma **un CSV de 3 secciones** (préstamos, resumen por
+  cobrador, movimientos de capital) — ver la sección "Reporte financiero (.xlsx web / CSV
+  mobile)" del lado backend más arriba para el detalle completo de esas 3 secciones y por qué
+  se eligió CSV en mobile en vez de replicar el `.xlsx`. Sigue reutilizando
+  `exportarCsvYCompartir()` compartido (ver bug de encoding más abajo), sin reimplementar el
+  guardado/share del archivo.
 - `AdminCobradorDetalleScreen` y `AdminAsignarCapitalScreen` aceptan su `AdminRepository` como
   parámetro opcional del constructor (mismo patrón de inyección para pruebas que
   `DashboardScreen`/`AppEntryPoint`) — antes solo `AdminAsignarCapitalScreen` lo necesitaba,
@@ -781,14 +905,18 @@ Todo se calcula **desde Drift local**, nunca pidiéndole nada al backend (mismo 
 offline-first que clientes/préstamos/pagos). `cargas_capital` es tabla nueva (backend con
 migración + `POST /cargas-capital`, sin `GET`; local en Drift) para que el cobrador registre
 movimientos de capital: aportes (`tipo = 'carga'`) y retiros (`tipo = 'retiro'`), monto siempre
-positivo, el signo lo da `tipo` (mismo patrón que `monto_abonado` en pagos). Soporta soft-delete
-(`eliminadoEn`) para deshacer un movimiento registrado por error — `CargasCapitalDao.obtenerTodas`
-ya filtra `eliminadoEn.isNull()`. `AgregarCapitalScreen` tiene un `SegmentedButton` para elegir
-entrada/retiro (**un `retiro` no puede exceder `saldoDisponible` del propio cobrador** —
-validado localmente contra `DashboardRepository.calcularResumen`, mismo criterio que el backend
-usa vía `CapitalService` para `AdminAsignarCapitalScreen`, ver sección de panel admin más
-arriba); `HistorialCapitalScreen` (icono junto al botón "Agregar capital") lista todos los
-movimientos no eliminados con opción de eliminar cada uno.
+positivo, el signo lo da `tipo` (mismo patrón que `monto_abonado` en pagos). El modelo/DAO
+soporta soft-delete (`eliminadoEn`, `CargasCapitalRepository.eliminar()`,
+`CargasCapitalDao.obtenerTodas` ya filtra `eliminadoEn.isNull()`) pero **ninguna pantalla lo
+expone hoy**: `HistorialCapitalScreen` es de solo lectura, el cobrador no puede eliminar sus
+propios movimientos desde ahí (decisión explícita — antes sí tenía un botón de eliminar para
+las filas de `origen = cobrador`, se quitó para todas las filas sin excepción). El método sigue
+en el código por si alguna pantalla futura lo necesita, no se borró. `AgregarCapitalScreen`
+tiene un `SegmentedButton` para elegir entrada/retiro (**un `retiro` no puede exceder
+`saldoDisponible` del propio cobrador** — validado localmente contra
+`DashboardRepository.calcularResumen`, mismo criterio que el backend usa vía `CapitalService`
+para `AdminAsignarCapitalScreen`, ver sección de panel admin más arriba); `HistorialCapitalScreen`
+(icono junto al botón "Agregar capital") lista todos los movimientos no eliminados.
 
 - **Saldo disponible** (`DashboardRepository.calcularResumen`) = `Σ cargas_capital.monto` (tipo
   `carga`) − `Σ cargas_capital.monto` (tipo `retiro`) + `Σ pagos.monto_abonado` (todo lo
@@ -946,3 +1074,49 @@ Dos reglas que ya causaron bugs reales y no deben repetirse:
    sincronización tampoco debe cruzarse entre cobradores. Cubierto end-to-end en
    `test/aislamiento_entre_usuarios_test.dart` (dos cobradores, misma base de datos en
    memoria, un solo `AppDatabase`).
+
+## Despliegue: Laravel Cloud (`/backend`)
+
+Preparación de infraestructura para desplegar — sin tocar lógica de negocio.
+
+- **`.env.example`** actualizado para reflejar todas las variables que el proyecto usa hoy
+  (antes estaba desactualizado: tenía `DB_CONNECTION=sqlite` pese a que el proyecto usa MySQL
+  en dev/prod — nombre de base `cobro_app` — y no documentaba `SANCTUM_STATEFUL_DOMAINS`/
+  `SESSION_SECURE_COOKIE` en absoluto). Organizado por secciones con comentarios de qué es cada
+  variable y, donde aplica, el valor esperado en producción (nunca localhost):
+  - `SESSION_DOMAIN`: en producción, el dominio real del panel admin (con punto al inicio para
+    cubrir subdominios, ej. `.tudominio.com`).
+  - `SANCTUM_STATEFUL_DOMAINS`: prácticamente inerte para este proyecto hoy — la app móvil
+    siempre usa Bearer token, nunca cookies, y el panel web usa el guard `web` de sesión pura
+    sin pasar por Sanctum (ver sección de auth del panel web más arriba). Documentado igual por
+    si algún día se agrega una SPA.
+  - `SESSION_SECURE_COOKIE`: debe ser `true` en producción (Laravel Cloud sirve todo por
+    HTTPS); en local queda en `false`.
+  - `LOG_CHANNEL`: **`stderr`** es el valor activo por defecto ahora (antes era `stack`) —
+    recomendado para Laravel Cloud porque el filesystem no persiste entre despliegues, así que
+    un log en `storage/logs` se perdería; Laravel Cloud captura stderr directo en su agregador.
+    `stack`/`LOG_STACK=single` queda documentado como alternativa comentada para desarrollo
+    local (más cómodo para `tail -f` mientras se programa).
+- **`bootstrap/app.php` confía en los proxies de Laravel Cloud**
+  (`$middleware->trustProxies(at: '*')`, en el bloque `withMiddleware`): sin esto, detrás del
+  balanceador que termina TLS y reenvía por HTTP interno con cabeceras `X-Forwarded-*`,
+  `Request::isSecure()` vería HTTP y rompería todo lo que depende de detectar HTTPS
+  (`SESSION_SECURE_COOKIE`, URLs absolutas con `https://`, redirects). `'*'` confía en
+  cualquier proxy inmediato — la práctica estándar de Laravel para PaaS gestionados donde no se
+  conoce la IP fija del balanceador de antemano. Verificado simulando una petición con
+  `X-Forwarded-Proto: https` a través del middleware real: `isSecure()` pasa de `false` a
+  `true` correctamente.
+- **`ext-zip` agregado explícito al `require` de `composer.json`** (antes solo lo requería
+  *transitivamente* `phpoffice/phpspreadsheet`, dependencia de `maatwebsite/excel` — ver
+  sección de reporte financiero más arriba): así el build de Laravel Cloud lo detecta directo,
+  sin depender de que su tooling recorra el árbol de dependencias completo. Confirmado con
+  `composer check-platform-reqs`.
+- **Migraciones verificadas contra MySQL real** (no solo SQLite, que es más permisivo con
+  foreign keys): `migrate:fresh` corre limpio en orden dos veces seguidas (creación + drop-and-
+  recreate) contra una base MySQL 8.4 descartable, sin errores de FK.
+- **Sin dependencia de storage local persistente**: los exports (el `.xlsx` de 3 hojas y el
+  JSON del reporte para mobile, ver sección de reporte financiero) se generan en memoria vía
+  `Excel::raw()` y se devuelven directo en la respuesta HTTP — nunca tocan disco. Sesión, caché
+  y colas usan driver `database`, no archivos. No hay subida de archivos del lado servidor (la
+  foto de cliente es un path local del dispositivo móvil, ver sección de clientes móvil). El
+  filesystem efímero de Laravel Cloud (no persiste entre despliegues) no rompe nada de esto hoy.
