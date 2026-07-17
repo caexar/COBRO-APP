@@ -57,10 +57,6 @@ backend/yarn-error.log
 backend/storage/*.key
 backend/storage/pail
 backend/storage/logs/*.log
-backend/storage/framework/cache/
-backend/storage/framework/sessions/
-backend/storage/framework/testing/
-backend/storage/framework/views/
 backend/bootstrap/cache/*.php
 backend/public/hot
 backend/public/storage
