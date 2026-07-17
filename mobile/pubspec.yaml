@@ -64,6 +64,16 @@ dev_dependencies:
   path_provider_platform_interface: ^2.1.2
   plugin_platform_interface: ^2.1.8
   share_plus_platform_interface: ^7.1.0
+  flutter_launcher_icons: 0.14.4
+
+# Configuración de flutter_launcher_icons (`dart run flutter_launcher_icons` regenera los
+# íconos de Android a partir de assets/icon/icon.png). Solo Android por ahora (ios: false) —
+# no se pidió generar íconos de iOS todavía.
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/icon/icon.png"
+  min_sdk_android: 21
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
