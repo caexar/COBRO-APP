@@ -95,6 +95,7 @@ class ResumenLivewireTest extends TestCase
             ->test(DetalleCobrador::class, ['usuario' => $cobrador])
             ->set('tipoMovimiento', 'retiro')
             ->set('monto', '100000')
+            ->set('categoria', 'gasto_operativo')
             ->call('asignarSaldo')
             ->assertSet('errorCapital', 'El monto del retiro excede el saldo disponible del cobrador ($50,000.00).')
             ->assertSet('mensajeCapital', null);
@@ -112,6 +113,7 @@ class ResumenLivewireTest extends TestCase
             ->test(DetalleCobrador::class, ['usuario' => $cobrador])
             ->set('tipoMovimiento', 'retiro')
             ->set('monto', '20000')
+            ->set('categoria', 'salario')
             ->call('asignarSaldo')
             ->assertSet('mensajeCapital', 'Saldo asignado correctamente.')
             ->assertSet('errorCapital', null);
@@ -119,9 +121,39 @@ class ResumenLivewireTest extends TestCase
         $this->assertDatabaseHas('cargas_capital', [
             'usuario_id' => $cobrador->id,
             'tipo' => 'retiro',
+            'categoria' => 'salario',
             'monto' => 20000,
             'origen' => 'admin',
             'creado_por_usuario_id' => $admin->id,
+        ]);
+    }
+
+    public function test_un_retiro_sin_categoria_es_rechazado_y_una_carga_ignora_la_categoria_enviada(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $cobrador = User::factory()->create();
+        CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'carga', 'monto' => 50000]);
+
+        Livewire::actingAs($admin)
+            ->test(DetalleCobrador::class, ['usuario' => $cobrador])
+            ->set('tipoMovimiento', 'retiro')
+            ->set('monto', '20000')
+            ->call('asignarSaldo')
+            ->assertHasErrors(['categoria' => 'required']);
+
+        Livewire::actingAs($admin)
+            ->test(DetalleCobrador::class, ['usuario' => $cobrador])
+            ->set('tipoMovimiento', 'carga')
+            ->set('monto', '10000')
+            ->set('categoria', 'salario')
+            ->call('asignarSaldo')
+            ->assertSet('mensajeCapital', 'Saldo asignado correctamente.');
+
+        $this->assertDatabaseHas('cargas_capital', [
+            'usuario_id' => $cobrador->id,
+            'tipo' => 'carga',
+            'monto' => 10000,
+            'categoria' => null,
         ]);
     }
 

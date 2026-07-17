@@ -46,8 +46,14 @@ class CapitalService
      * @throws SaldoInsuficienteException si $tipo es 'retiro' y $monto excede el saldo
      *                                     disponible del cobrador.
      */
-    public function asignar(int $usuarioId, string $tipo, float $monto, ?string $descripcion, User $actor): CargaCapital
-    {
+    public function asignar(
+        int $usuarioId,
+        string $tipo,
+        float $monto,
+        ?string $descripcion,
+        User $actor,
+        ?string $categoria = null,
+    ): CargaCapital {
         if ($tipo === 'retiro') {
             $saldoDisponible = $this->calcularSaldoDisponible($usuarioId);
 
@@ -61,6 +67,9 @@ class CapitalService
         $carga = CargaCapital::create([
             'usuario_id' => $usuarioId,
             'tipo' => $tipo,
+            // Solo aplica a un retiro; para una carga, null sin importar lo que llegue acá
+            // (mismo criterio que ya aplica StoreAdminCargaCapitalRequest del lado API).
+            'categoria' => $tipo === 'retiro' ? $categoria : null,
             'monto' => $monto,
             'descripcion' => $descripcion,
             'origen' => 'admin',
@@ -76,6 +85,7 @@ class CapitalService
             datosNuevos: [
                 'usuario_id' => $carga->usuario_id,
                 'tipo' => $carga->tipo,
+                'categoria' => $carga->categoria,
                 'monto' => (float) $carga->monto,
                 'descripcion' => $carga->descripcion,
             ],

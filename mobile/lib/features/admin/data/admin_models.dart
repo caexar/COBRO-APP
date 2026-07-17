@@ -384,3 +384,48 @@ class DetalleCobrador {
     );
   }
 }
+
+/// Un bloque de `GET /admin/reporte` (préstamos, resumen por cobrador o
+/// movimientos de capital): título + encabezados de columna + filas ya
+/// calculadas por el backend, en el mismo orden que las columnas —
+/// `AdminReportesRepository` las escribe tal cual en el CSV, sin reformatear
+/// ningún valor (misma convención que las celdas planas del .xlsx del panel
+/// web, que tampoco llevan símbolo de moneda ni texto adicional).
+class SeccionReporte {
+  const SeccionReporte({required this.titulo, required this.columnas, required this.filas});
+
+  final String titulo;
+  final List<String> columnas;
+  final List<List<dynamic>> filas;
+
+  factory SeccionReporte.fromJson(Map<String, dynamic> json) {
+    return SeccionReporte(
+      titulo: json['titulo'] as String,
+      columnas: (json['columnas'] as List).cast<String>(),
+      filas: (json['filas'] as List).map((fila) => fila as List).toList(),
+    );
+  }
+}
+
+/// `GET /admin/reporte`: los mismos 3 bloques del reporte financiero que ya
+/// arma `ExportarReporteService::generarXlsx()` para el panel web (3 hojas),
+/// acá como JSON — misma fuente de verdad, sin recalcular nada en el móvil.
+class ReporteAdminFinanciero {
+  const ReporteAdminFinanciero({
+    required this.prestamos,
+    required this.resumenPorCobrador,
+    required this.movimientosCapital,
+  });
+
+  final SeccionReporte prestamos;
+  final SeccionReporte resumenPorCobrador;
+  final SeccionReporte movimientosCapital;
+
+  factory ReporteAdminFinanciero.fromJson(Map<String, dynamic> json) {
+    return ReporteAdminFinanciero(
+      prestamos: SeccionReporte.fromJson(json['prestamos'] as Map<String, dynamic>),
+      resumenPorCobrador: SeccionReporte.fromJson(json['resumen_por_cobrador'] as Map<String, dynamic>),
+      movimientosCapital: SeccionReporte.fromJson(json['movimientos_capital'] as Map<String, dynamic>),
+    );
+  }
+}

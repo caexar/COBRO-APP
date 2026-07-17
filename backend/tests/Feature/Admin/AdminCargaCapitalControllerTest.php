@@ -61,10 +61,48 @@ class AdminCargaCapitalControllerTest extends TestCase
             'usuario_id' => $cobrador->id,
             'tipo' => 'retiro',
             'monto' => 20000,
+            'categoria' => 'gasto_operativo',
         ]);
 
         $respuesta->assertCreated();
         $respuesta->assertJsonPath('data.tipo', 'retiro');
+        $respuesta->assertJsonPath('data.categoria', 'gasto_operativo');
+    }
+
+    public function test_un_retiro_sin_categoria_es_rechazado_y_una_carga_ignora_la_categoria_enviada(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $cobrador = User::factory()->create();
+
+        CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'carga', 'monto' => 100000]);
+
+        Sanctum::actingAs($admin);
+
+        $respuesta = $this->postJson('/api/admin/cargas-capital', [
+            'usuario_id' => $cobrador->id,
+            'tipo' => 'retiro',
+            'monto' => 20000,
+        ]);
+
+        $respuesta->assertUnprocessable();
+        $respuesta->assertJsonValidationErrors('categoria');
+
+        // Una carga ignora la categoria enviada (siempre queda null), sin importar lo que
+        // mande el cliente.
+        $respuesta = $this->postJson('/api/admin/cargas-capital', [
+            'usuario_id' => $cobrador->id,
+            'tipo' => 'carga',
+            'monto' => 10000,
+            'categoria' => 'salario',
+        ]);
+
+        $respuesta->assertCreated();
+        $this->assertDatabaseHas('cargas_capital', [
+            'usuario_id' => $cobrador->id,
+            'tipo' => 'carga',
+            'monto' => 10000,
+            'categoria' => null,
+        ]);
     }
 
     public function test_un_retiro_que_excede_el_saldo_disponible_es_rechazado(): void
@@ -80,6 +118,7 @@ class AdminCargaCapitalControllerTest extends TestCase
             'usuario_id' => $cobrador->id,
             'tipo' => 'retiro',
             'monto' => 100000,
+            'categoria' => 'gasto_operativo',
         ]);
 
         $respuesta->assertUnprocessable();

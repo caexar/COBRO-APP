@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Admin\AdminCargaCapitalController;
 use App\Http\Controllers\Api\Admin\AdminConfiguracionController;
+use App\Http\Controllers\Api\Admin\AdminReporteController;
 use App\Http\Controllers\Api\Admin\AdminResumenController;
 use App\Http\Controllers\Api\Admin\AdminUsuarioController;
 use App\Http\Controllers\Api\CargaCapitalController;
@@ -56,6 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('usuarios/{usuario}/detalle', [AdminUsuarioController::class, 'detalle']);
 
         Route::get('resumen', [AdminResumenController::class, 'index']);
+        Route::get('reporte', [AdminReporteController::class, 'index']);
 
         Route::get('configuracion', [AdminConfiguracionController::class, 'index']);
         Route::put('configuracion', [AdminConfiguracionController::class, 'update']);

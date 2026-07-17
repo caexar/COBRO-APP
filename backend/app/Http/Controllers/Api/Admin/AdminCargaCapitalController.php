@@ -31,6 +31,7 @@ class AdminCargaCapitalController extends Controller
                 monto: (float) $datos['monto'],
                 descripcion: $datos['descripcion'] ?? null,
                 actor: $request->user(),
+                categoria: $datos['categoria'] ?? null,
             );
         } catch (SaldoInsuficienteException $e) {
             throw ValidationException::withMessages(['monto' => $e->getMessage()]);

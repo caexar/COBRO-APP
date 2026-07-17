@@ -48,6 +48,17 @@
                        class="mt-1 rounded-md border-gray-300 shadow-sm">
                 @error('monto') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
+            <div x-show="$wire.tipoMovimiento === 'retiro'" x-cloak>
+                <label class="block text-sm font-medium text-gray-700">Categoría</label>
+                <select wire:model="categoria" class="mt-1 rounded-md border-gray-300 shadow-sm">
+                    <option value="">Selecciona una categoría</option>
+                    <option value="gasto_operativo">Gasto operativo</option>
+                    <option value="decision_jefe">Decisión del jefe</option>
+                    <option value="salario">Salario</option>
+                    <option value="otro">Otro</option>
+                </select>
+                @error('categoria') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+            </div>
             <div class="flex-1 min-w-[200px]">
                 <label class="block text-sm font-medium text-gray-700">Descripción (opcional)</label>
                 <input type="text" wire:model="descripcion" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">

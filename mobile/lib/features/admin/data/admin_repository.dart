@@ -86,6 +86,29 @@ class AdminRepository {
     return ResumenAdmin.fromJson(respuesta['data'] as Map<String, dynamic>);
   }
 
+  /// Los mismos 3 bloques del reporte financiero (préstamos, resumen por
+  /// cobrador, movimientos de capital) que ya arma el panel web como .xlsx —
+  /// acá como JSON, para que `AdminReportesRepository` arme su propio CSV.
+  /// [desde]/[hasta] no acotan la hoja de préstamos (siempre trae todos los
+  /// préstamos existentes de los cobradores elegidos), solo el resumen por
+  /// cobrador y los movimientos de capital — igual que en la web.
+  Future<ReporteAdminFinanciero> obtenerReporte({
+    required List<int> usuarioIds,
+    DateTime? desde,
+    DateTime? hasta,
+    String? categoria,
+  }) async {
+    final token = await _tokenActual();
+    final parametros = [
+      for (final id in usuarioIds) 'usuario_ids[]=$id',
+      if (desde != null) 'desde=${_formatearFechaIso(desde)}',
+      if (hasta != null) 'hasta=${_formatearFechaIso(hasta)}',
+      if (categoria != null) 'categoria=$categoria',
+    ];
+    final respuesta = await _apiClient.get('/admin/reporte?${parametros.join('&')}', token: token);
+    return ReporteAdminFinanciero.fromJson(respuesta['data'] as Map<String, dynamic>);
+  }
+
   /// Asigna (o retira, según [tipo]) saldo de capital a [usuarioId] — el
   /// cobrador destino, no necesariamente el admin autenticado. Este dinero
   /// no llega al dispositivo del cobrador hasta su próxima sincronización
@@ -117,4 +140,10 @@ class AdminRepository {
     final respuesta = await _apiClient.put('/admin/configuracion', token: token, body: cambios);
     return ConfiguracionAdmin.fromJson(respuesta['data'] as Map<String, dynamic>);
   }
+}
+
+String _formatearFechaIso(DateTime fecha) {
+  final mes = fecha.month.toString().padLeft(2, '0');
+  final dia = fecha.day.toString().padLeft(2, '0');
+  return '${fecha.year}-$mes-$dia';
 }

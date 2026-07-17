@@ -17,101 +17,85 @@ http.Response _json(Object cuerpo) {
   return http.Response(jsonEncode(cuerpo), 200, headers: {'content-type': 'application/json'});
 }
 
-Map<String, dynamic> _detalleCobrador({required int usuarioId, required String nombreCliente, required List<Map<String, dynamic>> pagos}) {
+Map<String, dynamic> _reporteJson() {
   return {
-    'id': usuarioId,
-    'nombre': 'Cobrador $usuarioId',
-    'email': 'cobrador$usuarioId@cobroapp.test',
-    'rol': 'cobrador',
-    'activo': true,
-    'clientes': [
-      {'id': 1, 'nombre': nombreCliente, 'cedula': '111', 'telefono': '3000000001'},
-    ],
-    'prestamos': [
-      {
-        'id': 10,
-        'cliente_id': 1,
-        'referencia': 'Préstamo moto',
-        'monto_capital': 100000,
-        'porcentaje_interes': 20,
-        'monto_total': 120000,
-        'estado': 'activo',
-        'plazo_cuotas': 10,
-        'fecha_inicio': '2026-01-01',
-        'extras': [],
-        'cuotas': [],
-        'pagos': pagos,
-      },
-    ],
+    'prestamos': {
+      'titulo': 'Detalle de préstamos',
+      'columnas': ['Cobrador', 'Cliente', 'Cédula', 'Capital'],
+      'filas': [
+        ['Ana Torres', 'Juan Perez', '123456', 100000],
+      ],
+    },
+    'resumen_por_cobrador': {
+      'titulo': 'Resumen por cobrador',
+      'columnas': ['Cobrador', 'Cartera pendiente al inicio', 'Total cobrado en el periodo'],
+      'filas': [
+        ['Ana Torres', 0, 62500],
+      ],
+    },
+    'movimientos_capital': {
+      'titulo': 'Movimientos de capital',
+      'columnas': ['Cobrador', 'Fecha', 'Tipo', 'Monto', 'Categoría'],
+      'filas': [
+        ['Ana Torres', '10/01/2026', 'retiro', 20000, 'gasto_operativo'],
+      ],
+    },
   };
 }
 
 void main() {
-  test('construirCsv incluye solo los cobradores seleccionados y filtra el historial por fecha', () async {
+  test('construirCsv arma un solo CSV con las 3 secciones del reporte financiero', () async {
+    Uri? urlLlamada;
+
     final mock = MockClient((request) async {
-      if (request.url.path == '/api/admin/usuarios') {
-        return _json({
-          'data': [
-            {
-              'id': 2,
-              'nombre': 'Ana Torres',
-              'email': 'ana@cobroapp.test',
-              'rol': 'cobrador',
-              'activo': true,
-            },
-            {
-              'id': 3,
-              'nombre': 'Luis Rojas',
-              'email': 'luis@cobroapp.test',
-              'rol': 'cobrador',
-              'activo': true,
-            },
-          ],
-        });
-      }
-
-      if (request.url.path == '/api/admin/usuarios/2/detalle') {
-        return _json({
-          'data': _detalleCobrador(
-            usuarioId: 2,
-            nombreCliente: 'Juan Perez',
-            pagos: [
-              {'cuota_id': 1, 'fecha_pago': '2026-01-05', 'monto_abonado': 12000, 'monto_aplicado': 12000, 'saldo_restante_despues': 108000},
-              {'cuota_id': 2, 'fecha_pago': '2026-03-01', 'monto_abonado': 12000, 'monto_aplicado': 12000, 'saldo_restante_despues': 96000},
-            ],
-          ),
-        });
-      }
-
-      if (request.url.path == '/api/admin/usuarios/3/detalle') {
-        return _json({
-          'data': _detalleCobrador(usuarioId: 3, nombreCliente: 'Maria Gomez', pagos: []),
-        });
-      }
-
-      throw StateError('Ruta no esperada: ${request.url.path}');
+      urlLlamada = request.url;
+      return _json({'data': _reporteJson()});
     });
 
     final adminRepository = AdminRepository(apiClient: ApiClient(httpClient: mock), secureStorage: _SecureStorageFalso());
     final reportesRepository = AdminReportesRepository(adminRepository: adminRepository);
 
     final csv = await reportesRepository.construirCsv(
-      usuarioIds: [2],
+      usuarioIds: [2, 3],
       desde: DateTime(2026, 1, 1),
       hasta: DateTime(2026, 1, 31),
+      categoria: 'gasto_operativo',
     );
 
-    // Solo el cobrador seleccionado (2) aparece, no el 3.
-    expect(csv, contains('Ana Torres'));
-    expect(csv, isNot(contains('Luis Rojas')));
-    expect(csv, isNot(contains('Maria Gomez')));
+    // Pide el reporte con los filtros correctos (Uri percent-codifica los corchetes de
+    // "usuario_ids[]" al parsear, por eso se lee vía queryParametersAll ya decodificado).
+    expect(urlLlamada!.path, '/api/admin/reporte');
+    expect(urlLlamada!.queryParametersAll['usuario_ids[]'], ['2', '3']);
+    expect(urlLlamada!.queryParameters['desde'], '2026-01-01');
+    expect(urlLlamada!.queryParameters['hasta'], '2026-01-31');
+    expect(urlLlamada!.queryParameters['categoria'], 'gasto_operativo');
 
-    // El préstamo siempre sale completo...
-    expect(csv, contains('Juan Perez'));
-    expect(csv, contains('Préstamo moto'));
+    // Las 3 secciones, con su título y encabezados, aparecen en un solo CSV.
+    expect(csv, contains('Detalle de préstamos'));
+    expect(csv, contains('Cobrador,Cliente,Cédula,Capital'));
+    expect(csv, contains('Ana Torres,Juan Perez,123456,100000'));
 
-    // ...pero el historial de pagos respeta el rango: solo el pago de enero.
-    expect(csv, contains('05/01/2026'));
-    expect(csv, isNot(contains('01/03/2026')));
+    expect(csv, contains('Resumen por cobrador'));
+    expect(csv, contains('Cobrador,Cartera pendiente al inicio,Total cobrado en el periodo'));
+    expect(csv, contains('Ana Torres,0,62500'));
+
+    expect(csv, contains('Movimientos de capital'));
+    expect(csv, contains('Cobrador,Fecha,Tipo,Monto,Categoría'));
+    expect(csv, contains('Ana Torres,10/01/2026,retiro,20000,gasto_operativo'));
+  });
+
+  test('exportarYCompartir antepone el BOM de UTF-8 (mismo helper que los demás exports)', () async {
+    final mock = MockClient((request) async => _json({'data': _reporteJson()}));
+
+    final adminRepository = AdminRepository(apiClient: ApiClient(httpClient: mock), secureStorage: _SecureStorageFalso());
+    final reportesRepository = AdminReportesRepository(adminRepository: adminRepository);
+
+    // `exportarCsvYCompartir` (core/utils/csv_exportador.dart) es quien antepone el BOM antes
+    // de compartir — acá solo se confirma que `construirCsv` (lo que ese helper recibe) no lo
+    // antepone dos veces ni rompe si se llama sin filtros de fecha/categoria.
+    final csv = await reportesRepository.construirCsv(usuarioIds: [2]);
+
+    expect(csv.startsWith('﻿'), isFalse);
+    expect(csv, contains('Detalle de préstamos'));
   });
 }

@@ -3,10 +3,20 @@ import 'package:flutter/material.dart';
 import '../data/admin_reportes_repository.dart';
 import '../data/admin_repository.dart';
 
-/// Formulario para que el admin exporte un CSV con préstamos e historial de
-/// pagos de uno, varios o todos los cobradores, filtrable por rango de
-/// fechas — mismo patrón visual que `ExportarReporteScreen` del lado
-/// cobrador, pero con selector múltiple de cobrador en vez de uno solo.
+/// Opciones válidas de `cargas_capital.categoria` (solo aplica a un retiro,
+/// ver CLAUDE.md) — mismas 4 opciones que ya usa el `<select>` del panel web.
+const Map<String, String> _categoriasCapital = {
+  'gasto_operativo': 'Gasto operativo',
+  'decision_jefe': 'Decisión del jefe',
+  'salario': 'Salario',
+  'otro': 'Otro',
+};
+
+/// Formulario para que el admin exporte, en un solo CSV, el reporte
+/// financiero de 3 secciones (préstamos, resumen por cobrador, movimientos
+/// de capital) de uno, varios o todos los cobradores — mismo reporte que ya
+/// arma el panel web como .xlsx (`GET /admin/reporte`), filtrable por rango
+/// de fechas y categoria de movimiento de capital.
 class AdminExportarReporteScreen extends StatefulWidget {
   const AdminExportarReporteScreen({super.key, this.repository, this.reportesRepository});
 
@@ -27,6 +37,7 @@ class _AdminExportarReporteScreenState extends State<AdminExportarReporteScreen>
   final Set<int> _seleccionados = {};
   DateTime? _desde;
   DateTime? _hasta;
+  String? _categoria;
   bool _exportando = false;
   String? _error;
 
@@ -97,6 +108,7 @@ class _AdminExportarReporteScreenState extends State<AdminExportarReporteScreen>
         desde: _desde,
         // "hasta" debe incluir todo ese día, no solo su medianoche.
         hasta: _hasta?.add(const Duration(days: 1, seconds: -1)),
+        categoria: _categoria,
       );
     } catch (e) {
       if (mounted) setState(() => _error = 'No se pudo exportar el reporte: $e');
@@ -118,8 +130,10 @@ class _AdminExportarReporteScreenState extends State<AdminExportarReporteScreen>
                 padding: const EdgeInsets.all(24),
                 children: [
                   Text(
-                    'El rango de fechas solo filtra el historial de pagos del CSV; el listado '
-                    'de préstamos siempre sale completo.',
+                    'El CSV trae 3 secciones: detalle de préstamos, resumen por cobrador y '
+                    'movimientos de capital. El rango de fechas solo acota el resumen por '
+                    'cobrador y los movimientos de capital — la sección de préstamos siempre '
+                    'sale completa.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 20),
@@ -158,6 +172,21 @@ class _AdminExportarReporteScreenState extends State<AdminExportarReporteScreen>
                         }
                       }),
                     ),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _categoria,
+                    decoration: const InputDecoration(
+                      labelText: 'Categoría de movimientos de capital (opcional)',
+                      border: OutlineInputBorder(),
+                      helperText: 'Solo filtra la sección de movimientos de capital.',
+                    ),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('Todas')),
+                      for (final entrada in _categoriasCapital.entries)
+                        DropdownMenuItem(value: entrada.key, child: Text(entrada.value)),
+                    ],
+                    onChanged: (valor) => setState(() => _categoria = valor),
+                  ),
                   if (_error != null) ...[
                     const SizedBox(height: 16),
                     Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),

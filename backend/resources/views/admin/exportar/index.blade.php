@@ -5,7 +5,10 @@
 @section('contenido')
     <div class="max-w-2xl bg-white rounded-lg shadow p-6">
         <p class="text-sm text-gray-500 mb-4">
-            El rango de fechas filtra el historial de pagos por fecha de pago; si lo dejas vacío, se exporta todo.
+            El archivo (.xlsx) trae 3 hojas: detalle de préstamos, resumen por cobrador (evolución en el rango) y
+            movimientos de capital. El rango de fechas solo acota la hoja de resumen y la de movimientos de capital
+            — la de préstamos siempre trae todos los préstamos existentes de los cobradores elegidos. Si lo dejas
+            vacío, se exporta todo el historial.
         </p>
 
         @if ($errors->any())
@@ -53,8 +56,20 @@
                 </div>
             </div>
 
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Categoría de movimientos de capital (opcional)</label>
+                <p class="text-xs text-gray-500 mb-1">Solo filtra la hoja "Movimientos de capital"; las otras dos hojas no cambian.</p>
+                <select name="categoria" class="mt-1 rounded-md border-gray-300 shadow-sm">
+                    <option value="">Todas</option>
+                    <option value="gasto_operativo" @selected(old('categoria') === 'gasto_operativo')>Gasto operativo</option>
+                    <option value="decision_jefe" @selected(old('categoria') === 'decision_jefe')>Decisión del jefe</option>
+                    <option value="salario" @selected(old('categoria') === 'salario')>Salario</option>
+                    <option value="otro" @selected(old('categoria') === 'otro')>Otro</option>
+                </select>
+            </div>
+
             <button type="submit" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
-                Exportar CSV
+                Exportar Excel
             </button>
         </form>
     </div>

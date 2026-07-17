@@ -2,28 +2,36 @@
 
 namespace Tests\Feature\Admin;
 
+use App\Models\CargaCapital;
 use App\Models\Cliente;
 use App\Models\Prestamo;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 /**
- * Exportar CSV del panel web: reutiliza `ResumenAdminService::prestamosDeCobrador()` (no repite
- * queries), así que acá solo se prueba lo específico de este endpoint: el BOM de UTF-8 al
- * principio del archivo y que filtre bien por cobrador y por rango de fecha_pago.
+ * Exportar el reporte financiero (.xlsx) del panel web: reutiliza `ResumenAdminService`
+ * (no repite queries/fórmulas), así que acá solo se prueba lo específico de este endpoint —
+ * las 3 hojas traen los datos/cálculos correctos y el rango de fechas acota la Hoja 2 y la
+ * Hoja 3, pero no la Hoja 1 (que siempre trae todos los préstamos existentes).
  */
 class ExportarReporteTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function crearPrestamoConPago(User $cobrador, string $nombreCliente, string $fechaPago): Prestamo
+    /**
+     * Préstamo con un extra y un pago con excedente `cobro_extra`, para ejercitar el cálculo
+     * de ganancia (interés + extra) en las 3 hojas a la vez.
+     */
+    private function crearEscenario(User $cobrador): Prestamo
     {
         $cliente = Cliente::create([
             'usuario_id' => $cobrador->id,
-            'nombre' => $nombreCliente,
-            'cedula' => (string) random_int(100000, 999999),
-            'telefono' => '3000000000',
+            'nombre' => 'Juan Perez',
+            'cedula' => '123456',
+            'telefono' => '3001234567',
             'direccion' => 'Calle 1',
         ]);
 
@@ -38,53 +46,174 @@ class ExportarReporteTest extends TestCase
             'estado' => 'activo',
             'politica_mora' => 'mantener',
         ]);
+        $prestamo->extras()->create(['concepto' => 'papeleria', 'valor' => 5000]);
 
-        $prestamo->pagos()->create([
-            'monto_abonado' => 60000,
-            'monto_aplicado' => 60000,
-            'fecha_pago' => $fechaPago,
-            'dias_mora' => 0,
-            'saldo_restante_despues' => 60000,
+        // monto_total = 100000 + 20000 (interés) + 5000 (extra) = 125000, repartido en 2
+        // cuotas de 62500 (mismo cálculo que PrestamoCalculator).
+        $cuota1 = $prestamo->cuotas()->create([
+            'numero_cuota' => 1, 'fecha_esperada' => '2026-01-02', 'monto_esperado' => 62500, 'estado' => 'pagada',
+        ]);
+        $prestamo->cuotas()->create([
+            'numero_cuota' => 2, 'fecha_esperada' => '2026-01-03', 'monto_esperado' => 62500, 'estado' => 'pendiente',
         ]);
 
-        return $prestamo;
+        // Excedente cobro_extra: monto_abonado (70000) > monto_aplicado (62500).
+        $prestamo->pagos()->create([
+            'cuota_id' => $cuota1->id,
+            'monto_abonado' => 70000,
+            'monto_aplicado' => 62500,
+            'fecha_pago' => '2026-01-05',
+            'dias_mora' => 3,
+            'saldo_restante_despues' => 62500,
+        ]);
+
+        return $prestamo->fresh();
     }
 
-    public function test_el_csv_tiene_el_bom_de_utf8_y_filtra_por_cobrador_y_fecha(): void
+    private function leerFilas(string $contenidoXlsx, int $indiceHoja): array
+    {
+        $ruta = tempnam(sys_get_temp_dir(), 'cobro_app_xlsx_test_');
+        file_put_contents($ruta, $contenidoXlsx);
+
+        $filas = IOFactory::load($ruta)->getSheet($indiceHoja)->toArray(null, true, false, false);
+
+        unlink($ruta);
+
+        return $filas;
+    }
+
+    public function test_las_3_hojas_traen_los_datos_y_calculos_correctos(): void
     {
         $admin = User::factory()->admin()->create();
-        $cobradorA = User::factory()->create(['nombre' => 'Ana Torres']);
-        $cobradorB = User::factory()->create(['nombre' => 'Luis Rojas']);
+        $cobrador = User::factory()->create(['nombre' => 'Ana Torres']);
+        $this->crearEscenario($cobrador);
 
-        $this->crearPrestamoConPago($cobradorA, 'José Peña', '2026-01-05');
-        $this->crearPrestamoConPago($cobradorA, 'María Gómez', '2026-03-01');
-        $this->crearPrestamoConPago($cobradorB, 'Otro Cliente', '2026-01-05');
+        $this->travelTo(Carbon::parse('2026-01-10'), function () use ($cobrador) {
+            CargaCapital::create([
+                'usuario_id' => $cobrador->id, 'tipo' => 'retiro', 'monto' => 20000,
+                'categoria' => 'gasto_operativo', 'descripcion' => 'Pago de arriendo',
+            ]);
+        });
 
         $respuesta = $this->actingAs($admin)->post('/admin/exportar', [
-            'usuario_ids' => [$cobradorA->id],
+            'usuario_ids' => [$cobrador->id],
             'desde' => '2026-01-01',
             'hasta' => '2026-01-31',
         ]);
 
         $respuesta->assertOk();
-        $respuesta->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+        $respuesta->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
         $contenido = $respuesta->getContent();
 
-        // BOM de UTF-8 (EF BB BF) al inicio del archivo, para que Excel detecte la codificación.
-        $this->assertSame("\xEF\xBB\xBF", substr($contenido, 0, 3));
+        // Hoja 1: Detalle de préstamos.
+        $filasPrestamos = $this->leerFilas($contenido, 0);
+        $this->assertSame(
+            ['Cobrador', 'Cliente', 'Cédula', 'Capital', '% Interés', 'Valor de cada cuota', 'Ganancia', 'Capital + Interés (sin extras)', 'Plazo (cuotas)', 'Frecuencia de pago', 'Estado'],
+            $filasPrestamos[0],
+        );
+        // PhpSpreadsheet auto-detecta valores numéricos: la cédula (sin ceros a la izquierda
+        // en Colombia) se lee de vuelta como número, no como texto.
+        $this->assertSame(
+            ['Ana Torres', 'Juan Perez', 123456, 100000.0, 20.0, 62500.0, 20000.0, 120000.0, 2, 'diario', 'activo'],
+            $filasPrestamos[1],
+        );
 
-        $this->assertStringContainsString('Ana Torres', $contenido);
-        $this->assertStringContainsString('José Peña', $contenido);
+        // Hoja 2: Resumen por cobrador — evolución dentro del rango enero.
+        $filasResumen = $this->leerFilas($contenido, 1);
+        $this->assertSame(
+            ['Cobrador', 'Cartera pendiente al inicio', 'Total cobrado en el periodo', 'Total prestado en el periodo', 'Cartera pendiente al final', 'Ganancia por interés (periodo)', 'Ganancia por extra (periodo)'],
+            $filasResumen[0],
+        );
+        // Sin cuotas antes del 1 de enero -> 0. Se cobró la cuota 1 (62500) dentro del rango.
+        // Se prestó el capital completo (fecha_inicio 2026-01-01) dentro del rango. Al 31 de
+        // enero solo queda pendiente la cuota 2 (62500, todavía sin pagar).
+        $this->assertSame(['Ana Torres', 0.0, 62500.0, 100000.0, 62500.0, 10000.0, 10000.0], $filasResumen[1]);
 
-        // Cobrador no seleccionado: no debe aparecer.
-        $this->assertStringNotContainsString('Luis Rojas', $contenido);
-        $this->assertStringNotContainsString('Otro Cliente', $contenido);
+        // Hoja 3: Movimientos de capital.
+        $filasCapital = $this->leerFilas($contenido, 2);
+        $this->assertSame(
+            ['Cobrador', 'Fecha', 'Tipo', 'Monto', 'Categoría', 'Descripción', 'Origen'],
+            $filasCapital[0],
+        );
+        $this->assertSame(
+            ['Ana Torres', '10/01/2026', 'retiro', 20000.0, 'gasto_operativo', 'Pago de arriendo', 'cobrador'],
+            $filasCapital[1],
+        );
+    }
 
-        // Pago fuera del rango de fechas: no debe aparecer.
-        $this->assertStringNotContainsString('María Gómez', $contenido);
-        $this->assertStringNotContainsString('01/03/2026', $contenido);
-        $this->assertStringContainsString('05/01/2026', $contenido);
+    public function test_el_rango_de_fechas_acota_la_hoja_2_y_la_hoja_3_pero_no_la_hoja_1(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $cobrador = User::factory()->create(['nombre' => 'Ana Torres']);
+        $this->crearEscenario($cobrador);
+
+        $this->travelTo(Carbon::parse('2026-03-01'), function () use ($cobrador) {
+            CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'carga', 'monto' => 99999]);
+        });
+
+        // Rango que termina ANTES del pago (2026-01-05) y de la carga de capital (2026-03-01).
+        $respuesta = $this->actingAs($admin)->post('/admin/exportar', [
+            'usuario_ids' => [$cobrador->id],
+            'desde' => '2026-01-01',
+            'hasta' => '2026-01-04',
+        ]);
+
+        $respuesta->assertOk();
+        $contenido = $respuesta->getContent();
+
+        // Hoja 1 no se filtra por fecha: el préstamo sigue apareciendo completo.
+        $filasPrestamos = $this->leerFilas($contenido, 0);
+        $this->assertCount(2, $filasPrestamos); // encabezado + 1 préstamo
+        $this->assertSame('Juan Perez', $filasPrestamos[1][1]);
+
+        // Hoja 2: el pago (01-05) queda fuera del rango -> nada cobrado, ganancia en 0, y las
+        // 2 cuotas (fechas 01-02 y 01-03, ninguna pagada "hasta" el 01-04) quedan pendientes.
+        $filasResumen = $this->leerFilas($contenido, 1);
+        $this->assertSame(['Ana Torres', 0.0, 0.0, 100000.0, 125000.0, 0.0, 0.0], $filasResumen[1]);
+
+        // Hoja 3: la carga de marzo queda fuera del rango de enero.
+        $filasCapital = $this->leerFilas($contenido, 2);
+        $this->assertCount(1, $filasCapital); // solo el encabezado, sin movimientos en rango
+    }
+
+    public function test_el_filtro_de_categoria_solo_afecta_la_hoja_de_movimientos_de_capital(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $cobrador = User::factory()->create(['nombre' => 'Ana Torres']);
+        $this->crearEscenario($cobrador);
+
+        $this->travelTo(Carbon::parse('2026-01-10'), function () use ($cobrador) {
+            CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'retiro', 'monto' => 20000, 'categoria' => 'gasto_operativo']);
+            CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'retiro', 'monto' => 5000, 'categoria' => 'salario']);
+        });
+
+        $respuesta = $this->actingAs($admin)->post('/admin/exportar', [
+            'usuario_ids' => [$cobrador->id],
+            'categoria' => 'salario',
+        ]);
+
+        $respuesta->assertOk();
+        $contenido = $respuesta->getContent();
+
+        $filasCapital = $this->leerFilas($contenido, 2);
+        $this->assertCount(2, $filasCapital); // encabezado + solo el retiro de categoria "salario"
+        $this->assertSame('salario', $filasCapital[1][4]);
+
+        // La hoja de préstamos no cambia por este filtro.
+        $filasPrestamos = $this->leerFilas($contenido, 0);
+        $this->assertCount(2, $filasPrestamos);
+    }
+
+    public function test_el_formulario_renderiza_el_selector_de_categoria(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $respuesta = $this->actingAs($admin)->get('/admin/exportar');
+
+        $respuesta->assertOk();
+        $respuesta->assertSee('Categoría de movimientos de capital', false);
+        $respuesta->assertSee('gasto_operativo', false);
     }
 
     public function test_requiere_al_menos_un_cobrador_seleccionado(): void

@@ -13,10 +13,12 @@ use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
- * Exportar CSV desde el panel web: rango de fechas + selección de uno, varios o todos los
- * cobradores. Es un formulario HTML simple (sin Livewire) que descarga el archivo directamente
- * —no hace falta compartir como en mobile, solo un `Content-Disposition: attachment`—, así que
- * no necesita el round-trip de un componente reactivo.
+ * Exportar el reporte financiero (.xlsx) desde el panel web: rango de fechas + selección de
+ * uno, varios o todos los cobradores + categoria opcional (solo afecta la hoja de movimientos
+ * de capital). Es un formulario HTML simple (sin Livewire) que descarga el archivo
+ * directamente —no hace falta compartir como en mobile, solo un
+ * `Content-Disposition: attachment`—, así que no necesita el round-trip de un componente
+ * reactivo.
  */
 class AdminExportarController extends Controller
 {
@@ -34,16 +36,17 @@ class AdminExportarController extends Controller
             'usuario_ids.*' => ['integer', Rule::exists('users', 'id')->where(fn ($query) => $query->where('rol', 'cobrador'))],
             'desde' => ['nullable', 'date'],
             'hasta' => ['nullable', 'date', 'after_or_equal:desde'],
+            'categoria' => ['nullable', 'in:gasto_operativo,decision_jefe,salario,otro'],
         ]);
 
         $desde = filled($datos['desde'] ?? null) ? Carbon::parse($datos['desde'])->startOfDay() : null;
         $hasta = filled($datos['hasta'] ?? null) ? Carbon::parse($datos['hasta'])->endOfDay() : null;
 
-        $csv = $servicio->generarCsv($datos['usuario_ids'], $desde, $hasta);
-        $nombreArchivo = 'cobro_app_reporte_admin_'.now()->format('Ymd_His').'.csv';
+        $xlsx = $servicio->generarXlsx($datos['usuario_ids'], $desde, $hasta, $datos['categoria'] ?? null);
+        $nombreArchivo = 'cobro_app_reporte_admin_'.now()->format('Ymd_His').'.xlsx';
 
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
+        return response($xlsx, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition' => 'attachment; filename="'.$nombreArchivo.'"',
         ]);
     }

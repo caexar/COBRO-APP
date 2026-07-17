@@ -7,6 +7,7 @@ use App\Models\Cliente;
 use App\Models\Prestamo;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -86,9 +87,8 @@ class ResumenAdminService
      * Reparte Σpagos.monto_aplicado de cada préstamo proporcional al peso de interés/extras
      * sobre su monto_total, agregado por cobrador sobre TODOS sus préstamos sin importar el
      * estado (uno ya pagado/anulado sigue contando históricamente) — misma lógica que
-     * `DashboardRepository.calcularResumen` del lado móvil (ver CLAUDE.md). El excedente de un
-     * pago `cobro_extra` (`monto_abonado - monto_aplicado`, el único caso donde difieren) se
-     * suma íntegro al balde de "extras", igual que del lado móvil.
+     * `DashboardRepository.calcularResumen` del lado móvil (ver CLAUDE.md). Reutiliza
+     * [gananciaDePrestamo] préstamo por préstamo (sin rango: histórico completo).
      *
      * @return array{0: array<int, float>, 1: array<int, float>}
      */
@@ -98,27 +98,63 @@ class ResumenAdminService
         $gananciaExtra = [];
 
         foreach (Prestamo::with(['extras', 'pagos'])->get() as $prestamo) {
-            $totalAplicado = (float) $prestamo->pagos->sum('monto_aplicado');
-            $totalAbonado = (float) $prestamo->pagos->sum('monto_abonado');
-
-            $montoCapital = (float) $prestamo->monto_capital;
-            $montoInteres = round($montoCapital * ((float) $prestamo->porcentaje_interes / 100), 2);
-            $montoExtras = round((float) $prestamo->extras->sum('valor'), 2);
-            $montoTotal = round($montoCapital + $montoInteres + $montoExtras, 2);
+            $ganancia = $this->gananciaDePrestamo($prestamo);
 
             $usuarioId = $prestamo->usuario_id;
-            $gananciaInteres[$usuarioId] ??= 0.0;
-            $gananciaExtra[$usuarioId] ??= 0.0;
-
-            if ($montoTotal > 0) {
-                $gananciaInteres[$usuarioId] += $totalAplicado * ($montoInteres / $montoTotal);
-                $gananciaExtra[$usuarioId] += $totalAplicado * ($montoExtras / $montoTotal);
-            }
-
-            $gananciaExtra[$usuarioId] += $totalAbonado - $totalAplicado;
+            $gananciaInteres[$usuarioId] = ($gananciaInteres[$usuarioId] ?? 0.0) + $ganancia['interes'];
+            $gananciaExtra[$usuarioId] = ($gananciaExtra[$usuarioId] ?? 0.0) + $ganancia['extra'];
         }
 
         return [$gananciaInteres, $gananciaExtra];
+    }
+
+    /**
+     * Ganancia de interés/extra de UN préstamo puntual: mismo reparto proporcional que
+     * [calcularGananciaPorCobrador] (Σpagos.monto_aplicado proporcional al peso de
+     * interés/extras sobre monto_total; el excedente `cobro_extra`, `monto_abonado -
+     * monto_aplicado`, se suma íntegro a "extra"), pero acotado a un solo préstamo. Requiere
+     * `extras`/`pagos` ya cargados en [$prestamo] (no dispara queries nuevas).
+     *
+     * Si se dan [$desde]/[$hasta], solo prorratea sobre los pagos con `fecha_pago` dentro de
+     * ese rango — usado por el reporte de exportación para "ganancia generada en el periodo"
+     * (Hoja 2), a diferencia del histórico completo que usa el resumen consolidado. Los pesos
+     * (interés/extras sobre monto_total) siempre se calculan sobre el préstamo completo: son
+     * fijos en el tiempo, no dependen de qué pagos se hayan hecho.
+     *
+     * @return array{interes: float, extra: float}
+     */
+    public function gananciaDePrestamo(Prestamo $prestamo, ?Carbon $desde = null, ?Carbon $hasta = null): array
+    {
+        $pagos = $prestamo->pagos->filter(function ($pago) use ($desde, $hasta) {
+            if ($desde !== null && $pago->fecha_pago->lt($desde)) {
+                return false;
+            }
+            if ($hasta !== null && $pago->fecha_pago->gt($hasta)) {
+                return false;
+            }
+
+            return true;
+        });
+
+        $totalAplicado = (float) $pagos->sum('monto_aplicado');
+        $totalAbonado = (float) $pagos->sum('monto_abonado');
+
+        $montoCapital = (float) $prestamo->monto_capital;
+        $montoInteres = round($montoCapital * ((float) $prestamo->porcentaje_interes / 100), 2);
+        $montoExtras = round((float) $prestamo->extras->sum('valor'), 2);
+        $montoTotal = round($montoCapital + $montoInteres + $montoExtras, 2);
+
+        $gananciaInteres = 0.0;
+        $gananciaExtra = 0.0;
+
+        if ($montoTotal > 0) {
+            $gananciaInteres = $totalAplicado * ($montoInteres / $montoTotal);
+            $gananciaExtra = $totalAplicado * ($montoExtras / $montoTotal);
+        }
+
+        $gananciaExtra += $totalAbonado - $totalAplicado;
+
+        return ['interes' => round($gananciaInteres, 2), 'extra' => round($gananciaExtra, 2)];
     }
 
     /**

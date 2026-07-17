@@ -6,6 +6,7 @@ use App\Exceptions\SaldoInsuficienteException;
 use App\Models\User;
 use App\Services\CapitalService;
 use App\Services\ResumenAdminService;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 /**
@@ -21,6 +22,8 @@ class DetalleCobrador extends Component
     public string $tipoMovimiento = 'carga';
 
     public string $monto = '';
+
+    public string $categoria = '';
 
     public string $descripcion = '';
 
@@ -43,6 +46,13 @@ class DetalleCobrador extends Component
         return [
             'tipoMovimiento' => ['required', 'in:carga,retiro'],
             'monto' => ['required', 'numeric', 'min:0.01'],
+            // Solo se exige/valida cuando el movimiento es un retiro (mismo criterio que
+            // StoreAdminCargaCapitalRequest del lado API); para una carga se descarta abajo en
+            // asignarSaldo() sin importar lo que quedó seleccionado en el <select>.
+            'categoria' => [
+                Rule::excludeIf(fn () => $this->tipoMovimiento !== 'retiro'),
+                'required', 'in:gasto_operativo,decision_jefe,salario,otro',
+            ],
             'descripcion' => ['nullable', 'string', 'max:255'],
         ];
     }
@@ -61,10 +71,12 @@ class DetalleCobrador extends Component
                 monto: (float) $datos['monto'],
                 descripcion: filled($datos['descripcion']) ? $datos['descripcion'] : null,
                 actor: auth('web')->user(),
+                categoria: $datos['categoria'] ?? null,
             );
 
             $this->mensajeCapital = 'Saldo asignado correctamente.';
             $this->monto = '';
+            $this->categoria = '';
             $this->descripcion = '';
         } catch (SaldoInsuficienteException $e) {
             $this->errorCapital = $e->getMessage();

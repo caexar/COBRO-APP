@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'usuario_id',
     'monto',
     'tipo',
+    'categoria',
     'descripcion',
     'origen',
     'creado_por_usuario_id',
