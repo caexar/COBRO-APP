@@ -37,6 +37,9 @@ No usar variaciones como `cobro-app`, `cobroApp`, `CobroDiario`, etc. en identif
   esos recursos sigue siendo exclusivo del cobrador dueño.
 - Las rutas `/api/admin/*` no usan Policies de objeto (no hay "dueño" que proteger: el admin
   ve/gestiona todos los cobradores) — la única barrera es el middleware `role:admin`.
+- Además de la API por token, existe un **panel de administración web** (sesión, guard `web`)
+  bajo `/admin/*` — coexiste con Sanctum sin tocarlo. Ver sección "Panel de administración web
+  (Livewire)" más abajo para el detalle completo (auth, rutas, Services compartidos).
 
 ## Reglas de negocio de préstamos, cuotas y pagos
 
@@ -155,6 +158,11 @@ patrón** — agregarla a `GET /api/pin-maestro`, no asumir que se puede leer di
 
 ### Resumen consolidado (`GET /api/admin/resumen`)
 
+Toda esta lógica vive en `App\Services\ResumenAdminService` (extraída de
+`AdminResumenController`, que ahora es un delegado delgado) — es la misma que consume el panel
+web (Livewire) sin pasar por HTTP, ver sección de panel web más abajo. No reimplementar estos
+cálculos en un controlador ni en un componente Livewire nuevo.
+
 - `capital_prestado` excluye préstamos con `estado = anulado`.
 - `total_cobrado` es la suma de `pagos.monto_aplicado` (no `monto_abonado` — así excedentes
   registrados como `cobro_extra` no inflan el total cobrado más allá de lo que realmente
@@ -169,6 +177,11 @@ patrón** — agregarla a `GET /api/pin-maestro`, no asumir que se puede leer di
   sobre `monto_total`; el excedente de un pago `cobro_extra` se suma íntegro a `ganancia_extra`.
   Si se vuelve a tocar la fórmula de ganancia en el móvil, hay que replicar el cambio acá
   también (mismo cuidado que ya existe entre `PrestamoCalculator` y su equivalente en Dart).
+- `saldo_disponible` (por cobrador y global): `App\Services\CapitalService::calcularSaldoDisponible()`
+  — misma fórmula que `DashboardRepository.calcularResumen` del lado móvil (cargas − retiros +
+  Σ`pagos.monto_abonado` − Σ`monto_capital` de préstamos no anulados). Única fuente de verdad,
+  reutilizada también para validar un retiro (ver `CapitalService::asignar()` más abajo) — no
+  duplicar la fórmula.
 - Se calcula por cobrador y como total global; incluye cobradores sin actividad (con ceros).
 - No existe (ni se agregó) un endpoint `GET /admin/prestamos/{id}` para el detalle de un solo
   préstamo con sus cuotas — confirmado explícitamente que no existe. El detalle completo
@@ -176,12 +189,17 @@ patrón** — agregarla a `GET /api/pin-maestro`, no asumir que se puede leer di
   `GET /api/admin/usuarios/{id}/detalle` (todos los préstamos del cobrador de una vez); el
   panel admin del móvil arma su modal de detalle de préstamo con esos datos ya descargados, sin
   pedir nada nuevo (ver sección de móvil más abajo). Tampoco existe un endpoint que devuelva
-  conteo de préstamos por cliente — se resuelve agrupando en memoria del lado móvil.
+  conteo de préstamos por cliente — se resuelve agrupando en memoria del lado móvil. El panel
+  web tampoco necesita este endpoint: `ResumenAdminService::prestamosDeCobrador()` (Livewire,
+  mismo proceso) hace el eager-load directo con Eloquent — sigue sin existir una ruta HTTP para
+  esto, ni falta hace.
 
 ### Configuración global (`configuracion_global`)
 
 Tabla clave/valor genérica; el admin gestiona 4 claves conocidas vía
-`GET`/`PUT /api/admin/configuracion`:
+`GET`/`PUT /api/admin/configuracion` (lectura/escritura extraída a
+`App\Services\ConfiguracionAdminService`, reutilizada tal cual por el panel web — ver sección
+de panel web más abajo, incluido el mismo manejo de `pin_maestro: null` explícito):
 - `tasas_interes_default`: array JSON de tasas sugeridas (ej. `[10,20,30,40]`) — **no se
   valida** `porcentaje_interes` de un préstamo contra esta lista, es solo un valor de UI.
 - `politica_mora_default`: si `POST /api/prestamos` no envía `politica_mora`, se usa este
@@ -197,6 +215,140 @@ Tabla clave/valor genérica; el admin gestiona 4 claves conocidas vía
 
 `ConfiguracionGlobal::obtener()`/`::guardar()` son los helpers para leer/escribir por clave;
 usarlos en vez de consultar la tabla directamente.
+
+## Panel de administración web (Livewire, `/backend`)
+
+Construido en Livewire puro + Blade (sin Filament ni otro framework de admin) — **costo cero
+adicional**: vive en el mismo proyecto/despliegue Laravel que la API móvil, misma base de
+datos, mismo `composer install`. Tailwind (ya disponible vía Vite/`@tailwindcss/vite`, no se
+agregó como dependencia nueva) para estilos.
+
+### Autenticación web (separada de la API móvil)
+
+- Guard `web` (sesión, `Auth::guard('web')`) coexiste con el guard `sanctum`/`api` que usa el
+  móvil, sin tocarlo — son completamente independientes (el guard `web` ya venía en
+  `config/auth.php` por defecto, no hizo falta crearlo). Login en `/admin/login`
+  (`App\Http\Controllers\Admin\AdminAuthController`, formulario simple, `Auth::attempt`, no
+  emite token de Sanctum) — `test_login_web_crea_una_sesion_independiente_del_token_sanctum_de_la_api`
+  confirma explícitamente que `personal_access_tokens` sigue en 0 tras un login web.
+- **`App\Http\Middleware\EnsureUserHasRole` es el mismo middleware que ya usaba la API**
+  (`role:admin|cobrador`), extendido para no reimplementar la condición de rol dos veces: si
+  `$user` no tiene el rol pedido, responde JSON 403 cuando `$request->is('api/*')`, o si no
+  (panel web) cierra la sesión (`Auth::guard('web')->logout()` + invalidar sesión) y redirige a
+  `admin.login` con un mensaje flash claro — nunca un 403 crudo sin contexto. Protege TODAS las
+  rutas `/admin/*` salvo login (`Route::middleware(['auth', 'role:admin'])` en `routes/web.php`).
+- `bootstrap/app.php` configura `$middleware->redirectGuestsTo(fn () => route('admin.login'))`
+  — sin esto, un acceso no autenticado a `/admin/*` lanzaría `RouteNotFoundException` al buscar
+  la ruta `login` por defecto de Laravel (que no existe en esta app, la única auth por sesión es
+  la del panel admin).
+
+### Rutas (`routes/web.php`, prefijo `admin.`)
+
+```
+GET|POST /admin/login                    admin.login / admin.login.submit
+POST     /admin/logout                   admin.logout
+GET      /admin/usuarios                 admin.usuarios.index
+GET      /admin/usuarios/crear           admin.usuarios.crear
+GET      /admin/usuarios/{usuario}/editar admin.usuarios.editar
+GET      /admin/resumen                  admin.resumen
+GET      /admin/resumen/{usuario}        admin.resumen.detalle   (drill-down de un cobrador)
+GET      /admin/configuracion            admin.configuracion
+GET      /admin/auditoria                admin.auditoria         (solo lectura)
+GET|POST /admin/exportar                 admin.exportar / admin.exportar.descargar
+```
+
+Layout base (`resources/views/admin/layout.blade.php`) con sidebar: los 5 enlaces (Usuarios,
+Resumen, Configuración, Auditoría, Exportar) están todos activos y enlazados — ninguno quedó
+como placeholder.
+
+### Services compartidos con la API móvil (extraídos de los controllers `Api\Admin\*`)
+
+Mismo patrón en los cuatro: la lógica vivía embebida en un controller de
+`App\Http\Controllers\Api\Admin\*`; se extrajo a un Service para que tanto ese controller (que
+ahora es un delegado delgado, mismas respuestas/tests) como los componentes Livewire lo llamen
+**directo, en el mismo proceso, sin pasar por HTTP interno**:
+
+- **`App\Services\UsuarioAdminService`**: crear/actualizar/desactivar/reactivar usuarios
+  (extraído de `AdminUsuarioController`), incluida la auditoría vía `AuditoriaLogger` y las
+  protecciones ya existentes (PIN por defecto `"0000"`, `activo` nunca editable por
+  `actualizar()`, un admin no puede desactivarse a sí mismo). Lanza
+  `App\Exceptions\UsuarioAdminException` para esas dos reglas de negocio — capturada distinto
+  en cada lado (422 en la API, mensaje de formulario en Livewire).
+- **`App\Services\CapitalService::asignar()`** (junto al ya existente `calcularSaldoDisponible()`):
+  extraído de `AdminCargaCapitalController`. Lanza `App\Exceptions\SaldoInsuficienteException`
+  si un `retiro` excede el saldo disponible del cobrador destino — mismo manejo que
+  `UsuarioAdminException` (422 API / mensaje de formulario web).
+- **`App\Services\ResumenAdminService`**: todo lo de `GET /api/admin/resumen` (los 6 campos
+  global/por cobrador) más las consultas de drill-down exclusivas del panel web —
+  `clientesConConteo()` (badge "pagados/totales", **no** "activos/totales", mismo criterio ya
+  corregido del lado móvil), `prestamosDeCobrador()` (con título "Cliente - Referencia",
+  "extra cobrado" y fecha de pago real por cuota ya calculados — misma lógica de
+  `admin_models.dart`/`admin_cobrador_detalle_screen.dart` del móvil, replicada en PHP porque
+  esa lógica vive en Dart y no es reutilizable desde el backend), `cargasCapitalDeCobrador()` y
+  `historialPagosAgrupado()` (ver bullet de `HistorialPagosScreen` en la sección de pagos móvil).
+- **`App\Services\ConfiguracionAdminService`**: lectura/escritura de `configuracion_global`
+  (extraído de `AdminConfiguracionController`), mismo manejo de `pin_maestro: null` explícito
+  para borrarlo vs. no incluir la clave para no tocarlo.
+
+`App\Support\Dinero::formatear()` (formato de dinero para las vistas Blade, mismo criterio que
+`formatearMoneda()` del móvil — sin decimales, separador de miles con punto, prefijo `$ `) y
+`App\Support\AuditoriaPresentador::datosSeguros()` (oculta cualquier clave que mencione "pin" en
+`datos_anteriores`/`datos_nuevos` antes de mostrarlos en el visor de auditoría — puramente de
+presentación, `AuditoriaLogger` ya garantiza que un PIN nunca debería llegar a guardarse en
+crudo) son los únicos helpers de presentación nuevos, sin lógica de negocio.
+
+### Componentes Livewire (`App\Livewire\Admin\*`, vistas en `resources/views/livewire/admin/*`)
+
+Convención: multi-file components (`--mfc --class`, generados con `php artisan make:livewire`),
+namespace `App\Livewire\Admin\<Módulo>\<Nombre>`. Cada página Blade (`resources/views/admin/*`)
+extiende `admin.layout` y solo hace `@livewire('admin.modulo.nombre', [...])`.
+
+- **`Usuarios\Index`/`Usuarios\Formulario`**: listado (cobradores y admins, estado
+  activo/inactivo) y un solo componente de formulario para crear/editar (según si `?User
+  $usuario` llega en `mount()`) — llaman a `UsuarioAdminService`, nunca reimplementan sus
+  reglas. **Gotcha real corregido**: un campo de PIN vacío en el formulario Livewire (`pin =
+  ''`, nunca realmente ausente como en un request HTTP) no disparaba el default `"0000"` de
+  `UsuarioAdminService::crear()` (que usa `?? '0000'`, solo dispara con `null`) — hay que
+  normalizar explícitamente `''` a `null` antes de llamar al Service.
+- **`Resumen\Index`**: totales globales + tabla por cobrador (filas clickeables →
+  `admin.resumen.detalle`).
+- **`Resumen\DetalleCobrador`**: drill-down de un cobrador en 4 pestañas (Alpine.js
+  `x-data`/`x-show`, sin round-trip de Livewire para cambiar de pestaña, porque los 4 datasets
+  ya se cargan completos en `render()`): Préstamos (expandible, capital/interés/extras/total/
+  pagado/**extra cobrado**/saldo pendiente + cuotas con fecha esperada vs. fecha de pago real),
+  Clientes (badge "pagados/totales"), Movimientos de capital (chip visual para `origen = admin`
+  vs. `cobrador`, mismo criterio que el chip "Asignado por administrador" de
+  `HistorialCapitalScreen` en mobile), Historial de pagos (agrupado por préstamo+`fecha_pago`,
+  resumen corto expandible — ver `ResumenAdminService::historialPagosAgrupado()`). Incluye el
+  formulario de asignar saldo (carga/retiro + monto + descripción), llamando a
+  `CapitalService::asignar()`.
+- **`Configuracion\Formulario`**: tasas de interés (array editable), política de mora por
+  defecto (select), intentos antes del PIN maestro, y el PIN maestro global — **nunca** muestra
+  el hash, solo `pin_maestro_configurado` (bool); un campo de texto para uno nuevo y un
+  checkbox explícito "Quitar el PIN maestro actual" que manda `null` (distinto de dejar el
+  campo vacío, que no cambia nada) — mismo comportamiento que `AdminConfiguracionScreen` del
+  móvil y que la API.
+- **`Auditoria\Index`**: listado paginado (`Livewire\WithPagination`) de `auditoria`, filtro por
+  `accion` (select) y rango de fecha — puramente de consulta, **sin ningún método de
+  mutación** en el componente. El detalle de `datos_anteriores`/`datos_nuevos` de cada fila pasa
+  por `AuditoriaPresentador::datosSeguros()` antes de mostrarse.
+- **Exportar CSV (`/admin/exportar`) es la única pantalla del panel que NO usa Livewire a
+  propósito**: es un `<form>` HTML plano que hace POST directo a
+  `App\Http\Controllers\Admin\AdminExportarController@descargar`, para que la descarga sea una
+  respuesta HTTP normal (`Content-Disposition: attachment`) en vez de depender de streaming vía
+  AJAX. Llama a `App\Services\ExportarReporteService`, que reutiliza
+  `ResumenAdminService::prestamosDeCobrador()` (no repite esas queries) y solo filtra los pagos
+  por rango de `fecha_pago` — una fila de CSV por pago, con el nombre del cobrador siempre en su
+  propia columna (puede haber varios cobradores en un mismo export). Mismo fix de BOM UTF-8 que
+  el lado móvil (bytes `\xEF\xBB\xBF` antepuestos al contenido antes de servir el archivo), ver
+  bullet de `ReportesRepository` en la sección de dashboard/reportes móvil.
+
+### Tests (`backend/tests/Feature/Admin/*LivewireTest.php`, `AdminPanelAccessTest.php`)
+
+Cada módulo tiene tests mínimos usando `Livewire::actingAs($admin)->test(Componente::class)`
+— no se duplicó la cobertura ya existente de los controllers `Api\Admin\*` (que siguen
+pasando sin cambios tras cada extracción a Service). `AdminPanelAccessTest` cubre el guard/
+middleware: guest redirigido, admin entra, cobrador rechazado con mensaje y sesión cerrada.
 
 ## Sincronización con la app móvil (backend)
 
@@ -266,6 +418,51 @@ acá quedan las decisiones de diseño que no son obvias del código.
   automatizado tocando este modelo hasta los tests de esta tarea — cualquier interacción real
   vía Eloquent con `cargas_capital` (incluida `POST /cargas-capital`, la ruta de cobrador que
   ya existía) estaba silenciosamente rota antes de este fix.
+
+## Recuperación de datos ante dispositivo nuevo (`GET /api/restaurar`)
+
+Para cuando un cobrador entra en un dispositivo nuevo (o reinstaló la app) y su Drift local
+está vacío — caso distinto de `POST /api/sync` (incremental): acá el móvil no sube nada, solo
+descarga de una vez **todo** lo que ya existe en el servidor para ese cobrador.
+
+- **Backend** (`App\Http\Controllers\Api\RestaurarController`, protegido por
+  `auth:sanctum` + `role:cobrador`, sin Service propio — es solo lectura, no hay lógica de
+  negocio que extraer): devuelve `clientes` (no eliminados), `prestamos` (con `extras`/`cuotas`
+  anidadas), `pagos` (lista plana de todos los pagos de esos préstamos, no anidados bajo cada
+  préstamo — a propósito, para que el móvil no tenga que recorrer préstamo por préstamo) y
+  `cargas_capital`, todo filtrado por `usuario_id` del cobrador autenticado (nunca de otro).
+  Serialización de modelos Eloquent tal cual, mismo criterio que el resto de `/api/admin/*` (sin
+  Resource/Transformer propio). Antes de devolver `cargas_capital`, marca `descargado = true`
+  en las de `origen = admin` pendientes — mismo campo y mismo criterio que ya usa
+  `SyncService::cargasCapitalAdminPendientes()`, para que el siguiente `POST /sync` no las
+  vuelva a ofrecer como si fueran nuevas.
+- **Móvil** (`RestauracionRepository`, `mobile/lib/features/sincronizacion/data/`): inserta todo
+  ya con `sincronizado = true` y el mismo `servidorId`/`uuidLocal` que trae cada registro —
+  **nunca** encola nada en `cambios_pendientes` (esto no es un cambio local pendiente de subir,
+  ya está sincronizado por definición). Idempotente: si el proceso se corta a mitad de camino y
+  se reintenta, cada registro se busca primero por `uuid_local` antes de insertarlo — igual que
+  cuotas/extras/cargas de origen `admin` (que no tienen `uuid_local` propio) se buscan por
+  `servidorId`, mismo criterio que ya usa `CargasCapitalRepository.guardarDescargadaDeAdmin()`.
+  Preserva `creadoEn`/`actualizadoEn` del servidor (`created_at`/`updated_at` del JSON) en vez
+  de dejar el default `currentDateAndTime` de Drift, para no distorsionar el orden de
+  `HistorialCapitalScreen` (que ordena por `creadoEn`).
+- **Gotcha real corregido**: los campos `decimal:N` de Eloquent (`monto_capital`,
+  `porcentaje_interes`, `valor` de extras, `monto_esperado`, `monto_abonado`/`monto_aplicado`/
+  `saldo_restante_despues`) llegan en el JSON como **string** (ej. `"100000.00"`), no como
+  número — un cast directo `as num`/`as double` revienta apenas el valor llega como `String`.
+  Se corrigió con un helper único, `mobile/lib/core/utils/json_numero.dart` (`comoDouble()`),
+  reutilizado también por `admin_models.dart` (antes tenía su propia copia privada duplicada de
+  la misma función) — **cualquier parseo nuevo de un JSON del backend con campos decimales debe
+  usar este helper**, no un cast directo.
+- **Detección y disparo** (`mobile/lib/app.dart`, `AppEntryPoint`): justo después de un login
+  exitoso (no en cada reapertura de la app, para no ser invasivo), si `RestauracionRepository.
+  hayDatosLocales()` es `false` (la tabla `clientes` está vacía para el `usuario_id` activo, y
+  solo para rol `cobrador` — el panel admin no trabaja offline, no tiene nada que restaurar) se
+  muestra `RestaurarDatosScreen` antes del dashboard, con "Restaurar mis datos" o "Continuar sin
+  restaurar" (útil sin conexión). Si el cobrador sigue sin datos, `DashboardScreen` muestra
+  además un botón "Restaurar datos" en la tarjeta de sincronización (mismo lugar que
+  "Sincronizar") mientras `hayDatosLocales()` siga siendo `false` — se oculta solo apenas tenga
+  algún cliente local.
 
 ## App móvil: autenticación y bloqueo (`mobile/lib/features/auth`)
 
@@ -340,6 +537,32 @@ acá quedan las decisiones de diseño que no son obvias del código.
   `BloqueoConfigScreen` construían su propio `BloqueoRepository()` por dentro, así que un
   repositorio falso pasado únicamente a `AppEntryPoint` nunca llegaba a la pantalla real. Si
   se agregan más pantallas de auth, seguir el mismo patrón de inyección opcional.
+- **`ConfiguracionSeguridadScreen`** (`presentation/configuracion_seguridad_screen.dart`):
+  a diferencia de `BloqueoConfigScreen` (solo se ve una vez, justo tras el primer login),
+  esta pantalla es accesible en cualquier momento — ícono de ajustes (`Icons.security`) en el
+  `AppBar` de `DashboardScreen` (cobrador) **y también** en `AdminPanelScreen` (admin, mismo
+  ícono, misma pantalla — el bloqueo es una configuración del dispositivo, no del rol, así que
+  no necesitó ningún cambio para servir a ambos). Reutiliza **exactamente** la misma lógica de
+  `BloqueoRepository` que ya usa `BloqueoConfigScreen`/`BloqueoScreen` (biometría y PIN
+  personal) — no reimplementa nada nuevo, solo expone los mismos controles fuera del flujo de
+  setup inicial:
+  - Toggle de biometría: si el dispositivo no la tiene configurada a nivel de sistema
+    (`biometriaDisponibleEnDispositivo()` en `false`), el `SwitchListTile` queda deshabilitado
+    (`onChanged: null`) con un mensaje explicando que hay que activarla primero en los ajustes
+    del teléfono — nunca queda en un estado inconsistente ni crashea. Al desactivarla,
+    `BloqueoScreen` la vuelve a leer (`false`) la próxima vez que se bloquee la app y cae
+    directo al flujo de PIN personal, sin intentar biometría.
+  - "Cambiar PIN personal" (diálogo separado, `_DialogoCambiarPin` en el mismo archivo): pide
+    el PIN actual (verificado con `BloqueoRepository.verificarPinPersonal`, la misma
+    verificación que usa `BloqueoScreen` para desbloquear), luego el nuevo PIN con las mismas
+    reglas de `BloqueoConfigScreen` (4 a 6 dígitos) y lo guarda con
+    `configurarPinPersonal()` (bcrypt) solo si el PIN actual fue correcto. No toca el PIN
+    maestro (individual ni global) para nada.
+  - **Gotcha de UI ya corregido**: el `AlertDialog` de cambiar PIN no tenía scroll — cuando
+    aparece el teclado y el espacio disponible se reduce, el `Column` de 3 campos se
+    desbordaba por unos pocos píxeles (franja amarilla/negra de overflow). Se corrigió
+    envolviendo el `Form` en un `SingleChildScrollView`. Cualquier `AlertDialog`/diálogo nuevo
+    con varios `TextFormField` debe seguir este mismo patrón.
 
 ## App móvil: clientes (`mobile/lib/features/clientes`)
 
@@ -441,34 +664,63 @@ acá quedan las decisiones de diseño que no son obvias del código.
   escritura que sí tiene es el FAB "Asignar saldo" (ver más abajo), que no toca clientes ni
   préstamos.
 - **Listado de préstamos y modal de detalle** (`AdminCobradorDetalleScreen`): cada ítem del
-  listado muestra `referencia` (o el nombre del cliente como *fallback* si viene vacía —
-  `_tituloPrestamo`, para no dejar el título en blanco), `monto_total` (del backend, nunca
-  recalculado), `porcentaje_interes`, `plazo_cuotas` y `fecha_inicio`. Tocar un préstamo abre
-  un `showModalBottomSheet`/`DraggableScrollableSheet` (`_DetallePrestamoModal`, mismo patrón
+  listado (y el título dentro del modal) muestra **"Nombre del cliente - Referencia"**
+  (`_tituloPrestamo`, solo el nombre del cliente si no hay referencia), truncado con
+  `overflow: TextOverflow.ellipsis`/`maxLines: 1` si es muy largo — **nunca cortar el string a
+  mano**. (Bug ya corregido: antes el modal solo mostraba la referencia sola, sin el nombre del
+  cliente.) También muestra `monto_total` (del backend, nunca recalculado), `porcentaje_interes`,
+  `plazo_cuotas` y `fecha_inicio`. Tocar un préstamo abre un
+  `showModalBottomSheet`/`DraggableScrollableSheet` (`_DetallePrestamoModal`, mismo patrón
   visual que `PrestamoDetalleScreen` del lado cobrador, pero reimplementado localmente porque
   Dart no permite importar los widgets privados de esa pantalla) con capital, interés, extras,
-  `monto_total`, total pagado y el listado completo de cuotas — **todo sale de los datos que ya
-  trajo `GET /admin/usuarios/{id}/detalle`**, sin ninguna llamada de red nueva.
-  `PrestamoResumen.montoInteres` se obtiene restando `montoTotal - montoCapital - montoExtras`
-  (no recalculando `capital * porcentaje / 100`) para no arriesgar un desajuste de redondeo
-  contra el `monto_total` que sí vino calculado del servidor.
-- **Badge de conteo de préstamos por cliente** (`_BadgeConteoPrestamos`, "activos/totales"):
-  se arma en memoria agrupando el array `prestamos` ya descargado por `cliente_id` — "activos"
-  cuenta `activo`+`en_mora`, "totales" cuenta cualquier estado. No hay ni hace falta un
+  `monto_total`, total pagado, **"Extra cobrado"** y el listado completo de cuotas — **todo sale
+  de los datos que ya trajo `GET /admin/usuarios/{id}/detalle`**, sin ninguna llamada de red
+  nueva. `PrestamoResumen.montoInteres` se obtiene restando `montoTotal - montoCapital -
+  montoExtras` (no recalculando `capital * porcentaje / 100`) para no arriesgar un desajuste de
+  redondeo contra el `monto_total` que sí vino calculado del servidor.
+  - **Bug real corregido: "Extra cobrado" no se reflejaba en el detalle.** El excedente de un
+    pago `cobro_extra` (`monto_abonado - monto_aplicado`, `PrestamoResumen.extraCobrado`) ya lo
+    contabilizaba correctamente el dashboard/resumen ("Ganancia realizada"), pero el detalle de
+    un préstamo puntual no lo sumaba en ningún total visible. Se agregó una fila "Extra cobrado
+    (no aplica a la deuda)" **separada** de "Total original de la deuda" (que debe seguir
+    reflejando solo capital+interés+extras configurados, sin este excedente) — mismo criterio
+    aplicado en `PrestamoDetalleScreen` del lado cobrador y en el panel web (Livewire).
+  - **Fecha de pago real por cuota**: además de `fecha_esperada`, si la cuota ya está `pagada`
+    se muestra la fecha real del pago (`CuotaResumen.fechaPago`, la más reciente si una cuota
+    recibió más de un pago), en un color distinto (verde) para diferenciarla de la esperada —
+    mismo criterio en `PrestamoDetalleScreen` del cobrador y en el panel web.
+- **Badge de conteo de préstamos por cliente** (`_BadgeConteoPrestamos`, **"pagados/totales"**):
+  se arma en memoria agrupando el array `prestamos` ya descargado por `cliente_id` — "pagados"
+  cuenta solo `estado == 'pagado'`, "totales" cuenta cualquier estado sin filtrar. **Bug real ya
+  corregido**: antes mostraba "activos/totales" (`activo`+`en_mora` en el numerador), que no es
+  lo que el nombre del badge sugiere — no volver a esa definición. No hay ni hace falta un
   endpoint de conteo aparte.
 - **Asignar saldo a un cobrador** (`AdminAsignarCapitalScreen`, botón FAB en
   `AdminCobradorDetalleScreen`): mismo patrón visual que `AgregarCapitalScreen` del lado
   cobrador (`SegmentedButton` carga/retiro, `FormateadorDinero`, descripción opcional), pero
   llama a `AdminRepository.asignarCapital()` → `POST /admin/cargas-capital` con el
-  `usuario_id` del cobrador que se está viendo (no el admin autenticado). El mensaje de éxito
+  `usuario_id` del cobrador que se está viendo (no el admin autenticado). El backend valida que
+  un `retiro` no exceda `CapitalService::calcularSaldoDisponible()` del cobrador destino (422
+  con mensaje claro si lo excede) — la pantalla solo muestra el error del servidor, no
+  reimplementa la validación de saldo en Dart. El mensaje de éxito
   aclara explícitamente que el saldo no llega al dispositivo del cobrador hasta su próxima
   sincronización (`cargas_capital_admin` en la respuesta de `POST /sync`, ver sección de
   sincronización más arriba) — el `SnackBar` de confirmación lo muestra
   `AdminCobradorDetalleScreen` después de que el formulario hace `pop(true)`, no el propio
-  formulario (para que sobreviva a la animación de salida de la pantalla).
-- **`AdminResumenScreen`** también muestra `ganancia_interes`/`ganancia_extra` (ya calculados
-  por el backend) junto a los 3 campos que ya tenía, tanto en la tarjeta global como en la de
-  cada cobrador (`_FilasTotales`, reutilizada en ambos casos).
+  formulario (para que sobreviva a la animación de salida de la pantalla). El mismo tipo de
+  validación (retiro del propio cobrador, `AgregarCapitalScreen`) se valida **localmente** ahí
+  (ver `DashboardRepository.calcularResumen`, offline-first) en vez de esperar el 422 del
+  servidor, porque esa pantalla sí trabaja offline.
+- **`AdminResumenScreen`** también muestra `ganancia_interes`/`ganancia_extra` y
+  `saldo_disponible` (ya calculados por el backend) junto a los campos que ya tenía, tanto en
+  la tarjeta global como en la de cada cobrador (`_FilasTotales`, reutilizada en ambos casos).
+- **Exportar CSV** (`AdminExportarReporteScreen` + `AdminReportesRepository`): rango de fechas +
+  multi-select de cobradores (uno, varios, o todos), trae los datos vía `AdminRepository`
+  (`listarUsuarios` + `obtenerDetalleCobrador` por cobrador seleccionado) y arma el CSV con el
+  mismo patrón de generación que `ReportesRepository` del cobrador (préstamos siempre completos,
+  historial de pagos sí filtrado por `fecha_pago`) — reutiliza el mismo
+  `exportarCsvYCompartir()` compartido (ver bug de encoding más abajo) en vez de reimplementar
+  el guardado/share del archivo.
 - `AdminCobradorDetalleScreen` y `AdminAsignarCapitalScreen` aceptan su `AdminRepository` como
   parámetro opcional del constructor (mismo patrón de inyección para pruebas que
   `DashboardScreen`/`AppEntryPoint`) — antes solo `AdminAsignarCapitalScreen` lo necesitaba,
@@ -509,6 +761,19 @@ acá quedan las decisiones de diseño que no son obvias del código.
 - `RegistrarPagoScreen`/`PrestamoFormScreen`/`AgregarCapitalScreen` siguen el mismo patrón:
   try/catch alrededor del guardado con mensaje de error visible — un fallo de guardado nunca
   debe quedar silencioso (bug real que ya pasó una vez con la migración de `referencia`).
+- **`HistorialPagosScreen`**: agrupa las filas de `pagos` que comparten una misma `fecha_pago`
+  (todas vinieron de una sola llamada a `PagosRepository.registrar()`, aunque una cascada de
+  `abono_deuda` haya generado varias filas) en una sola línea con un resumen corto (ej. "Cuota 2
+  + Extra $ 50.000", o "Cuota 1, 2" si la cascada cubrió varias cuotas completas), expandible
+  (`ExpansionTile`) al desglose por fila. Cada fila se etiqueta según cómo la generó
+  `PagoProcessor`: **"Pago cuota N"** (el pago exacto/faltante de la cuota principal — la de
+  menor `numero_cuota` dentro del grupo), **"Abono cuota N"** (fila de cascada `abono_deuda`
+  sobre una cuota siguiente) o **"Extra"** (`monto_abonado != monto_aplicado`, o sea un
+  excedente `cobro_extra`). Esta misma lógica de agrupamiento se replicó en PHP para el panel
+  web (`ResumenAdminService::historialPagosAgrupado()`, agregando `prestamo_id` a la clave de
+  agrupación porque esa vista abarca todos los préstamos de un cobrador, no uno solo como acá) —
+  si se vuelve a tocar el criterio de agrupamiento/etiquetado en un lado, replicar el cambio en
+  el otro.
 
 ## App móvil: dashboard, capital y reportes — "Fase 10" (`mobile/lib/features/{dashboard,capital}`)
 
@@ -519,7 +784,10 @@ movimientos de capital: aportes (`tipo = 'carga'`) y retiros (`tipo = 'retiro'`)
 positivo, el signo lo da `tipo` (mismo patrón que `monto_abonado` en pagos). Soporta soft-delete
 (`eliminadoEn`) para deshacer un movimiento registrado por error — `CargasCapitalDao.obtenerTodas`
 ya filtra `eliminadoEn.isNull()`. `AgregarCapitalScreen` tiene un `SegmentedButton` para elegir
-entrada/retiro; `HistorialCapitalScreen` (icono junto al botón "Agregar capital") lista todos los
+entrada/retiro (**un `retiro` no puede exceder `saldoDisponible` del propio cobrador** —
+validado localmente contra `DashboardRepository.calcularResumen`, mismo criterio que el backend
+usa vía `CapitalService` para `AdminAsignarCapitalScreen`, ver sección de panel admin más
+arriba); `HistorialCapitalScreen` (icono junto al botón "Agregar capital") lista todos los
 movimientos no eliminados con opción de eliminar cada uno.
 
 - **Saldo disponible** (`DashboardRepository.calcularResumen`) = `Σ cargas_capital.monto` (tipo
@@ -560,6 +828,17 @@ movimientos no eliminados con opción de eliminar cada uno.
 - **Exportar CSV** (`ReportesRepository`, paquete `csv` + `share_plus`): filtra el historial de
   pagos por rango de fechas y cliente opcional; el resumen de cartera y el listado de
   préstamos siempre salen completos, sin filtrar.
+  - **Bug real corregido: tildes/ñ salían como símbolos raros en Excel.** No era un problema de
+    encoding del texto en sí (`File.writeAsString` ya usa UTF-8 por defecto) — faltaba el BOM de
+    UTF-8 (bytes `EF BB BF`) al inicio del archivo, sin el cual Excel no detecta la codificación
+    y asume la del sistema. Se corrigió centralizando la escritura+share en
+    `mobile/lib/core/utils/csv_exportador.dart` (`exportarCsvYCompartir()`, antepone el
+    carácter `\uFEFF` al contenido antes de escribirlo) — **cualquier exportador de CSV nuevo
+    debe usar esta función**, no escribir el archivo directamente. Reutilizada por
+    `AdminReportesRepository` (mobile) y replicada con el mismo criterio en
+    `App\Services\ExportarReporteService` del panel web (bytes `\xEF\xBB\xBF` directos, ver
+    sección de panel web más abajo) — no hay forma de compartir el helper Dart↔PHP, así que el
+    criterio (BOM al inicio, UTF-8 para el resto) se replica a mano en cada lado.
 
 ## App móvil: sincronización (`mobile/lib/features/sincronizacion`)
 
