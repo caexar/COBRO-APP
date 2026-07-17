@@ -211,7 +211,64 @@ class _AdminCobradorDetalleScreenState extends State<AdminCobradorDetalleScreen>
               ],
             ),
           ),
+        const SizedBox(height: 20),
+        Text('Movimientos de capital (${detalle.cargasCapital.length})', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        if (detalle.cargasCapital.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('Sin movimientos de capital registrados.'),
+          )
+        else
+          Card(
+            child: Column(
+              children: [
+                for (final carga in detalle.cargasCapital) _FilaCargaCapital(carga: carga),
+              ],
+            ),
+          ),
       ],
+    );
+  }
+}
+
+class _FilaCargaCapital extends StatelessWidget {
+  const _FilaCargaCapital({required this.carga});
+
+  final CargaCapitalResumen carga;
+
+  @override
+  Widget build(BuildContext context) {
+    final esRetiro = carga.tipo == 'retiro';
+    final asignadoPorAdmin = carga.origen == 'admin';
+
+    return ListTile(
+      leading: Icon(
+        esRetiro ? Icons.arrow_downward : Icons.arrow_upward,
+        color: esRetiro ? Colors.red : Colors.green,
+      ),
+      title: Text(
+        '${esRetiro ? '-' : '+'} ${formatearMoneda(carga.monto)}',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            [_formatearFecha(carga.creadoEn), if (carga.descripcion != null && carga.descripcion!.isNotEmpty) carga.descripcion!]
+                .join(' · '),
+          ),
+          if (asignadoPorAdmin) ...[
+            const SizedBox(height: 4),
+            const Chip(
+              label: Text('Asignado por administrador', style: TextStyle(fontSize: 11)),
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

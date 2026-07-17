@@ -69,6 +69,7 @@ class AdminUsuarioController extends Controller
         $usuario->load([
             'clientes' => fn ($query) => $query->orderBy('nombre'),
             'prestamos' => fn ($query) => $query->with(['cliente', 'extras', 'cuotas', 'pagos'])->latest('fecha_inicio'),
+            'cargasCapital' => fn ($query) => $query->orderByDesc('created_at'),
         ]);
 
         return response()->json(['data' => $usuario]);

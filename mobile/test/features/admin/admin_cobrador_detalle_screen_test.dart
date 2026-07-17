@@ -197,4 +197,52 @@ void main() {
     expect(find.textContaining('Extra cobrado'), findsOneWidget);
     expect(find.textContaining('3.000'), findsOneWidget); // 15000 - 12000
   });
+
+  testWidgets('muestra los movimientos de capital, con el chip de origen admin solo donde corresponde', (
+    tester,
+  ) async {
+    final mock = MockClient((request) async {
+      return _json({
+        'data': {
+          'id': 9,
+          'nombre': 'Luis',
+          'email': 'luis@cobroapp.test',
+          'rol': 'cobrador',
+          'activo': true,
+          'clientes': [],
+          'prestamos': [],
+          'cargas_capital': [
+            {
+              'id': 1,
+              'monto': 50000,
+              'tipo': 'carga',
+              'descripcion': 'Aporte inicial',
+              'origen': 'cobrador',
+              'created_at': '2026-07-10T10:00:00.000000Z',
+            },
+            {
+              'id': 2,
+              'monto': 20000,
+              'tipo': 'retiro',
+              'descripcion': null,
+              'origen': 'admin',
+              'created_at': '2026-07-12T10:00:00.000000Z',
+            },
+          ],
+        },
+      });
+    });
+
+    final repository = AdminRepository(apiClient: ApiClient(httpClient: mock), secureStorage: _SecureStorageFalso());
+
+    await tester.pumpWidget(
+      MaterialApp(home: AdminCobradorDetalleScreen(usuarioId: 9, repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Movimientos de capital (2)'), findsOneWidget);
+    expect(find.textContaining('+ \$ 50.000'), findsOneWidget);
+    expect(find.textContaining('- \$ 20.000'), findsOneWidget);
+    expect(find.text('Asignado por administrador'), findsOneWidget);
+  });
 }

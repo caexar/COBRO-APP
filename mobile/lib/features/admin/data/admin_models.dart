@@ -317,14 +317,57 @@ class PrestamoResumen {
   }
 }
 
-/// `GET /admin/usuarios/{id}/detalle`: el cobrador con sus clientes y
-/// préstamos, de solo lectura (el admin no edita nada de esto desde la app).
+/// Movimiento de capital de un cobrador, tal como aparece dentro del detalle
+/// (`cargas_capital`, ya ordenado del más reciente al más antiguo por el
+/// backend). Mismos campos que consume el panel web
+/// (`ResumenAdminService::cargasCapitalDeCobrador()`).
+class CargaCapitalResumen {
+  const CargaCapitalResumen({
+    required this.id,
+    required this.monto,
+    required this.tipo,
+    required this.descripcion,
+    required this.origen,
+    required this.creadoEn,
+  });
+
+  final int id;
+  final double monto;
+  final String tipo;
+  final String? descripcion;
+
+  /// `'cobrador'` (el propio cobrador lo registró) o `'admin'` (se lo
+  /// asignó un administrador vía `POST /admin/cargas-capital`).
+  final String origen;
+  final DateTime creadoEn;
+
+  factory CargaCapitalResumen.fromJson(Map<String, dynamic> json) {
+    return CargaCapitalResumen(
+      id: json['id'] as int,
+      monto: comoDouble(json['monto']),
+      tipo: json['tipo'] as String,
+      descripcion: json['descripcion'] as String?,
+      origen: json['origen'] as String? ?? 'cobrador',
+      creadoEn: DateTime.parse(json['created_at'] as String),
+    );
+  }
+}
+
+/// `GET /admin/usuarios/{id}/detalle`: el cobrador con sus clientes,
+/// préstamos y movimientos de capital, de solo lectura (el admin no edita
+/// nada de esto desde la app, salvo asignar saldo).
 class DetalleCobrador {
-  const DetalleCobrador({required this.usuario, required this.clientes, required this.prestamos});
+  const DetalleCobrador({
+    required this.usuario,
+    required this.clientes,
+    required this.prestamos,
+    required this.cargasCapital,
+  });
 
   final UsuarioAdmin usuario;
   final List<ClienteResumen> clientes;
   final List<PrestamoResumen> prestamos;
+  final List<CargaCapitalResumen> cargasCapital;
 
   factory DetalleCobrador.fromJson(Map<String, dynamic> json) {
     return DetalleCobrador(
@@ -334,6 +377,9 @@ class DetalleCobrador {
           .toList(),
       prestamos: ((json['prestamos'] as List?) ?? const [])
           .map((e) => PrestamoResumen.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      cargasCapital: ((json['cargas_capital'] as List?) ?? const [])
+          .map((e) => CargaCapitalResumen.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
   }

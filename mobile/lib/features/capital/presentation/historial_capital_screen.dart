@@ -4,18 +4,23 @@ import '../../../core/utils/formato_dinero.dart';
 import '../data/cargas_capital_repository.dart';
 
 /// Historial de movimientos de capital del cobrador: entradas (aportes) y
-/// salidas (retiros), del más reciente al más antiguo. Permite deshacer un
-/// movimiento registrado por error (soft-delete, ver
-/// `CargasCapitalRepository.eliminar`).
+/// salidas (retiros), del más reciente al más antiguo. De solo lectura: el
+/// cobrador puede ver su historial pero no eliminarlo desde acá (
+/// `CargasCapitalRepository.eliminar` sigue existiendo, por si otra pantalla
+/// lo necesita a futuro, pero esta ya no lo expone).
 class HistorialCapitalScreen extends StatefulWidget {
-  const HistorialCapitalScreen({super.key});
+  const HistorialCapitalScreen({super.key, this.repository});
+
+  /// Inyectable solo para pruebas; en la app real siempre se usa la
+  /// instancia por defecto.
+  final CargasCapitalRepository? repository;
 
   @override
   State<HistorialCapitalScreen> createState() => _HistorialCapitalScreenState();
 }
 
 class _HistorialCapitalScreenState extends State<HistorialCapitalScreen> {
-  final _repository = CargasCapitalRepository();
+  late final _repository = widget.repository ?? CargasCapitalRepository();
   List<CargaCapital>? _movimientos;
 
   @override
@@ -28,28 +33,6 @@ class _HistorialCapitalScreenState extends State<HistorialCapitalScreen> {
     final movimientos = await _repository.listarTodas();
     if (!mounted) return;
     setState(() => _movimientos = movimientos.reversed.toList());
-  }
-
-  Future<void> _confirmarEliminar(CargaCapital movimiento) async {
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Eliminar movimiento'),
-        content: Text(
-          '¿Eliminar ${movimiento.tipo == 'retiro' ? 'el retiro' : 'la entrada'} de '
-          '${formatearMoneda(movimiento.monto)}? Esta acción no se puede deshacer.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Eliminar')),
-        ],
-      ),
-    );
-
-    if (confirmado != true) return;
-
-    await _repository.eliminar(movimiento.id);
-    _cargar();
   }
 
   @override
@@ -105,17 +88,6 @@ class _HistorialCapitalScreenState extends State<HistorialCapitalScreen> {
                             ],
                           ],
                         ),
-                        // Un movimiento asignado por un admin es autoridad del
-                        // servidor: el cobrador no puede deshacerlo desde acá
-                        // (y si lo hiciera, no hay forma de sincronizar esa
-                        // baja todavía — ver SincronizacionRepository).
-                        trailing: asignadoPorAdmin
-                            ? null
-                            : IconButton(
-                                icon: const Icon(Icons.delete_outline),
-                                tooltip: 'Eliminar',
-                                onPressed: () => _confirmarEliminar(movimiento),
-                              ),
                       ),
                     );
                   },

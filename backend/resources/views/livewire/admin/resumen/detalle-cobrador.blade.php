@@ -34,9 +34,18 @@
                     <option value="retiro">Retiro</option>
                 </select>
             </div>
-            <div>
+            <div x-data="{
+                    raw: $wire.entangle('monto'),
+                    get display() {
+                        return this.raw ? Number(this.raw).toLocaleString('en-US') : '';
+                    },
+                    actualizar(valor) {
+                        this.raw = valor.replace(/[^0-9]/g, '');
+                    },
+                 }">
                 <label class="block text-sm font-medium text-gray-700">Monto</label>
-                <input type="number" step="0.01" min="0.01" wire:model="monto" class="mt-1 rounded-md border-gray-300 shadow-sm">
+                <input type="text" inputmode="numeric" :value="display" @input="actualizar($event.target.value)"
+                       class="mt-1 rounded-md border-gray-300 shadow-sm">
                 @error('monto') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
             <div class="flex-1 min-w-[200px]">

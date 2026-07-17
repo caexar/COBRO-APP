@@ -1,21 +1,26 @@
 import 'package:flutter/material.dart';
 
 import '../data/admin_repository.dart';
-import 'admin_cobrador_detalle_screen.dart';
 import 'admin_usuario_form_screen.dart';
 
-/// Listado de cobradores (activos e inactivos, diferenciados visualmente),
-/// con acciones para crear, editar, desactivar/reactivar y ver el detalle
-/// de solo lectura de cada uno.
+/// Listado de cobradores (activos e inactivos, diferenciados visualmente).
+/// Su único propósito es la gestión de cuenta: crear, editar, desactivar/
+/// reactivar. No da acceso a los datos financieros del cobrador (clientes,
+/// préstamos, movimientos de capital) — eso ahora cuelga de
+/// `AdminResumenScreen` (tocar un cobrador ahí abre `AdminCobradorDetalleScreen`).
 class AdminUsuariosListScreen extends StatefulWidget {
-  const AdminUsuariosListScreen({super.key});
+  const AdminUsuariosListScreen({super.key, this.repository});
+
+  /// Inyectable solo para pruebas; en la app real siempre se usa la
+  /// instancia por defecto.
+  final AdminRepository? repository;
 
   @override
   State<AdminUsuariosListScreen> createState() => _AdminUsuariosListScreenState();
 }
 
 class _AdminUsuariosListScreenState extends State<AdminUsuariosListScreen> {
-  final _repository = AdminRepository();
+  late final _repository = widget.repository ?? AdminRepository();
 
   List<UsuarioAdmin>? _usuarios;
   String? _error;
@@ -78,12 +83,6 @@ class _AdminUsuariosListScreenState extends State<AdminUsuariosListScreen> {
     if (guardado == true) _cargar();
   }
 
-  void _abrirDetalle(UsuarioAdmin usuario) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => AdminCobradorDetalleScreen(usuarioId: usuario.id)));
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -133,7 +132,6 @@ class _AdminUsuariosListScreenState extends State<AdminUsuariosListScreen> {
           final usuario = usuarios[indice];
           return _UsuarioTile(
             usuario: usuario,
-            onVerDetalle: () => _abrirDetalle(usuario),
             onEditar: () => _abrirFormulario(usuario: usuario),
             onDesactivar: () => _confirmarDesactivar(usuario),
             onReactivar: () => _reactivar(usuario),
@@ -147,14 +145,12 @@ class _AdminUsuariosListScreenState extends State<AdminUsuariosListScreen> {
 class _UsuarioTile extends StatelessWidget {
   const _UsuarioTile({
     required this.usuario,
-    required this.onVerDetalle,
     required this.onEditar,
     required this.onDesactivar,
     required this.onReactivar,
   });
 
   final UsuarioAdmin usuario;
-  final VoidCallback onVerDetalle;
   final VoidCallback onEditar;
   final VoidCallback onDesactivar;
   final VoidCallback onReactivar;
@@ -164,7 +160,7 @@ class _UsuarioTile extends StatelessWidget {
     final activo = usuario.activo;
 
     return ListTile(
-      onTap: onVerDetalle,
+      onTap: onEditar,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: CircleAvatar(
         backgroundColor: activo

@@ -2,18 +2,27 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/formato_dinero.dart';
 import '../data/admin_repository.dart';
+import 'admin_cobrador_detalle_screen.dart';
 
 /// Totales de cartera: capital prestado, total cobrado y cartera en mora,
-/// global y desglosado por cobrador.
+/// global y desglosado por cobrador. Tocar un cobrador abre
+/// `AdminCobradorDetalleScreen` (clientes, préstamos y movimientos de
+/// capital) — el punto de entrada al detalle financiero de un cobrador es
+/// este resumen, no el listado de gestión de cuentas
+/// (`AdminUsuariosListScreen`).
 class AdminResumenScreen extends StatefulWidget {
-  const AdminResumenScreen({super.key});
+  const AdminResumenScreen({super.key, this.repository});
+
+  /// Inyectable solo para pruebas; en la app real siempre se usa la
+  /// instancia por defecto.
+  final AdminRepository? repository;
 
   @override
   State<AdminResumenScreen> createState() => _AdminResumenScreenState();
 }
 
 class _AdminResumenScreenState extends State<AdminResumenScreen> {
-  final _repository = AdminRepository();
+  late final _repository = widget.repository ?? AdminRepository();
 
   ResumenAdmin? _resumen;
   String? _error;
@@ -80,32 +89,41 @@ class _AdminResumenScreenState extends State<AdminResumenScreen> {
           else
             for (final cobrador in resumen.porCobrador) ...[
               Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              cobrador.nombre,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          AdminCobradorDetalleScreen(usuarioId: cobrador.usuarioId, repository: widget.repository),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                cobrador.nombre,
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              ),
                             ),
-                          ),
-                          Text(
-                            cobrador.activo ? 'Activo' : 'Inactivo',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cobrador.activo ? Colors.green.shade700 : Colors.red.shade700,
-                              fontWeight: FontWeight.w600,
+                            Text(
+                              cobrador.activo ? 'Activo' : 'Inactivo',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: cobrador.activo ? Colors.green.shade700 : Colors.red.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _FilasTotales(totales: cobrador.totales),
-                    ],
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _FilasTotales(totales: cobrador.totales),
+                      ],
+                    ),
                   ),
                 ),
               ),

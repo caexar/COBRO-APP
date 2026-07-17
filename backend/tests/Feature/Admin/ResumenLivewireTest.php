@@ -124,4 +124,22 @@ class ResumenLivewireTest extends TestCase
             'creado_por_usuario_id' => $admin->id,
         ]);
     }
+
+    /**
+     * El proyecto no tiene infraestructura de test JS (sin Jest/Vitest, ver `package.json`), así
+     * que esto solo confirma que el scaffolding de Alpine (entangle + toLocaleString) sigue
+     * presente en el HTML renderizado — el comportamiento real del formateo en el navegador
+     * (escribir "2000000" y ver "2,000,000") se verificó manualmente.
+     */
+    public function test_el_input_de_monto_usa_alpine_entangle_para_formatear_miles_en_el_cliente(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $cobrador = User::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test(DetalleCobrador::class, ['usuario' => $cobrador])
+            ->assertSeeHtml("\$wire.entangle('monto')")
+            ->assertSeeHtml('toLocaleString')
+            ->assertDontSeeHtml('type="number"');
+    }
 }

@@ -56,6 +56,14 @@ class User extends Authenticatable
         return $this->hasMany(Auditoria::class, 'usuario_id');
     }
 
+    /**
+     * @return HasMany<CargaCapital>
+     */
+    public function cargasCapital(): HasMany
+    {
+        return $this->hasMany(CargaCapital::class, 'usuario_id');
+    }
+
     public function isAdmin(): bool
     {
         return $this->rol === 'admin';

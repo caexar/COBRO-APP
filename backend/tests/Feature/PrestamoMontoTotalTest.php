@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CargaCapital;
 use App\Models\Cliente;
 use App\Models\Prestamo;
 use App\Models\User;
@@ -68,5 +69,29 @@ class PrestamoMontoTotalTest extends TestCase
         $respuesta->assertOk();
         $respuesta->assertJsonPath('data.prestamos.0.monto_total', 125000);
         $respuesta->assertJsonPath('data.prestamos.0.cliente_id', $prestamo->cliente_id);
+    }
+
+    public function test_cargas_capital_del_cobrador_aparecen_en_get_admin_usuarios_detalle(): void
+    {
+        $prestamo = $this->crearPrestamoConExtra();
+        $admin = User::factory()->admin()->create();
+
+        CargaCapital::create(['usuario_id' => $prestamo->usuario_id, 'tipo' => 'carga', 'monto' => 50000]);
+        CargaCapital::create([
+            'usuario_id' => $prestamo->usuario_id,
+            'tipo' => 'retiro',
+            'monto' => 10000,
+            'origen' => 'admin',
+            'creado_por_usuario_id' => $admin->id,
+        ]);
+
+        Sanctum::actingAs($admin);
+
+        $respuesta = $this->getJson("/api/admin/usuarios/{$prestamo->usuario_id}/detalle");
+
+        $respuesta->assertOk();
+        $respuesta->assertJsonCount(2, 'data.cargas_capital');
+        $respuesta->assertJsonFragment(['tipo' => 'carga', 'origen' => 'cobrador']);
+        $respuesta->assertJsonFragment(['tipo' => 'retiro', 'origen' => 'admin']);
     }
 }
