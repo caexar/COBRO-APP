@@ -81,4 +81,18 @@
             Guardar configuración
         </button>
     </form>
+
+    {{-- Preferencia personal (no de negocio): solo afecta tu propia sesión, se guarda al
+         instante al cambiar el switch, no espera al botón "Guardar configuración" de arriba. --}}
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-sm font-medium text-gray-500 mb-1">Tu preferencia personal</h3>
+        <label class="flex items-center gap-2 text-sm text-gray-700 mt-3">
+            <input type="checkbox" wire:model="atajoMilesActivado" wire:change="cambiarAtajoMiles">
+            Atajo de miles al ingresar montos
+        </label>
+        <p class="mt-1 text-xs text-gray-500">
+            Al escribir "300" en el campo de "Monto" de un cobrador, se guarda como 300.000.
+            No afecta cómo se muestran los montos ya guardados. Es independiente por admin.
+        </p>
+    </div>
 </div>

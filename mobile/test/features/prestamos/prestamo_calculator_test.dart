@@ -58,6 +58,22 @@ void main() {
     expect(resultado.cuotas[1].fechaEsperada, DateTime(2026, 1, 15));
   });
 
+  test('frecuencia quincenal suma 15 dias por cuota', () {
+    // Mismos valores usados para verificar el backend
+    // (tests/Unit/Services/PrestamoCalculatorTest.php): capital 1000, 0%
+    // interés, 2 cuotas quincenales desde 2026-01-01.
+    final resultado = calculadora.calcular(
+      montoCapital: 1000,
+      porcentajeInteres: 0,
+      frecuenciaPago: 'quincenal',
+      plazoCuotas: 2,
+      fechaInicio: DateTime(2026, 1, 1),
+    );
+
+    expect(resultado.cuotas[0].fechaEsperada, DateTime(2026, 1, 16));
+    expect(resultado.cuotas[1].fechaEsperada, DateTime(2026, 1, 31));
+  });
+
   test('frecuencia personalizado suma dias_personalizado * numero_cuota', () {
     final resultado = calculadora.calcular(
       montoCapital: 1000,

@@ -1,7 +1,20 @@
+import 'package:cobro_app/core/utils/atajo_miles_repository.dart';
 import 'package:cobro_app/features/auth/data/bloqueo_repository.dart';
 import 'package:cobro_app/features/auth/presentation/configuracion_seguridad_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Evita tocar `flutter_secure_storage` real: solo interesa que la pantalla
+/// llame a los métodos correctos según lo que el cobrador haga con el switch.
+class _AtajoMilesRepositoryFalso extends AtajoMilesRepository {
+  bool activado = true;
+
+  @override
+  Future<bool> estaActivado() async => activado;
+
+  @override
+  Future<void> configurar(bool valor) async => activado = valor;
+}
 
 /// Simula `BloqueoRepository` sin tocar `local_auth` ni
 /// `flutter_secure_storage` real — la lógica de biometría/PIN en sí ya está
@@ -55,19 +68,25 @@ void main() {
     final repository = _BloqueoRepositoryFalso();
 
     await tester.pumpWidget(
-      MaterialApp(home: ConfiguracionSeguridadScreen(bloqueoRepository: repository)),
+      MaterialApp(
+        home: ConfiguracionSeguridadScreen(
+          bloqueoRepository: repository,
+          atajoMilesRepository: _AtajoMilesRepositoryFalso(),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
-    final switchTile = tester.widget<SwitchListTile>(find.byType(SwitchListTile));
+    final biometriaFinder = find.widgetWithText(SwitchListTile, 'Usar huella / Face ID');
+    final switchTile = tester.widget<SwitchListTile>(biometriaFinder);
     expect(switchTile.value, isFalse);
     expect(switchTile.onChanged, isNotNull);
 
-    await tester.tap(find.byType(SwitchListTile));
+    await tester.tap(biometriaFinder);
     await tester.pumpAndSettle();
 
     expect(repository.biometriaConfiguradaCon, isTrue);
-    expect(tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value, isTrue);
+    expect(tester.widget<SwitchListTile>(biometriaFinder).value, isTrue);
   });
 
   testWidgets('sin biometría configurada en el dispositivo, el switch queda deshabilitado con un mensaje', (
@@ -76,17 +95,23 @@ void main() {
     final repository = _BloqueoRepositoryFalso(biometriaDisponible: false);
 
     await tester.pumpWidget(
-      MaterialApp(home: ConfiguracionSeguridadScreen(bloqueoRepository: repository)),
+      MaterialApp(
+        home: ConfiguracionSeguridadScreen(
+          bloqueoRepository: repository,
+          atajoMilesRepository: _AtajoMilesRepositoryFalso(),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
-    final switchTile = tester.widget<SwitchListTile>(find.byType(SwitchListTile));
+    final biometriaFinder = find.widgetWithText(SwitchListTile, 'Usar huella / Face ID');
+    final switchTile = tester.widget<SwitchListTile>(biometriaFinder);
     expect(switchTile.value, isFalse);
     expect(switchTile.onChanged, isNull);
     expect(find.textContaining('Actívala primero en los ajustes de tu teléfono'), findsOneWidget);
 
     // Tocar un switch deshabilitado no hace nada (ni crashea).
-    await tester.tap(find.byType(SwitchListTile));
+    await tester.tap(biometriaFinder);
     await tester.pumpAndSettle();
     expect(repository.biometriaConfiguradaCon, isNull);
   });
@@ -95,7 +120,12 @@ void main() {
     final repository = _BloqueoRepositoryFalso();
 
     await tester.pumpWidget(
-      MaterialApp(home: ConfiguracionSeguridadScreen(bloqueoRepository: repository)),
+      MaterialApp(
+        home: ConfiguracionSeguridadScreen(
+          bloqueoRepository: repository,
+          atajoMilesRepository: _AtajoMilesRepositoryFalso(),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     await _abrirDialogoCambiarPin(tester);
@@ -116,7 +146,12 @@ void main() {
     final repository = _BloqueoRepositoryFalso();
 
     await tester.pumpWidget(
-      MaterialApp(home: ConfiguracionSeguridadScreen(bloqueoRepository: repository)),
+      MaterialApp(
+        home: ConfiguracionSeguridadScreen(
+          bloqueoRepository: repository,
+          atajoMilesRepository: _AtajoMilesRepositoryFalso(),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     await _abrirDialogoCambiarPin(tester);
@@ -129,5 +164,30 @@ void main() {
 
     expect(repository.pinConfigurado, '5678');
     expect(find.text('PIN actualizado correctamente.'), findsOneWidget);
+  });
+
+  testWidgets('el switch de atajo de miles refleja la preferencia guardada y la actualiza al tocarlo', (
+    tester,
+  ) async {
+    final atajoMilesRepository = _AtajoMilesRepositoryFalso();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ConfiguracionSeguridadScreen(
+          bloqueoRepository: _BloqueoRepositoryFalso(),
+          atajoMilesRepository: atajoMilesRepository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final atajoFinder = find.widgetWithText(SwitchListTile, 'Atajo de miles al ingresar montos');
+    expect(tester.widget<SwitchListTile>(atajoFinder).value, isTrue);
+
+    await tester.tap(atajoFinder);
+    await tester.pumpAndSettle();
+
+    expect(atajoMilesRepository.activado, isFalse);
+    expect(tester.widget<SwitchListTile>(atajoFinder).value, isFalse);
   });
 }

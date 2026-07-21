@@ -8,11 +8,20 @@ import 'package:cobro_app/features/dashboard/data/reportes_repository.dart';
 import 'package:cobro_app/features/pagos/data/pagos_repository.dart';
 import 'package:cobro_app/features/prestamos/data/prestamos_repository.dart';
 import 'package:drift/native.dart';
+import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _SecureStorageFalso extends SecureStorageService {
   @override
   Future<int?> leerUsuarioId() async => 1;
+}
+
+/// Todas las celdas de [sheet] concatenadas en un solo texto, para poder
+/// seguir usando `contains` como cuando el reporte era un CSV plano.
+String _textoPlano(Sheet sheet) {
+  return sheet.rows
+      .map((fila) => fila.map((celda) => celda?.value?.toString() ?? '').join(','))
+      .join('\n');
 }
 
 void main() {
@@ -87,20 +96,18 @@ void main() {
     return (clienteA, clienteB, prestamoA, prestamoB);
   }
 
-  test('incluye las secciones de resumen, préstamos e historial de pagos', () async {
+  test('incluye las hojas de resumen, préstamos e historial de pagos', () async {
     final (clienteA, _, prestamoA, prestamoB) = await crearEscenario();
 
     await pagosRepository.registrar(prestamoId: prestamoA, montoAbonado: 10000, fechaPago: DateTime(2026, 1, 2));
     await pagosRepository.registrar(prestamoId: prestamoB, montoAbonado: 10000, fechaPago: DateTime(2026, 1, 2));
 
-    final csv = await reportesRepository.construirCsv();
+    final excel = await reportesRepository.construirXlsx();
 
-    expect(csv, contains('Resumen de cartera'));
-    expect(csv, contains('Préstamos'));
-    expect(csv, contains('Juan Perez'));
-    expect(csv, contains('Préstamo moto'));
-    expect(csv, contains('Historial de pagos'));
-    expect(csv, contains('Total ingresado por cliente en el rango'));
+    expect(excel.tables.keys, containsAll(['Resumen', 'Prestamos', 'Historial de pagos', 'Total por cliente']));
+    expect(_textoPlano(excel['Prestamos']), contains('Juan Perez'));
+    expect(_textoPlano(excel['Prestamos']), contains('Préstamo moto'));
+    expect(_textoPlano(excel['Historial de pagos']), contains('Juan Perez'));
     expect(clienteA, isPositive);
   });
 
@@ -110,21 +117,16 @@ void main() {
     await pagosRepository.registrar(prestamoId: prestamoA, montoAbonado: 10000, fechaPago: DateTime(2026, 1, 2));
     await pagosRepository.registrar(prestamoId: prestamoA, montoAbonado: 10000, fechaPago: DateTime(2026, 2, 5));
 
-    final csvFiltrado = await reportesRepository.construirCsv(
-      desde: DateTime(2026, 2, 1),
-      hasta: DateTime(2026, 2, 28),
-    );
+    final excel = await reportesRepository.construirXlsx(desde: DateTime(2026, 2, 1), hasta: DateTime(2026, 2, 28));
 
-    final filas = csvFiltrado.split('\r\n');
-    final filasDePago = filas.where((f) => f.contains('Juan Perez') && f.contains('10.000'));
+    final historial = _textoPlano(excel['Historial de pagos']);
     // Solo el pago de febrero debe aparecer en el historial filtrado (puede
     // aparecer también en el listado de préstamos, así que no se cuenta 0).
-    expect(filasDePago, isNotEmpty);
-    expect(csvFiltrado, isNot(contains('02/01/2026')));
-    expect(csvFiltrado, contains('05/02/2026'));
+    expect(historial, isNot(contains('02/01/2026')));
+    expect(historial, contains('05/02/2026'));
   });
 
-  test('incluye la sección de cierre de caja (diario y resumen agregado del rango)', () async {
+  test('incluye la hoja de cierre de caja (diario y resumen agregado del rango)', () async {
     await cierresCajaRepository.crear(
       fecha: DateTime(2026, 1, 1),
       capitalInicio: 100000,
@@ -138,17 +140,16 @@ void main() {
       justificacionDiferencia: 'Ajuste por cambio no registrado',
     );
 
-    final csv = await reportesRepository.construirCsv(desde: DateTime(2026, 1, 1), hasta: DateTime(2026, 1, 31));
+    final excel = await reportesRepository.construirXlsx(desde: DateTime(2026, 1, 1), hasta: DateTime(2026, 1, 31));
 
-    expect(csv, contains('Cierre de caja'));
-    expect(csv, contains('almuerzo'));
-    expect(csv, contains('Ajuste por cambio no registrado'));
+    final cierre = _textoPlano(excel['Cierre de caja']);
+    expect(cierre, contains('almuerzo'));
+    expect(cierre, contains('Ajuste por cambio no registrado'));
 
-    expect(csv, contains('Resumen de cierre de caja (rango)'));
-    final seccionResumen = csv.split('Resumen de cierre de caja (rango)').last;
+    final resumen = _textoPlano(excel['Resumen cierre de caja']);
     // Capital inicio del primer día (100.000) y capital cierre del último (200.000).
-    expect(seccionResumen, contains('100.000'));
-    expect(seccionResumen, contains('200.000'));
+    expect(resumen, contains('100.000'));
+    expect(resumen, contains('200.000'));
   });
 
   test('filtra el historial de pagos por cliente', () async {
@@ -157,10 +158,21 @@ void main() {
     await pagosRepository.registrar(prestamoId: prestamoA, montoAbonado: 10000, fechaPago: DateTime(2026, 1, 2));
     await pagosRepository.registrar(prestamoId: prestamoB, montoAbonado: 10000, fechaPago: DateTime(2026, 1, 2));
 
-    final csvFiltrado = await reportesRepository.construirCsv(clienteId: clienteA);
+    final excel = await reportesRepository.construirXlsx(clienteId: clienteA);
 
-    final seccionHistorial = csvFiltrado.split('Historial de pagos').last;
-    expect(seccionHistorial, contains('Juan Perez'));
-    expect(seccionHistorial, isNot(contains('Maria Gomez')));
+    final historial = _textoPlano(excel['Historial de pagos']);
+    expect(historial, contains('Juan Perez'));
+    expect(historial, isNot(contains('Maria Gomez')));
+  });
+
+  test('exportarYCompartir genera bytes de un .xlsx válido', () async {
+    await crearEscenario();
+
+    final excel = await reportesRepository.construirXlsx();
+    final bytes = excel.save();
+
+    expect(bytes, isNotNull);
+    // Firma ZIP: un .xlsx es un .zip por dentro.
+    expect(bytes!.take(2), [0x50, 0x4B]);
   });
 }

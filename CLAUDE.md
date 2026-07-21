@@ -59,6 +59,7 @@ en un controlador.
   (la cuota 1 vence un periodo después del inicio, no el mismo día):
   - `diario` → `+n` días
   - `semanal` → `+n` semanas
+  - `quincenal` → `+n * 15` días
   - `mensual` → `+n` meses (sin overflow de fin de mes)
   - `personalizado` → `+n * dias_personalizado` días
 - `POST /api/prestamos/simular` usa exactamente el mismo cálculo que `POST /api/prestamos`
@@ -370,7 +371,7 @@ Cada módulo tiene tests mínimos usando `Livewire::actingAs($admin)->test(Compo
 pasando sin cambios tras cada extracción a Service). `AdminPanelAccessTest` cubre el guard/
 middleware: guest redirigido, admin entra, cobrador rechazado con mensaje y sesión cerrada.
 
-## Reporte financiero: categoría de retiros y exportación (.xlsx web / CSV mobile)
+## Reporte financiero: categoría de retiros y exportación (.xlsx en los 3 frentes: web, admin mobile, cobrador mobile)
 
 ### `cargas_capital.categoria`
 
@@ -444,17 +445,20 @@ implementando `Maatwebsite\Excel\Concerns\WithStrictNullComparison` en `ArrayShe
 implementar esta interfaz también**, si no, no hay warning ni error, la celda simplemente sale
 vacía.
 
-### `GET /api/admin/reporte` (móvil) y `AdminReportesRepository` — CSV, no `.xlsx`
+### `GET /api/admin/reporte` (móvil) — descarga el `.xlsx` binario tal cual, ya no JSON
 
-Decisión explícita de mantener CSV en mobile (no replicar `.xlsx` en Dart): la app comparte el
-archivo por WhatsApp/correo vía `share_plus`, donde un CSV es más liviano y compatible.
-`AdminReportesRepository.construirCsv()` pide `GET /admin/reporte` (nuevo endpoint,
-`Api\Admin\AdminReporteController`, mismos filtros `usuario_ids[]`/`desde`/`hasta`/`categoria`
-que la web, protegido por `role:admin` igual que el resto de `/api/admin/*`) y arma **un solo
-CSV con las 3 secciones** (título + encabezados + filas de cada bloque, tal cual vienen del
-JSON, sin reformatear ningún valor — mismos números crudos que el `.xlsx`) en vez de 3 archivos
-separados. Reutiliza `exportarCsvYCompartir()` (BOM de UTF-8, ver bullet de `ReportesRepository`
-en la sección de dashboard/reportes móvil) — no reimplementa el fix de encoding.
+Decisión revisada (antes devolvía JSON con los 5 bloques y `AdminReportesRepository` armaba su
+propio CSV en Dart): ahora `Api\Admin\AdminReporteController::index()` responde el mismo
+`.xlsx` binario que ya arma `ExportarReporteService::generarXlsx()` para el panel web
+(`Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`,
+`Content-Disposition: attachment`) — mismos filtros `usuario_ids[]`/`desde`/`hasta`/`categoria`,
+protegido por `role:admin` igual que el resto de `/api/admin/*`. `AdminReportesRepository`
+(mobile) ya no genera ni parsea nada: `ApiClient.getBytes()` descarga los bytes tal cual y
+`exportarArchivoYCompartir()` (`core/utils/archivo_exportador.dart`) los escribe a un archivo
+temporal y los comparte con `share_plus` — el panel admin nunca trabaja offline (ver más abajo),
+así que no hay ninguna razón para generar el archivo en el dispositivo. `ReporteAdminFinanciero`/
+`SeccionReporte` (los modelos que parseaban el JSON viejo) se eliminaron del todo: no tenían
+ningún otro consumidor.
 
 ## Sincronización con la app móvil (backend)
 
@@ -765,26 +769,46 @@ descarga de una vez **todo** lo que ya existe en el servidor para ese cobrador.
   realmente modificó (nombre/email siempre; password solo si no quedó vacío), igual que el
   patrón ya usado en `ClientesRepository`/`PrestamosRepository`.
 - **Navegación reorganizada**: el detalle financiero de un cobrador (clientes, préstamos,
-  movimientos de capital) cuelga de **`AdminResumenScreen`** — tocar un cobrador en la tabla
-  "Por cobrador" abre `AdminCobradorDetalleScreen`. `AdminUsuariosListScreen` **ya no navega
-  ahí**: volvió a ser solo gestión de cuenta (crear, editar, activar/desactivar) — tocar una
-  fila abre el formulario de edición (`onTap: onEditar`), no el detalle financiero. Antes
-  ambas pantallas llevaban al mismo detalle; se separó porque "gestión de cuenta" y "ver la
-  cartera de un cobrador" son tareas distintas del admin, y mezclarlas en un solo listado no
-  dejaba claro cuál era el propósito de cada pantalla.
+  movimientos de capital, historial de pagos, gastos) cuelga de **`AdminResumenScreen`** —
+  tocar un cobrador en la tabla "Por cobrador" abre `AdminCobradorDetalleScreen`.
+  `AdminUsuariosListScreen` **ya no navega ahí**: volvió a ser solo gestión de cuenta (crear,
+  editar, activar/desactivar) — tocar una fila abre el formulario de edición
+  (`onTap: onEditar`), no el detalle financiero. Antes ambas pantallas llevaban al mismo
+  detalle; se separó porque "gestión de cuenta" y "ver la cartera de un cobrador" son tareas
+  distintas del admin, y mezclarlas en un solo listado no dejaba claro cuál era el propósito de
+  cada pantalla.
 - `AdminCobradorDetalleScreen` es deliberadamente de solo lectura sobre clientes/préstamos (sin
   botones de editar ni eliminar) — el admin puede *ver* la cartera de un cobrador pero el CRUD
   operativo sigue siendo exclusivo del cobrador dueño, desde su propia app. La única acción de
   escritura que sí tiene es el FAB "Asignar saldo" (ver más abajo), que no toca clientes ni
-  préstamos. Incluye una sección **"Movimientos de capital"** (antes no existía en esta
-  pantalla): lista `detalle.cargasCapital` (nuevo campo de `DetalleCobrador`, poblado por
-  `GET /admin/usuarios/{id}/detalle` — el backend ahora eager-carga la relación
-  `User::cargasCapital()` ahí, antes esa ruta no la devolvía en absoluto) con el mismo patrón
-  visual que `HistorialCapitalScreen` (icono/color por tipo, chip "Asignado por administrador"
-  para `origen = admin`) — mismos datos que la pestaña equivalente del panel web
-  (`ResumenAdminService::cargasCapitalDeCobrador()`).
-- **Listado de préstamos y modal de detalle** (`AdminCobradorDetalleScreen`): cada ítem del
-  listado (y el título dentro del modal) muestra **"Nombre del cliente - Referencia"**
+  préstamos. **5 pestañas** (`TabBar`/`TabBarView`, antes era una sola vista larga con todo
+  apilado): Préstamos, Clientes, Movimientos de capital, Historial de pagos y Gastos — cada una
+  con su propio contador en el header ("Préstamos (N)", etc.), igual que antes tenían como
+  sección. `TabBarView` solo construye la pestaña activa (gotcha de test: hace falta
+  `tester.tap(find.text('NombrePestaña'))` + `pumpAndSettle()` antes de poder encontrar
+  contenido de una pestaña que no sea la primera).
+  - **Movimientos de capital**: lista `detalle.cargasCapital` (campo de `DetalleCobrador`,
+    poblado por `GET /admin/usuarios/{id}/detalle` — el backend eager-carga la relación
+    `User::cargasCapital()` ahí) con el mismo patrón visual que `HistorialCapitalScreen`
+    (icono/color por tipo, chip "Asignado por administrador" para `origen = admin`) — mismos
+    datos que la pestaña equivalente del panel web (`ResumenAdminService::cargasCapitalDeCobrador()`).
+  - **Historial de pagos** (pestaña nueva, no existía antes en mobile — sí en el panel web
+    Livewire): agrupa `PrestamoResumen.pagos` de **todos** los préstamos del cobrador por
+    (`prestamoId`, `fechaPago`) — misma lógica de agrupamiento/etiquetado ("Pago cuota N",
+    "Abono cuota N", "Extra") que `HistorialPagosScreen` del lado cobrador y
+    `ResumenAdminService::historialPagosAgrupado()` del panel web, replicada una tercera vez
+    acá porque Dart no comparte código privado entre features ni con PHP — si se vuelve a
+    tocar el criterio en un lado, replicar el cambio en los otros dos. Requirió agregar
+    `id`/`cuotaId`/`diasMora` a `PagoResumen` (antes solo traía fecha/montos/saldo — esos 3
+    campos ya venían en el JSON, solo faltaba parsearlos).
+  - **Gastos** (pestaña nueva): `detalle.cierresCaja` (campo nuevo de `DetalleCobrador`,
+    `CierreCajaResumen`/`GastoCierreCajaResumen`) — poblado por `GET /admin/usuarios/{id}/detalle`,
+    que ahora también eager-carga `User::cierresCaja()` con sus `gastos` (antes esa ruta no
+    devolvía cierres de caja en absoluto). Una tarjeta expandible por cierre (fecha, capital
+    inicio/cierre, total de gastos) que al abrirse muestra la justificación (si hay) y el
+    detalle de cada gasto individual.
+- **Listado de préstamos y modal de detalle** (pestaña "Préstamos" de `AdminCobradorDetalleScreen`):
+  cada ítem del listado (y el título dentro del modal) muestra **"Nombre del cliente - Referencia"**
   (`_tituloPrestamo`, solo el nombre del cliente si no hay referencia), truncado con
   `overflow: TextOverflow.ellipsis`/`maxLines: 1` si es muy largo — **nunca cortar el string a
   mano**. (Bug ya corregido: antes el modal solo mostraba la referencia sola, sin el nombre del
@@ -835,16 +859,16 @@ descarga de una vez **todo** lo que ya existe en el servidor para ese cobrador.
   `saldo_disponible` (ya calculados por el backend) junto a los campos que ya tenía, tanto en
   la tarjeta global como en la de cada cobrador (`_FilasTotales`, reutilizada en ambos casos).
 - **Exportar reporte financiero** (`AdminExportarReporteScreen` + `AdminReportesRepository`):
-  rango de fechas + multi-select de cobradores + filtro de categoria (solo afecta la sección de
-  movimientos de capital) — mismo formulario de antes, **extendido, no reescrito**, más el
-  `DropdownButtonFormField` de categoria. Ya no arma el CSV recorriendo
-  `obtenerDetalleCobrador()` por cobrador: pide `GET /admin/reporte` una sola vez
-  (`AdminRepository.obtenerReporte()`) y arma **un CSV de 3 secciones** (préstamos, resumen por
-  cobrador, movimientos de capital) — ver la sección "Reporte financiero (.xlsx web / CSV
-  mobile)" del lado backend más arriba para el detalle completo de esas 3 secciones y por qué
-  se eligió CSV en mobile en vez de replicar el `.xlsx`. Sigue reutilizando
-  `exportarCsvYCompartir()` compartido (ver bug de encoding más abajo), sin reimplementar el
-  guardado/share del archivo.
+  rango de fechas + multi-select de cobradores + filtro de categoria (solo afecta la hoja de
+  movimientos de capital) — mismo formulario de siempre, **extendido, no reescrito**, más el
+  `DropdownButtonFormField` de categoria. Ya no arma nada en Dart: pide `GET /admin/reporte`
+  (`AdminRepository.descargarReporteXlsx()`, vía `ApiClient.getBytes()`) y comparte el `.xlsx`
+  binario tal cual con `exportarArchivoYCompartir()` — el mismo archivo de 5 hojas que ya
+  descarga el panel web en `/admin/exportar` (ver "Reporte financiero (.xlsx web / CSV mobile)"
+  más arriba, sección desactualizada en el nombre: mobile también es `.xlsx` ahora). Decisión
+  explícita: el panel admin nunca trabaja offline (ver bullets de arriba), así que no hay
+  ninguna razón para generar el archivo en el dispositivo — todo el trabajo pesado queda en el
+  servidor, reutilizando `ExportarReporteService::generarXlsx()` sin reimplementarlo.
 - `AdminCobradorDetalleScreen` y `AdminAsignarCapitalScreen` aceptan su `AdminRepository` como
   parámetro opcional del constructor (mismo patrón de inyección para pruebas que
   `DashboardScreen`/`AppEntryPoint`) — antes solo `AdminAsignarCapitalScreen` lo necesitaba,
@@ -953,20 +977,20 @@ para `AdminAsignarCapitalScreen`, ver sección de panel admin más arriba); `His
   búsqueda), pero solo préstamos `estado = pagado`; tocar uno abre el mismo
   `PrestamoDetalleScreen` de siempre (ya es de solo lectura para pagos en ese estado, porque
   `puedeRegistrarPago` ya excluía `pagado`/`anulado`).
-- **Exportar CSV** (`ReportesRepository`, paquete `csv` + `share_plus`): filtra el historial de
-  pagos por rango de fechas y cliente opcional; el resumen de cartera y el listado de
-  préstamos siempre salen completos, sin filtrar.
-  - **Bug real corregido: tildes/ñ salían como símbolos raros en Excel.** No era un problema de
-    encoding del texto en sí (`File.writeAsString` ya usa UTF-8 por defecto) — faltaba el BOM de
-    UTF-8 (bytes `EF BB BF`) al inicio del archivo, sin el cual Excel no detecta la codificación
-    y asume la del sistema. Se corrigió centralizando la escritura+share en
-    `mobile/lib/core/utils/csv_exportador.dart` (`exportarCsvYCompartir()`, antepone el
-    carácter `\uFEFF` al contenido antes de escribirlo) — **cualquier exportador de CSV nuevo
-    debe usar esta función**, no escribir el archivo directamente. Reutilizada por
-    `AdminReportesRepository` (mobile) y replicada con el mismo criterio en
-    `App\Services\ExportarReporteService` del panel web (bytes `\xEF\xBB\xBF` directos, ver
-    sección de panel web más abajo) — no hay forma de compartir el helper Dart↔PHP, así que el
-    criterio (BOM al inicio, UTF-8 para el resto) se replica a mano en cada lado.
+- **Exportar Excel** (`ReportesRepository`, paquete `excel` + `share_plus`): filtra el historial
+  de pagos por rango de fechas y cliente opcional; el resumen de cartera y el listado de
+  préstamos siempre salen completos, sin filtrar. **Decisión revisada**: antes generaba un CSV
+  (con un BOM manual de UTF-8, para que Excel detectara la codificación sin él); ahora genera un `.xlsx` real con el paquete
+  `excel`, enteramente en el dispositivo, sin pedirle nada al backend — a diferencia del panel
+  admin (que sí descarga su `.xlsx` ya armado del servidor, ver sección de admin), este reporte
+  es del propio cobrador y debe seguir funcionando sin conexión (offline-first). Una hoja por
+  sección (`Resumen`, `Prestamos`, `Historial de pagos`, `Total por cliente`, `Cierre de caja`,
+  `Resumen cierre de caja`) en vez del bloque-por-bloque de un CSV plano. El paquete `csv` y
+  `csv_exportador.dart` (con su BOM manual) se eliminaron del todo — el nuevo
+  `mobile/lib/core/utils/archivo_exportador.dart` (`exportarArchivoYCompartir()`, bytes crudos a
+  un archivo temporal + `share_plus`) es ahora el único exportador de archivos, reutilizado
+  también por `AdminReportesRepository` (que solo comparte los bytes de un `.xlsx` ya descargado
+  del servidor, sin generar nada). `.xlsx` no tiene el problema de BOM que sí tenía el CSV plano.
 
 ## App móvil: sincronización (`mobile/lib/features/sincronizacion`)
 
@@ -1154,18 +1178,18 @@ día, más los gastos operativos del día.
   Ya corregido en `test/aislamiento_entre_usuarios_test.dart`; si aparece un test nuevo con el
   mismo tipo de crash, revisar primero si le falta este parámetro.
 
-### Test preexistente y no relacionado que sigue fallando
+### Fecha de referencia de `DashboardRepository.calcularResumen()` (ya no depende del reloj real)
 
-`test/features/dashboard/dashboard_repository_test.dart` (`calcula saldo disponible, cartera,
-proyección y ganancia realizada`) falla por fragilidad de fechas **preexistente, sin relación
-con esta tarea**: hardcodea `final hoy = DateTime(2026, 7, 15)` para las fechas de pago del
-fixture, pero `DashboardRepository.calcularResumen()` usa `DateTime.now()` real para su ventana
-de "últimos 7 días" — a medida que avanza el calendario real, esas fechas fijas quedan fuera de
-la ventana y el test empieza a fallar solo, sin que nadie haya tocado el código. Confirmado con
-`git status` que ni el test ni `dashboard_repository.dart` fueron modificados durante esta
-tarea — se dejó **deliberadamente sin tocar** (fuera de alcance: "no toques tests de módulos no
-relacionados"). Pendiente de decidir en una tarea aparte si se fija el reloj del test o se
-parametriza "hoy".
+`calcularResumen()` acepta un parámetro opcional `{DateTime? ahora}` (default `DateTime.now()`
+en producción, sin cambio de comportamiento) usado como "hoy" para `entradasHoy` y la ventana
+de `entradasUltimos7Dias`. Corrige una fragilidad real: antes usaba `DateTime.now()` fijo
+internamente mientras `test/features/dashboard/dashboard_repository_test.dart` hardcodeaba
+`final hoy = DateTime(2026, 7, 15)` para las fechas de pago del fixture — a medida que avanzaba
+el calendario real, esas fechas fijas quedaban fuera de la ventana de 7 días y el test empezaba
+a fallar solo, sin que nadie tocara el código. El test ahora pasa `ahora: hoy` explícitamente en
+las dos pruebas que dependen de la ventana temporal, así que ya no depende del reloj real. Si se
+agrega otro consumidor de `calcularResumen()` que necesite fijar "hoy" en un test, usar el mismo
+parámetro en vez de reintroducir una dependencia del reloj real.
 
 ## Despliegue: Laravel Cloud (`/backend`)
 
@@ -1206,9 +1230,10 @@ Preparación de infraestructura para desplegar — sin tocar lógica de negocio.
 - **Migraciones verificadas contra MySQL real** (no solo SQLite, que es más permisivo con
   foreign keys): `migrate:fresh` corre limpio en orden dos veces seguidas (creación + drop-and-
   recreate) contra una base MySQL 8.4 descartable, sin errores de FK.
-- **Sin dependencia de storage local persistente**: los exports (el `.xlsx` de 3 hojas y el
-  JSON del reporte para mobile, ver sección de reporte financiero) se generan en memoria vía
-  `Excel::raw()` y se devuelven directo en la respuesta HTTP — nunca tocan disco. Sesión, caché
+- **Sin dependencia de storage local persistente**: los exports (el `.xlsx` de 5 hojas, tanto
+  para la web como para `GET /api/admin/reporte` del panel admin móvil, ver sección de reporte
+  financiero) se generan en memoria vía `Excel::raw()` y se devuelven directo en la respuesta
+  HTTP — nunca tocan disco. Sesión, caché
   y colas usan driver `database`, no archivos. No hay subida de archivos del lado servidor (la
   foto de cliente es un path local del dispositivo móvil, ver sección de clientes móvil). El
   filesystem efímero de Laravel Cloud (no persiste entre despliegues) no rompe nada de esto hoy.

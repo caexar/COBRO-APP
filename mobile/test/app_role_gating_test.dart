@@ -53,7 +53,7 @@ class _BloqueoRepositoryFalso extends BloqueoRepository {
 /// está disponible en este entorno de pruebas) al calcular su resumen.
 class _DashboardRepositoryFalso extends DashboardRepository {
   @override
-  Future<ResumenDashboard> calcularResumen() async {
+  Future<ResumenDashboard> calcularResumen({DateTime? ahora}) async {
     return const ResumenDashboard(
       saldoDisponible: 0,
       carteraPorCobrar: 0,

@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Services\PrestamoCalculator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Validación puramente estructural/de tipo del batch de sincronización (mismas reglas de
@@ -49,7 +51,7 @@ class StoreSyncRequest extends FormRequest
             'prestamos.*.extras' => ['nullable', 'array'],
             'prestamos.*.extras.*.concepto' => ['required_with:prestamos.*.extras', 'string', 'max:255'],
             'prestamos.*.extras.*.valor' => ['required_with:prestamos.*.extras', 'numeric', 'min:0'],
-            'prestamos.*.frecuencia_pago' => ['required', 'in:diario,semanal,mensual,personalizado'],
+            'prestamos.*.frecuencia_pago' => ['required', Rule::in(PrestamoCalculator::FRECUENCIAS_VALIDAS)],
             'prestamos.*.dias_personalizado' => ['required_if:prestamos.*.frecuencia_pago,personalizado', 'nullable', 'integer', 'min:1'],
             'prestamos.*.plazo_cuotas' => ['required', 'integer', 'min:1'],
             'prestamos.*.fecha_inicio' => ['required', 'date'],

@@ -50,3 +50,28 @@ String formatearMoneda(double valor) {
   final conSeparadorDeMiles = parteEntera.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => '.');
   return '\$ $conSeparadorDeMiles';
 }
+
+/// Interpreta lo que el usuario escribió en un campo de monto según la
+/// preferencia de "atajo de miles" (ver `AtajoMilesRepository`): si está
+/// activada, el valor escrito se multiplica por 1000 (ej. "300" al guardar
+/// se persiste como 300000); si no, se usa tal cual. Punto único de entrada
+/// para esa interpretación — cualquier pantalla que guarde un monto debe usar
+/// esta función (nunca `FormateadorDinero.valorNumerico` directo) para que la
+/// preferencia se respete consistentemente en toda la app. No afecta en
+/// absoluto la visualización de montos ya guardados (`formatearMoneda`).
+double? interpretarValorIngresado(String textoFormateado, {required bool atajoMilesActivado}) {
+  final valor = FormateadorDinero.valorNumerico(textoFormateado);
+  if (valor == null) return null;
+  return atajoMilesActivado ? valor * 1000 : valor;
+}
+
+/// Texto de ayuda para mostrar en vivo bajo un campo de monto mientras el
+/// usuario escribe (ej. "Se agregarán tres ceros: 300.000"), solo cuando el
+/// atajo de miles está activado y el campo ya tiene un valor válido. `null`
+/// en cualquier otro caso (no se muestra nada).
+String? textoAyudaAtajoMiles(String textoFormateado, {required bool atajoMilesActivado}) {
+  if (!atajoMilesActivado) return null;
+  final valor = FormateadorDinero.valorNumerico(textoFormateado);
+  if (valor == null || valor <= 0) return null;
+  return 'Se agregarán tres ceros: ${formatearMoneda(valor * 1000)}';
+}

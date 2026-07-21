@@ -35,6 +35,8 @@ class SecureStorageService {
   static const _prefijoVistaDashboard = 'dashboard_vista_';
   static const _prefijoUltimaSincronizacion = 'sync_ultima_';
   static const _claveTasasInteresDefault = 'sync_tasas_interes_default';
+  static const _prefijoAtajoMilesActivado = 'atajo_miles_activado_';
+  static const _prefijoOrdenPrestamos = 'orden_prestamos_';
 
   // --- Sesión ---
 
@@ -185,5 +187,33 @@ class SecureStorageService {
     if (valor == null) return const [10, 20, 30, 40];
 
     return (jsonDecode(valor) as List).map((tasa) => (tasa as num).toDouble()).toList();
+  }
+
+  // --- Preferencia "atajo de miles" (ver AtajoMilesRepository) ---
+
+  /// Por cobrador/admin (clave por [usuarioId], igual que la vista del
+  /// dashboard: el dispositivo puede ser compartido) — activada por defecto
+  /// si nunca se configuró.
+  Future<void> guardarAtajoMilesActivado(int usuarioId, bool activado) =>
+      _storage.write(key: '$_prefijoAtajoMilesActivado$usuarioId', value: activado.toString());
+
+  Future<bool> leerAtajoMilesActivado(int usuarioId) async {
+    final valor = await _storage.read(key: '$_prefijoAtajoMilesActivado$usuarioId');
+    return valor == null ? true : valor == 'true';
+  }
+
+  // --- Orden de "Cobros pendientes" / "Historial de préstamos" ---
+
+  /// Guarda el `.name` de `OrdenPrestamos` elegido (ver
+  /// `features/prestamos/data/prestamos_repository.dart`). Clave por
+  /// [usuarioId], igual que la vista del dashboard: el dispositivo puede ser
+  /// compartido por varios cobradores.
+  Future<void> guardarOrdenPrestamos(int usuarioId, String orden) =>
+      _storage.write(key: '$_prefijoOrdenPrestamos$usuarioId', value: orden);
+
+  /// `'alfabetico'` si nunca se guardó una preferencia.
+  Future<String> leerOrdenPrestamos(int usuarioId) async {
+    final valor = await _storage.read(key: '$_prefijoOrdenPrestamos$usuarioId');
+    return valor ?? 'alfabetico';
   }
 }

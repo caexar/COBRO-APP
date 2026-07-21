@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/atajo_miles_repository.dart';
 import '../../../core/utils/formato_dinero.dart';
 import '../data/prestamo_calculator.dart';
 
@@ -43,9 +44,13 @@ class _ExtraControllers {
 /// Recalcula en tiempo real con [PrestamoCalculator] y avisa al padre vía
 /// [onDatosValidosCambiados] (con `null` mientras falten datos).
 class PrestamoCalculadoraFormulario extends StatefulWidget {
-  const PrestamoCalculadoraFormulario({super.key, this.onDatosValidosCambiados});
+  const PrestamoCalculadoraFormulario({super.key, this.onDatosValidosCambiados, this.atajoMilesRepository});
 
   final ValueChanged<DatosPrestamoFormulario?>? onDatosValidosCambiados;
+
+  /// Inyectable solo para pruebas; en la app real siempre se usa la
+  /// instancia por defecto.
+  final AtajoMilesRepository? atajoMilesRepository;
 
   @override
   State<PrestamoCalculadoraFormulario> createState() => _PrestamoCalculadoraFormularioState();
@@ -56,10 +61,13 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
   static const _frecuencias = {
     'diario': 'Diario',
     'semanal': 'Semanal',
+    'quincenal': 'Quincenal',
     'mensual': 'Mensual',
     'personalizado': 'Personalizado',
   };
   static const _calculadora = PrestamoCalculator();
+
+  late final _atajoMilesRepository = widget.atajoMilesRepository ?? AtajoMilesRepository();
 
   final _capitalController = TextEditingController();
   final _porcentajePersonalizadoController = TextEditingController();
@@ -72,6 +80,7 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
   String _frecuenciaPago = 'diario';
   DateTime _fechaInicio = DateTime.now();
   ResultadoCalculoPrestamo? _resultado;
+  bool _atajoMilesActivado = true;
 
   @override
   void initState() {
@@ -80,6 +89,14 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
     _porcentajePersonalizadoController.addListener(_recalcular);
     _plazoController.addListener(_recalcular);
     _diasPersonalizadoController.addListener(_recalcular);
+    _cargarAtajoMiles();
+  }
+
+  Future<void> _cargarAtajoMiles() async {
+    final activado = await _atajoMilesRepository.estaActivado();
+    if (!mounted) return;
+    setState(() => _atajoMilesActivado = activado);
+    _recalcular();
   }
 
   @override
@@ -128,7 +145,7 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
   }
 
   void _recalcular() {
-    final capital = FormateadorDinero.valorNumerico(_capitalController.text);
+    final capital = interpretarValorIngresado(_capitalController.text, atajoMilesActivado: _atajoMilesActivado);
     final porcentaje = _porcentajeActual;
     final plazo = int.tryParse(_plazoController.text);
     final diasPersonalizado = _frecuenciaPago == 'personalizado'
@@ -138,7 +155,7 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
     final extras = <ExtraPrestamo>[];
     for (final controles in _extras) {
       final concepto = controles.concepto.text.trim();
-      final valor = FormateadorDinero.valorNumerico(controles.valor.text);
+      final valor = interpretarValorIngresado(controles.valor.text, atajoMilesActivado: _atajoMilesActivado);
       if (concepto.isNotEmpty && valor != null && valor > 0) {
         extras.add(ExtraPrestamo(concepto: concepto, valor: valor));
       }
@@ -186,6 +203,8 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
 
   @override
   Widget build(BuildContext context) {
+    final textoAyudaCapital = textoAyudaAtajoMiles(_capitalController.text, atajoMilesActivado: _atajoMilesActivado);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -199,6 +218,13 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
             prefixText: r'$ ',
           ),
         ),
+        if (textoAyudaCapital != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            textoAyudaCapital,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+          ),
+        ],
         const SizedBox(height: 20),
         Text('Porcentaje de interés', style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 8),
@@ -260,11 +286,27 @@ class _PrestamoCalculadoraFormularioState extends State<PrestamoCalculadoraFormu
                 const SizedBox(width: 8),
                 Expanded(
                   flex: 2,
-                  child: TextField(
-                    controller: _extras[i].valor,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FormateadorDinero()],
-                    decoration: const InputDecoration(labelText: 'Valor', border: OutlineInputBorder()),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: _extras[i].valor,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FormateadorDinero()],
+                        decoration: const InputDecoration(labelText: 'Valor', border: OutlineInputBorder()),
+                      ),
+                      if (textoAyudaAtajoMiles(_extras[i].valor.text, atajoMilesActivado: _atajoMilesActivado)
+                          case final textoAyuda?)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            textoAyuda,
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 IconButton(

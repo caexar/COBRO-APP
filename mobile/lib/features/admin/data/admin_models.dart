@@ -191,23 +191,32 @@ class CuotaResumen {
 /// repetirse entre varias filas del mismo préstamo).
 class PagoResumen {
   const PagoResumen({
+    required this.id,
+    required this.cuotaId,
     required this.fechaPago,
     required this.montoAbonado,
     required this.montoAplicado,
     required this.saldoRestanteDespues,
+    required this.diasMora,
   });
 
+  final int id;
+  final int cuotaId;
   final DateTime fechaPago;
   final double montoAbonado;
   final double montoAplicado;
   final double saldoRestanteDespues;
+  final int diasMora;
 
   factory PagoResumen.fromJson(Map<String, dynamic> json) {
     return PagoResumen(
+      id: json['id'] as int,
+      cuotaId: json['cuota_id'] as int,
       fechaPago: DateTime.parse(json['fecha_pago'] as String),
       montoAbonado: comoDouble(json['monto_abonado']),
       montoAplicado: comoDouble(json['monto_aplicado']),
       saldoRestanteDespues: comoDouble(json['saldo_restante_despues']),
+      diasMora: json['dias_mora'] as int? ?? 0,
     );
   }
 }
@@ -353,21 +362,73 @@ class CargaCapitalResumen {
   }
 }
 
+/// Gasto individual de un cierre de caja (ej. "almuerzo", "gasolina"), tal
+/// como aparece anidado dentro de un `CierreCajaResumen`.
+class GastoCierreCajaResumen {
+  const GastoCierreCajaResumen({required this.monto, required this.detalle});
+
+  final double monto;
+  final String detalle;
+
+  factory GastoCierreCajaResumen.fromJson(Map<String, dynamic> json) {
+    return GastoCierreCajaResumen(monto: comoDouble(json['monto']), detalle: json['detalle'] as String);
+  }
+}
+
+/// Cierre de caja diario de un cobrador, tal como aparece dentro del
+/// detalle (`cierres_caja`, ya ordenado del más reciente al más antiguo por
+/// el backend) — ver sección "Cierre de caja diario" en CLAUDE.md.
+class CierreCajaResumen {
+  const CierreCajaResumen({
+    required this.id,
+    required this.fecha,
+    required this.capitalInicio,
+    required this.capitalCierre,
+    required this.gastosTotal,
+    required this.justificacionDiferencia,
+    required this.gastos,
+  });
+
+  final int id;
+  final DateTime fecha;
+  final double capitalInicio;
+  final double capitalCierre;
+  final double gastosTotal;
+  final String? justificacionDiferencia;
+  final List<GastoCierreCajaResumen> gastos;
+
+  factory CierreCajaResumen.fromJson(Map<String, dynamic> json) {
+    return CierreCajaResumen(
+      id: json['id'] as int,
+      fecha: DateTime.parse(json['fecha'] as String),
+      capitalInicio: comoDouble(json['capital_inicio']),
+      capitalCierre: comoDouble(json['capital_cierre']),
+      gastosTotal: comoDouble(json['gastos_total']),
+      justificacionDiferencia: json['justificacion_diferencia'] as String?,
+      gastos: ((json['gastos'] as List?) ?? const [])
+          .map((e) => GastoCierreCajaResumen.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
 /// `GET /admin/usuarios/{id}/detalle`: el cobrador con sus clientes,
-/// préstamos y movimientos de capital, de solo lectura (el admin no edita
-/// nada de esto desde la app, salvo asignar saldo).
+/// préstamos, movimientos de capital y cierres de caja, de solo lectura (el
+/// admin no edita nada de esto desde la app, salvo asignar saldo).
 class DetalleCobrador {
   const DetalleCobrador({
     required this.usuario,
     required this.clientes,
     required this.prestamos,
     required this.cargasCapital,
+    required this.cierresCaja,
   });
 
   final UsuarioAdmin usuario;
   final List<ClienteResumen> clientes;
   final List<PrestamoResumen> prestamos;
   final List<CargaCapitalResumen> cargasCapital;
+  final List<CierreCajaResumen> cierresCaja;
 
   factory DetalleCobrador.fromJson(Map<String, dynamic> json) {
     return DetalleCobrador(
@@ -381,57 +442,10 @@ class DetalleCobrador {
       cargasCapital: ((json['cargas_capital'] as List?) ?? const [])
           .map((e) => CargaCapitalResumen.fromJson(e as Map<String, dynamic>))
           .toList(),
+      cierresCaja: ((json['cierres_caja'] as List?) ?? const [])
+          .map((e) => CierreCajaResumen.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 }
 
-/// Un bloque de `GET /admin/reporte` (préstamos, resumen por cobrador o
-/// movimientos de capital): título + encabezados de columna + filas ya
-/// calculadas por el backend, en el mismo orden que las columnas —
-/// `AdminReportesRepository` las escribe tal cual en el CSV, sin reformatear
-/// ningún valor (misma convención que las celdas planas del .xlsx del panel
-/// web, que tampoco llevan símbolo de moneda ni texto adicional).
-class SeccionReporte {
-  const SeccionReporte({required this.titulo, required this.columnas, required this.filas});
-
-  final String titulo;
-  final List<String> columnas;
-  final List<List<dynamic>> filas;
-
-  factory SeccionReporte.fromJson(Map<String, dynamic> json) {
-    return SeccionReporte(
-      titulo: json['titulo'] as String,
-      columnas: (json['columnas'] as List).cast<String>(),
-      filas: (json['filas'] as List).map((fila) => fila as List).toList(),
-    );
-  }
-}
-
-/// `GET /admin/reporte`: los mismos 5 bloques del reporte financiero que ya
-/// arma `ExportarReporteService::generarXlsx()` para el panel web (5 hojas),
-/// acá como JSON — misma fuente de verdad, sin recalcular nada en el móvil.
-class ReporteAdminFinanciero {
-  const ReporteAdminFinanciero({
-    required this.prestamos,
-    required this.resumenPorCobrador,
-    required this.movimientosCapital,
-    required this.cierreCaja,
-    required this.cierreCajaResumen,
-  });
-
-  final SeccionReporte prestamos;
-  final SeccionReporte resumenPorCobrador;
-  final SeccionReporte movimientosCapital;
-  final SeccionReporte cierreCaja;
-  final SeccionReporte cierreCajaResumen;
-
-  factory ReporteAdminFinanciero.fromJson(Map<String, dynamic> json) {
-    return ReporteAdminFinanciero(
-      prestamos: SeccionReporte.fromJson(json['prestamos'] as Map<String, dynamic>),
-      resumenPorCobrador: SeccionReporte.fromJson(json['resumen_por_cobrador'] as Map<String, dynamic>),
-      movimientosCapital: SeccionReporte.fromJson(json['movimientos_capital'] as Map<String, dynamic>),
-      cierreCaja: SeccionReporte.fromJson(json['cierre_caja'] as Map<String, dynamic>),
-      cierreCajaResumen: SeccionReporte.fromJson(json['cierre_caja_resumen'] as Map<String, dynamic>),
-    );
-  }
-}

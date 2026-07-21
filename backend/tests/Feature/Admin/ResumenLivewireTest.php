@@ -87,7 +87,10 @@ class ResumenLivewireTest extends TestCase
 
     public function test_un_retiro_que_excede_el_saldo_disponible_es_rechazado_desde_el_formulario(): void
     {
-        $admin = User::factory()->admin()->create();
+        // Atajo de miles desactivado para este admin: el "100000" escrito abajo debe
+        // interpretarse tal cual, no como 100.000.000 (ver AtajoMilesTest para el
+        // comportamiento del atajo en sí).
+        $admin = User::factory()->admin()->create(['atajo_miles_activado' => false]);
         $cobrador = User::factory()->create();
         CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'carga', 'monto' => 50000]);
 
@@ -105,7 +108,7 @@ class ResumenLivewireTest extends TestCase
 
     public function test_asignar_un_retiro_dentro_del_saldo_disponible_se_guarda(): void
     {
-        $admin = User::factory()->admin()->create();
+        $admin = User::factory()->admin()->create(['atajo_miles_activado' => false]);
         $cobrador = User::factory()->create();
         CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'carga', 'monto' => 50000]);
 
@@ -130,7 +133,7 @@ class ResumenLivewireTest extends TestCase
 
     public function test_un_retiro_sin_categoria_es_rechazado_y_una_carga_ignora_la_categoria_enviada(): void
     {
-        $admin = User::factory()->admin()->create();
+        $admin = User::factory()->admin()->create(['atajo_miles_activado' => false]);
         $cobrador = User::factory()->create();
         CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'carga', 'monto' => 50000]);
 
@@ -155,6 +158,56 @@ class ResumenLivewireTest extends TestCase
             'monto' => 10000,
             'categoria' => null,
         ]);
+    }
+
+    public function test_con_el_atajo_de_miles_activado_300_se_guarda_como_300000(): void
+    {
+        $admin = User::factory()->admin()->create(['atajo_miles_activado' => true]);
+        $cobrador = User::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test(DetalleCobrador::class, ['usuario' => $cobrador])
+            ->set('monto', '300')
+            ->call('asignarSaldo')
+            ->assertSet('mensajeCapital', 'Saldo asignado correctamente.');
+
+        $this->assertDatabaseHas('cargas_capital', ['usuario_id' => $cobrador->id, 'monto' => 300000]);
+    }
+
+    public function test_con_el_atajo_de_miles_desactivado_300_se_guarda_tal_cual(): void
+    {
+        $admin = User::factory()->admin()->create(['atajo_miles_activado' => false]);
+        $cobrador = User::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test(DetalleCobrador::class, ['usuario' => $cobrador])
+            ->set('monto', '300')
+            ->call('asignarSaldo')
+            ->assertSet('mensajeCapital', 'Saldo asignado correctamente.');
+
+        $this->assertDatabaseHas('cargas_capital', ['usuario_id' => $cobrador->id, 'monto' => 300]);
+    }
+
+    /**
+     * El atajo de miles solo afecta la interpretación al escribir/guardar
+     * (Dinero::interpretarValorIngresado); la visualización de un monto ya guardado (acá, el
+     * saldo disponible de la tarjeta de arriba) siempre pasa por Dinero::formatear() tal cual,
+     * sin relación con esa preferencia — se ve idéntico con el atajo activado o desactivado.
+     */
+    public function test_un_monto_ya_guardado_se_ve_igual_sin_importar_el_atajo_de_miles(): void
+    {
+        $cobrador = User::factory()->create();
+        CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'carga', 'monto' => 300000]);
+
+        $adminConAtajo = User::factory()->admin()->create(['atajo_miles_activado' => true]);
+        Livewire::actingAs($adminConAtajo)
+            ->test(DetalleCobrador::class, ['usuario' => $cobrador])
+            ->assertSee(Dinero::formatear(300000));
+
+        $adminSinAtajo = User::factory()->admin()->create(['atajo_miles_activado' => false]);
+        Livewire::actingAs($adminSinAtajo)
+            ->test(DetalleCobrador::class, ['usuario' => $cobrador])
+            ->assertSee(Dinero::formatear(300000));
     }
 
     /**

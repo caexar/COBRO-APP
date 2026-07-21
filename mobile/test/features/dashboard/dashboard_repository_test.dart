@@ -109,7 +109,7 @@ void main() {
 
     await cargasCapitalRepository.crear(monto: 200000, descripcion: 'Aporte inicial');
 
-    final resumen = await dashboardRepository.calcularResumen();
+    final resumen = await dashboardRepository.calcularResumen(ahora: hoy);
 
     // totalAbonadoGlobal = 32500 (prestamo1) + 10000 (prestamo2) = 42500
     // capitalPrestadoNoAnulado = 100000 (prestamo1, activo) + 10000
@@ -170,7 +170,7 @@ void main() {
 
     await cargasCapitalRepository.crear(monto: 200000);
 
-    final resumen = await dashboardRepository.calcularResumen();
+    final resumen = await dashboardRepository.calcularResumen(ahora: hoy);
     expect(resumen.saldoDisponible, 220000);
   });
 

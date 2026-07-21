@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/utils/atajo_miles_repository.dart';
 import '../data/bloqueo_repository.dart';
 
 /// Configuración de seguridad accesible en cualquier momento después del
@@ -8,13 +9,15 @@ import '../data/bloqueo_repository.dart';
 /// justo tras el primer login en el dispositivo). Reutiliza exactamente la
 /// misma lógica de `BloqueoRepository` para biometría y PIN personal — esta
 /// pantalla es solo una segunda puerta de entrada a esos mismos controles,
-/// no una implementación nueva.
+/// no una implementación nueva. También expone el toggle de "atajo de
+/// miles" (`AtajoMilesRepository`), independiente por cobrador/admin.
 class ConfiguracionSeguridadScreen extends StatefulWidget {
-  const ConfiguracionSeguridadScreen({super.key, this.bloqueoRepository});
+  const ConfiguracionSeguridadScreen({super.key, this.bloqueoRepository, this.atajoMilesRepository});
 
-  /// Inyectable solo para pruebas; en la app real siempre se usa la
+  /// Inyectables solo para pruebas; en la app real siempre se usa la
   /// instancia por defecto.
   final BloqueoRepository? bloqueoRepository;
+  final AtajoMilesRepository? atajoMilesRepository;
 
   @override
   State<ConfiguracionSeguridadScreen> createState() => _ConfiguracionSeguridadScreenState();
@@ -22,10 +25,12 @@ class ConfiguracionSeguridadScreen extends StatefulWidget {
 
 class _ConfiguracionSeguridadScreenState extends State<ConfiguracionSeguridadScreen> {
   late final _bloqueoRepository = widget.bloqueoRepository ?? BloqueoRepository();
+  late final _atajoMilesRepository = widget.atajoMilesRepository ?? AtajoMilesRepository();
 
   bool _cargando = true;
   bool _biometriaDisponible = false;
   bool _biometriaActivada = false;
+  bool _atajoMilesActivado = true;
 
   @override
   void initState() {
@@ -36,6 +41,7 @@ class _ConfiguracionSeguridadScreenState extends State<ConfiguracionSeguridadScr
   Future<void> _cargar() async {
     final disponible = await _bloqueoRepository.biometriaDisponibleEnDispositivo();
     final activada = await _bloqueoRepository.biometriaHabilitada();
+    final atajoMiles = await _atajoMilesRepository.estaActivado();
     if (!mounted) return;
     setState(() {
       _biometriaDisponible = disponible;
@@ -43,6 +49,7 @@ class _ConfiguracionSeguridadScreenState extends State<ConfiguracionSeguridadScr
       // sistema (o nunca la tuvo) el toggle no debe mostrarse activado,
       // aunque la preferencia guardada localmente todavía diga que sí.
       _biometriaActivada = activada && disponible;
+      _atajoMilesActivado = atajoMiles;
       _cargando = false;
     });
   }
@@ -53,6 +60,11 @@ class _ConfiguracionSeguridadScreenState extends State<ConfiguracionSeguridadScr
     // vez que se bloquee la app y cae directo al flujo de PIN personal, sin
     // intentar biometría — ver `BloqueoScreen._inicializar`.
     await _bloqueoRepository.configurarBiometria(valor);
+  }
+
+  Future<void> _cambiarAtajoMiles(bool valor) async {
+    setState(() => _atajoMilesActivado = valor);
+    await _atajoMilesRepository.configurar(valor);
   }
 
   Future<void> _abrirCambiarPin() async {
@@ -97,6 +109,18 @@ class _ConfiguracionSeguridadScreenState extends State<ConfiguracionSeguridadScr
                       subtitle: const Text('El PIN que usas para desbloquear la app.'),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: _abrirCambiarPin,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    child: SwitchListTile(
+                      title: const Text('Atajo de miles al ingresar montos'),
+                      subtitle: const Text(
+                        'Al escribir "300" en un campo de monto, se guarda como 300.000. '
+                        'No afecta cómo se muestran los montos ya guardados.',
+                      ),
+                      value: _atajoMilesActivado,
+                      onChanged: _cambiarAtajoMiles,
                     ),
                   ),
                 ],

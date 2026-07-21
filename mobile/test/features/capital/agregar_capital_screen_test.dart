@@ -1,4 +1,5 @@
 import 'package:cobro_app/core/storage/secure_storage_service.dart';
+import 'package:cobro_app/core/utils/atajo_miles_repository.dart';
 import 'package:cobro_app/data/app_database.dart';
 import 'package:cobro_app/features/capital/data/cargas_capital_repository.dart';
 import 'package:cobro_app/features/capital/presentation/agregar_capital_screen.dart';
@@ -12,6 +13,14 @@ import 'package:flutter_test/flutter_test.dart';
 class _SecureStorageFalso extends SecureStorageService {
   @override
   Future<int?> leerUsuarioId() async => 1;
+}
+
+/// El atajo de miles está desactivado en estas pruebas para que el monto
+/// escrito se interprete tal cual, sin tocar la lógica ya cubierta en
+/// `formato_dinero_test.dart`.
+class _AtajoMilesRepositoryFalso extends AtajoMilesRepository {
+  @override
+  Future<bool> estaActivado() async => false;
 }
 
 void main() {
@@ -39,7 +48,11 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: AgregarCapitalScreen(repository: cargasCapitalRepository, dashboardRepository: dashboardRepository),
+        home: AgregarCapitalScreen(
+          repository: cargasCapitalRepository,
+          dashboardRepository: dashboardRepository,
+          atajoMilesRepository: _AtajoMilesRepositoryFalso(),
+        ),
       ),
     );
 

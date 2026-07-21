@@ -4,10 +4,11 @@ import '../../../core/utils/formato_dinero.dart';
 import '../data/admin_repository.dart';
 import 'admin_asignar_capital_screen.dart';
 
-/// Vista de solo lectura de un cobrador: sus clientes y préstamos. El admin
-/// no edita nada desde aquí (el CRUD de clientes/préstamos sigue siendo
-/// exclusivo del cobrador dueño, desde la app de cobrador) — la única
-/// acción disponible es asignarle saldo de capital.
+/// Vista de solo lectura de un cobrador, en 5 pestañas: Préstamos, Clientes,
+/// Movimientos de capital, Historial de pagos y Gastos (cierres de caja). El
+/// admin no edita nada de esto desde aquí (el CRUD de clientes/préstamos
+/// sigue siendo exclusivo del cobrador dueño, desde la app de cobrador) — la
+/// única acción disponible es asignarle saldo de capital.
 class AdminCobradorDetalleScreen extends StatefulWidget {
   const AdminCobradorDetalleScreen({super.key, required this.usuarioId, this.repository});
 
@@ -21,8 +22,10 @@ class AdminCobradorDetalleScreen extends StatefulWidget {
   State<AdminCobradorDetalleScreen> createState() => _AdminCobradorDetalleScreenState();
 }
 
-class _AdminCobradorDetalleScreenState extends State<AdminCobradorDetalleScreen> {
+class _AdminCobradorDetalleScreenState extends State<AdminCobradorDetalleScreen>
+    with SingleTickerProviderStateMixin {
   late final _repository = widget.repository ?? AdminRepository();
+  late final _tabController = TabController(length: 5, vsync: this);
 
   DetalleCobrador? _detalle;
   String? _error;
@@ -31,6 +34,12 @@ class _AdminCobradorDetalleScreenState extends State<AdminCobradorDetalleScreen>
   void initState() {
     super.initState();
     _cargar();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _cargar() async {
@@ -141,93 +150,310 @@ class _AdminCobradorDetalleScreenState extends State<AdminCobradorDetalleScreen>
     final conteoPorCliente = _conteoPrestamosPorCliente(detalle);
     final nombresPorCliente = _nombresPorCliente(detalle);
 
-    return ListView(
-      padding: const EdgeInsets.all(20),
+    return Column(
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(detalle.usuario.email, style: Theme.of(context).textTheme.bodyLarge),
-                const SizedBox(height: 4),
-                Text(
-                  detalle.usuario.activo ? 'Activo' : 'Inactivo',
-                  style: TextStyle(
-                    color: detalle.usuario.activo ? Colors.green.shade700 : Colors.red.shade700,
-                    fontWeight: FontWeight.w600,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(child: Text(detalle.usuario.email, style: Theme.of(context).textTheme.bodyLarge)),
+                  Text(
+                    detalle.usuario.activo ? 'Activo' : 'Inactivo',
+                    style: TextStyle(
+                      color: detalle.usuario.activo ? Colors.green.shade700 : Colors.red.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 20),
-        Text('Clientes (${detalle.clientes.length})', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        if (detalle.clientes.isEmpty)
-          const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Sin clientes registrados.'))
-        else
-          Card(
-            child: Column(
-              children: [
-                for (final cliente in detalle.clientes)
-                  ListTile(
-                    title: Text(cliente.nombre),
-                    subtitle: Text('CC ${cliente.cedula} · ${cliente.telefono}'),
-                    trailing: _BadgeConteoPrestamos(conteo: conteoPorCliente[cliente.id] ?? (0, 0)),
-                  ),
-              ],
-            ),
+        TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'Préstamos'),
+            Tab(text: 'Clientes'),
+            Tab(text: 'Movimientos'),
+            Tab(text: 'Historial de pagos'),
+            Tab(text: 'Gastos'),
+          ],
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _tabPrestamos(detalle, nombresPorCliente),
+              _tabClientes(detalle, conteoPorCliente),
+              _tabMovimientos(detalle),
+              _tabHistorialPagos(detalle, nombresPorCliente),
+              _tabGastos(detalle),
+            ],
           ),
-        const SizedBox(height: 20),
+        ),
+      ],
+    );
+  }
+
+  Widget _tabPrestamos(DetalleCobrador detalle, Map<int, String> nombresPorCliente) {
+    if (detalle.prestamos.isEmpty) {
+      return const Center(child: Text('Sin préstamos registrados.'));
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
         Text('Préstamos (${detalle.prestamos.length})', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
-        if (detalle.prestamos.isEmpty)
-          const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Sin préstamos registrados.'))
-        else
+        for (final prestamo in detalle.prestamos)
           Card(
-            child: Column(
-              children: [
-                for (final prestamo in detalle.prestamos)
-                  ListTile(
-                    onTap: () => _mostrarDetallePrestamo(
-                      prestamo,
-                      nombresPorCliente[prestamo.clienteId] ?? 'Cliente',
-                    ),
-                    title: Text(
-                      _tituloPrestamo(prestamo, nombresPorCliente[prestamo.clienteId] ?? 'Cliente'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      '${formatearMoneda(prestamo.montoTotal)} · '
-                      '${prestamo.porcentajeInteres.toStringAsFixed(0)}% · '
-                      '${prestamo.plazoCuotas} cuotas · ${_formatearFecha(prestamo.fechaInicio)}',
-                    ),
-                    trailing: _EtiquetaEstado(estado: prestamo.estado),
-                  ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 20),
-        Text('Movimientos de capital (${detalle.cargasCapital.length})', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        if (detalle.cargasCapital.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text('Sin movimientos de capital registrados.'),
-          )
-        else
-          Card(
-            child: Column(
-              children: [
-                for (final carga in detalle.cargasCapital) _FilaCargaCapital(carga: carga),
-              ],
+            child: ListTile(
+              onTap: () => _mostrarDetallePrestamo(prestamo, nombresPorCliente[prestamo.clienteId] ?? 'Cliente'),
+              title: Text(
+                _tituloPrestamo(prestamo, nombresPorCliente[prestamo.clienteId] ?? 'Cliente'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                '${formatearMoneda(prestamo.montoTotal)} · '
+                '${prestamo.porcentajeInteres.toStringAsFixed(0)}% · '
+                '${prestamo.plazoCuotas} cuotas · ${_formatearFecha(prestamo.fechaInicio)}',
+              ),
+              trailing: _EtiquetaEstado(estado: prestamo.estado),
             ),
           ),
       ],
+    );
+  }
+
+  Widget _tabClientes(DetalleCobrador detalle, Map<int, (int pagados, int totales)> conteoPorCliente) {
+    if (detalle.clientes.isEmpty) {
+      return const Center(child: Text('Sin clientes registrados.'));
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text('Clientes (${detalle.clientes.length})', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Card(
+          child: Column(
+            children: [
+              for (final cliente in detalle.clientes)
+                ListTile(
+                  title: Text(cliente.nombre),
+                  subtitle: Text('CC ${cliente.cedula} · ${cliente.telefono}'),
+                  trailing: _BadgeConteoPrestamos(conteo: conteoPorCliente[cliente.id] ?? (0, 0)),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tabMovimientos(DetalleCobrador detalle) {
+    if (detalle.cargasCapital.isEmpty) {
+      return const Center(child: Text('Sin movimientos de capital registrados.'));
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text('Movimientos de capital (${detalle.cargasCapital.length})', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Card(
+          child: Column(
+            children: [for (final carga in detalle.cargasCapital) _FilaCargaCapital(carga: carga)],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tabHistorialPagos(DetalleCobrador detalle, Map<int, String> nombresPorCliente) {
+    final grupos = _agruparHistorialPagos(detalle, nombresPorCliente);
+
+    if (grupos.isEmpty) {
+      return const Center(child: Text('Todavía no hay pagos registrados.'));
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(20),
+      itemCount: grupos.length,
+      separatorBuilder: (context, indice) => const SizedBox(height: 8),
+      itemBuilder: (context, indice) => _TarjetaGrupoPagoAdmin(grupo: grupos[indice]),
+    );
+  }
+
+  Widget _tabGastos(DetalleCobrador detalle) {
+    if (detalle.cierresCaja.isEmpty) {
+      return const Center(child: Text('Sin cierres de caja registrados.'));
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(20),
+      itemCount: detalle.cierresCaja.length,
+      separatorBuilder: (context, indice) => const SizedBox(height: 8),
+      itemBuilder: (context, indice) => _TarjetaCierreCaja(cierre: detalle.cierresCaja[indice]),
+    );
+  }
+}
+
+/// Todas las filas de `pagos` (de cualquier préstamo del cobrador) que
+/// comparten un mismo préstamo y una misma `fecha_pago` — mismo criterio de
+/// agrupamiento que `HistorialPagosScreen` del lado cobrador, agregando
+/// `prestamoId` a la clave porque esta vista abarca todos los préstamos a
+/// la vez (igual que `ResumenAdminService::historialPagosAgrupado()` del
+/// panel web, ver CLAUDE.md).
+class _GrupoPagoAdmin {
+  const _GrupoPagoAdmin({
+    required this.tituloPrestamo,
+    required this.fecha,
+    required this.filasConEtiqueta,
+    required this.resumenCorto,
+    required this.montoTotalAbonado,
+    required this.saldoRestanteDespues,
+    required this.diasMora,
+  });
+
+  final String tituloPrestamo;
+  final DateTime fecha;
+  final List<(PagoResumen pago, String etiqueta)> filasConEtiqueta;
+  final String resumenCorto;
+  final double montoTotalAbonado;
+  final double saldoRestanteDespues;
+  final int diasMora;
+}
+
+List<_GrupoPagoAdmin> _agruparHistorialPagos(DetalleCobrador detalle, Map<int, String> nombresPorCliente) {
+  final grupos = <_GrupoPagoAdmin>[];
+
+  for (final prestamo in detalle.prestamos) {
+    final numeroCuotaPorCuotaId = {for (final cuota in prestamo.cuotas) cuota.id: cuota.numeroCuota};
+    final titulo = _tituloPrestamo(prestamo, nombresPorCliente[prestamo.clienteId] ?? 'Cliente');
+
+    final porFecha = <int, List<PagoResumen>>{};
+    for (final pago in prestamo.pagos) {
+      porFecha.putIfAbsent(pago.fechaPago.millisecondsSinceEpoch, () => []).add(pago);
+    }
+
+    for (final filas in porFecha.values) {
+      final ordenado = [...filas]
+        ..sort((a, b) => (numeroCuotaPorCuotaId[a.cuotaId] ?? 0).compareTo(numeroCuotaPorCuotaId[b.cuotaId] ?? 0));
+
+      final numerosCuota = <int>{};
+      var extraTotal = 0.0;
+      var montoTotalAbonado = 0.0;
+      var saldoRestanteDespues = double.infinity;
+      var diasMora = 0;
+      final filasConEtiqueta = <(PagoResumen, String)>[];
+
+      for (var indice = 0; indice < ordenado.length; indice++) {
+        final pago = ordenado[indice];
+        final numero = numeroCuotaPorCuotaId[pago.cuotaId];
+        if (numero != null) numerosCuota.add(numero);
+
+        final etiqueta = pago.montoAbonado != pago.montoAplicado
+            ? 'Extra'
+            : (indice == 0
+                  ? (numero != null ? 'Pago cuota $numero' : 'Pago')
+                  : (numero != null ? 'Abono cuota $numero' : 'Abono'));
+        filasConEtiqueta.add((pago, etiqueta));
+
+        extraTotal += pago.montoAbonado - pago.montoAplicado;
+        montoTotalAbonado += pago.montoAbonado;
+        if (pago.saldoRestanteDespues < saldoRestanteDespues) saldoRestanteDespues = pago.saldoRestanteDespues;
+        if (pago.diasMora > diasMora) diasMora = pago.diasMora;
+      }
+
+      final numerosOrdenados = numerosCuota.toList()..sort();
+      final segmentos = <String>[
+        if (numerosOrdenados.isNotEmpty) 'Cuota ${numerosOrdenados.join(', ')}',
+        if (extraTotal > 0) 'Extra ${formatearMoneda(extraTotal)}',
+      ];
+
+      grupos.add(
+        _GrupoPagoAdmin(
+          tituloPrestamo: titulo,
+          fecha: filas.first.fechaPago,
+          filasConEtiqueta: filasConEtiqueta,
+          resumenCorto: segmentos.isEmpty ? 'Pago' : segmentos.join(' + '),
+          montoTotalAbonado: montoTotalAbonado,
+          saldoRestanteDespues: saldoRestanteDespues.isFinite ? saldoRestanteDespues : 0,
+          diasMora: diasMora,
+        ),
+      );
+    }
+  }
+
+  grupos.sort((a, b) => b.fecha.compareTo(a.fecha));
+  return grupos;
+}
+
+class _TarjetaGrupoPagoAdmin extends StatelessWidget {
+  const _TarjetaGrupoPagoAdmin({required this.grupo});
+
+  final _GrupoPagoAdmin grupo;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        title: Text('${grupo.tituloPrestamo} · ${grupo.resumenCorto}'),
+        subtitle: Text(
+          '${_formatearFecha(grupo.fecha)}'
+          '${grupo.diasMora > 0 ? ' · ${grupo.diasMora} días de mora' : ''}'
+          ' · ${formatearMoneda(grupo.montoTotalAbonado)}'
+          ' · Saldo restante: ${formatearMoneda(grupo.saldoRestanteDespues)}',
+        ),
+        children: [
+          for (final (pago, etiqueta) in grupo.filasConEtiqueta)
+            ListTile(
+              title: Text(etiqueta),
+              trailing: Text(formatearMoneda(pago.montoAbonado), style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TarjetaCierreCaja extends StatelessWidget {
+  const _TarjetaCierreCaja({required this.cierre});
+
+  final CierreCajaResumen cierre;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        title: Text(_formatearFecha(cierre.fecha)),
+        subtitle: Text(
+          'Inicio: ${formatearMoneda(cierre.capitalInicio)} · '
+          'Cierre: ${formatearMoneda(cierre.capitalCierre)} · '
+          'Gastos: ${formatearMoneda(cierre.gastosTotal)}',
+        ),
+        children: [
+          if (cierre.justificacionDiferencia != null && cierre.justificacionDiferencia!.isNotEmpty)
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('Justificación'),
+              subtitle: Text(cierre.justificacionDiferencia!),
+            ),
+          if (cierre.gastos.isEmpty)
+            const ListTile(title: Text('Sin gastos registrados ese día.'))
+          else
+            for (final gasto in cierre.gastos)
+              ListTile(title: Text(gasto.detalle), trailing: Text(formatearMoneda(gasto.monto))),
+        ],
+      ),
     );
   }
 }

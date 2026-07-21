@@ -8,6 +8,13 @@ use InvalidArgumentException;
 class PrestamoCalculator
 {
     /**
+     * Únicas frecuencias de pago válidas — reutilizada por las reglas de validación
+     * (`StorePrestamoRequest`, `SimularPrestamoRequest`, `StoreSyncRequest`) para que agregar
+     * una frecuencia nueva no vuelva a requerir tocar cada Form Request por separado.
+     */
+    public const FRECUENCIAS_VALIDAS = ['diario', 'semanal', 'quincenal', 'mensual', 'personalizado'];
+
+    /**
      * Calcula el monto total a pagar de un préstamo (capital + interés + extras)
      * y genera el reparto de cuotas según la frecuencia de pago elegida.
      *
@@ -85,6 +92,7 @@ class PrestamoCalculator
         return match ($frecuenciaPago) {
             'diario' => $fechaInicio->copy()->addDays($numero),
             'semanal' => $fechaInicio->copy()->addWeeks($numero),
+            'quincenal' => $fechaInicio->copy()->addDays(15 * $numero),
             'mensual' => $fechaInicio->copy()->addMonthsNoOverflow($numero),
             'personalizado' => $fechaInicio->copy()->addDays((int) $diasPersonalizado * $numero),
             default => throw new InvalidArgumentException("Frecuencia de pago inválida: {$frecuenciaPago}"),

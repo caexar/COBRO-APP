@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Services\PrestamoCalculator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class SimularPrestamoRequest extends FormRequest
 {
@@ -22,7 +24,7 @@ class SimularPrestamoRequest extends FormRequest
             'extras' => ['nullable', 'array'],
             'extras.*.concepto' => ['required_with:extras', 'string', 'max:255'],
             'extras.*.valor' => ['required_with:extras', 'numeric', 'min:0'],
-            'frecuencia_pago' => ['required', 'in:diario,semanal,mensual,personalizado'],
+            'frecuencia_pago' => ['required', Rule::in(PrestamoCalculator::FRECUENCIAS_VALIDAS)],
             'dias_personalizado' => ['required_if:frecuencia_pago,personalizado', 'integer', 'min:1'],
             'plazo_cuotas' => ['required', 'integer', 'min:1'],
             'fecha_inicio' => ['required', 'date'],

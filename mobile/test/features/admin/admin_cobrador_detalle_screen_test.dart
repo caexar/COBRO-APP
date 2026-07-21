@@ -80,6 +80,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Clientes'));
+    await tester.pumpAndSettle();
+
     expect(find.text('2/3'), findsOneWidget);
     expect(find.text('0/1'), findsOneWidget);
   });
@@ -170,6 +173,7 @@ void main() {
               // Excedente cobro_extra: monto_abonado (15000) > monto_aplicado (12000).
               pagos: [
                 {
+                  'id': 1000,
                   'cuota_id': 100,
                   'fecha_pago': '2026-07-12',
                   'monto_abonado': 15000,
@@ -240,9 +244,101 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Movimientos'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Movimientos de capital (2)'), findsOneWidget);
     expect(find.textContaining('+ \$ 50.000'), findsOneWidget);
     expect(find.textContaining('- \$ 20.000'), findsOneWidget);
     expect(find.text('Asignado por administrador'), findsOneWidget);
+  });
+
+  testWidgets('muestra las 5 pestañas y cada una carga su propio contenido', (tester) async {
+    final mock = MockClient((request) async {
+      return _json({
+        'data': {
+          'id': 9,
+          'nombre': 'Luis',
+          'email': 'luis@cobroapp.test',
+          'rol': 'cobrador',
+          'activo': true,
+          'clientes': [
+            {'id': 1, 'nombre': 'Juan Perez', 'cedula': '111', 'telefono': '3000000001'},
+          ],
+          'prestamos': [
+            _prestamo(
+              id: 10,
+              clienteId: 1,
+              estado: 'activo',
+              cuotas: [
+                {'id': 100, 'numero_cuota': 1, 'fecha_esperada': '2026-07-10', 'monto_esperado': 12000, 'estado': 'pagada'},
+              ],
+              pagos: [
+                {
+                  'id': 1000,
+                  'cuota_id': 100,
+                  'fecha_pago': '2026-07-12',
+                  'monto_abonado': 12000,
+                  'monto_aplicado': 12000,
+                  'saldo_restante_despues': 0,
+                },
+              ],
+            ),
+          ],
+          'cargas_capital': [
+            {
+              'id': 1,
+              'monto': 50000,
+              'tipo': 'carga',
+              'descripcion': null,
+              'origen': 'cobrador',
+              'created_at': '2026-07-10T10:00:00.000000Z',
+            },
+          ],
+          'cierres_caja': [
+            {
+              'id': 5,
+              'fecha': '2026-07-15',
+              'capital_inicio': '100000.00',
+              'capital_cierre': '90000.00',
+              'gastos_total': '10000.00',
+              'justificacion_diferencia': null,
+              'gastos': [
+                {'monto': '10000.00', 'detalle': 'almuerzo'},
+              ],
+            },
+          ],
+        },
+      });
+    });
+
+    final repository = AdminRepository(apiClient: ApiClient(httpClient: mock), secureStorage: _SecureStorageFalso());
+
+    await tester.pumpWidget(
+      MaterialApp(home: AdminCobradorDetalleScreen(usuarioId: 9, repository: repository)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Préstamos'), findsOneWidget);
+    expect(find.text('Clientes'), findsOneWidget);
+    expect(find.text('Movimientos'), findsOneWidget);
+    expect(find.text('Historial de pagos'), findsOneWidget);
+    expect(find.text('Gastos'), findsOneWidget);
+
+    // Pestaña "Historial de pagos": agrupa el pago exacto de la cuota 1.
+    await tester.tap(find.text('Historial de pagos'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Cuota 1'), findsOneWidget);
+    await tester.tap(find.textContaining('Cuota 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pago cuota 1'), findsOneWidget);
+
+    // Pestaña "Gastos": el cierre de caja con su detalle de gastos al expandir.
+    await tester.tap(find.text('Gastos'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('15/07/2026'), findsOneWidget);
+    await tester.tap(find.textContaining('15/07/2026'));
+    await tester.pumpAndSettle();
+    expect(find.text('almuerzo'), findsOneWidget);
   });
 }

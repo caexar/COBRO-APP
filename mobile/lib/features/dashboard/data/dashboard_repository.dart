@@ -69,11 +69,15 @@ class DashboardRepository {
 
   static const _estadosOutstanding = {'activo', 'en_mora'};
 
-  Future<ResumenDashboard> calcularResumen() async {
+  /// [ahora] es la fecha de referencia usada para "hoy" y la ventana de los
+  /// últimos 7 días — parametrizable para que los tests puedan fijarla en vez
+  /// de depender del reloj real; en producción siempre se omite y usa
+  /// `DateTime.now()`.
+  Future<ResumenDashboard> calcularResumen({DateTime? ahora}) async {
     final prestamos = await _prestamosRepository.listarTodos();
     final movimientosCapital = await _cargasCapitalRepository.listarTodas();
 
-    final hoy = _soloFecha(DateTime.now());
+    final hoy = _soloFecha(ahora ?? DateTime.now());
     final inicioVentana7Dias = hoy.subtract(const Duration(days: 6));
 
     var carteraPorCobrar = 0.0;

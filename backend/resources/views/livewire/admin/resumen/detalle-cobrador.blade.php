@@ -36,8 +36,13 @@
             </div>
             <div x-data="{
                     raw: $wire.entangle('monto'),
+                    atajoMilesActivado: @js($atajoMilesActivado),
                     get display() {
                         return this.raw ? Number(this.raw).toLocaleString('en-US') : '';
+                    },
+                    get textoAyudaAtajoMiles() {
+                        if (!this.atajoMilesActivado || !this.raw) return null;
+                        return 'Se agregarán tres ceros: $ ' + (Number(this.raw) * 1000).toLocaleString('en-US').replaceAll(',', '.');
                     },
                     actualizar(valor) {
                         this.raw = valor.replace(/[^0-9]/g, '');
@@ -46,6 +51,7 @@
                 <label class="block text-sm font-medium text-gray-700">Monto</label>
                 <input type="text" inputmode="numeric" :value="display" @input="actualizar($event.target.value)"
                        class="mt-1 rounded-md border-gray-300 shadow-sm">
+                <p x-show="textoAyudaAtajoMiles" x-text="textoAyudaAtajoMiles" class="mt-1 text-xs text-gray-500"></p>
                 @error('monto') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
             <div x-show="$wire.tipoMovimiento === 'retiro'" x-cloak>

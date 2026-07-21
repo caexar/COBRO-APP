@@ -156,7 +156,7 @@ Calcula el monto total y el reparto de cuotas **sin guardar nada**. No requiere 
   "fecha_inicio": "2026-07-10"
 }
 ```
-- `frecuencia_pago`: `diario` | `semanal` | `mensual` | `personalizado`.
+- `frecuencia_pago`: `diario` | `semanal` | `quincenal` | `mensual` | `personalizado`.
 - `dias_personalizado`: requerido solo si `frecuencia_pago = personalizado`.
 - `extras`: opcional, array de `{concepto, valor}`.
 
@@ -553,9 +553,10 @@ Deja registro en `auditoria` (`accion = reactivar_usuario`).
 
 ### GET /admin/usuarios/{usuario}/detalle
 
-Vista de solo lectura: el cobrador con sus `clientes` (ordenados por nombre) y sus
+Vista de solo lectura: el cobrador con sus `clientes` (ordenados por nombre), sus
 `prestamos` (cada uno con `cliente`, `extras`, `cuotas` y `pagos` cargados, más recientes
-primero). Devuelve `404` si `{usuario}` no tiene `rol = cobrador`.
+primero), sus `cargas_capital` (más recientes primero) y sus `cierres_caja` (con sus `gastos`
+anidados, más recientes primero). Devuelve `404` si `{usuario}` no tiene `rol = cobrador`.
 
 ### GET /admin/resumen
 

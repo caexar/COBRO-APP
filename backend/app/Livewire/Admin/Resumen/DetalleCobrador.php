@@ -6,6 +6,7 @@ use App\Exceptions\SaldoInsuficienteException;
 use App\Models\User;
 use App\Services\CapitalService;
 use App\Services\ResumenAdminService;
+use App\Support\Dinero;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -31,11 +32,19 @@ class DetalleCobrador extends Component
 
     public ?string $mensajeCapital = null;
 
+    /**
+     * Preferencia personal del admin logueado (`users.atajo_miles_activado`, ver
+     * `Configuracion\Formulario`), no del cobrador que se está viendo — cada admin
+     * interpreta el campo "Monto" según su propia preferencia.
+     */
+    public bool $atajoMilesActivado = true;
+
     public function mount(User $usuario): void
     {
         abort_if($usuario->rol !== 'cobrador', 404, 'El usuario indicado no es un cobrador.');
 
         $this->usuario = $usuario;
+        $this->atajoMilesActivado = (bool) auth('web')->user()->atajo_miles_activado;
     }
 
     /**
@@ -68,7 +77,7 @@ class DetalleCobrador extends Component
             app(CapitalService::class)->asignar(
                 usuarioId: $this->usuario->id,
                 tipo: $datos['tipoMovimiento'],
-                monto: (float) $datos['monto'],
+                monto: Dinero::interpretarValorIngresado((float) $datos['monto'], $this->atajoMilesActivado),
                 descripcion: filled($datos['descripcion']) ? $datos['descripcion'] : null,
                 actor: auth('web')->user(),
                 categoria: $datos['categoria'] ?? null,

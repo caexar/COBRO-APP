@@ -291,4 +291,35 @@ class SyncControllerTest extends TestCase
         $respuesta->assertOk();
         $respuesta->assertJsonCount(0, 'cargas_capital_admin');
     }
+
+    public function test_acepta_frecuencia_pago_quincenal(): void
+    {
+        $cobrador = User::factory()->create();
+        Sanctum::actingAs($cobrador);
+
+        $respuesta = $this->postJson('/api/sync', [
+            'clientes' => [[
+                'uuid_local' => 'c-quincenal',
+                'actualizado_en' => now()->toIso8601String(),
+                'nombre' => 'Juan Perez',
+                'cedula' => '123456',
+                'telefono' => '3001234567',
+                'direccion' => 'Calle 1 # 2-3',
+            ]],
+            'prestamos' => [[
+                'uuid_local' => 'p-quincenal',
+                'actualizado_en' => now()->toIso8601String(),
+                'cliente_uuid_local' => 'c-quincenal',
+                'monto_capital' => 100000,
+                'porcentaje_interes' => 20,
+                'frecuencia_pago' => 'quincenal',
+                'plazo_cuotas' => 2,
+                'fecha_inicio' => '2026-07-10',
+            ]],
+        ]);
+
+        $respuesta->assertOk();
+        $respuesta->assertJsonPath('data.prestamos.0.estado', 'creado');
+        $this->assertSame('quincenal', Prestamo::where('uuid_local', 'p-quincenal')->sole()->frecuencia_pago);
+    }
 }

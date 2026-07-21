@@ -73,4 +73,22 @@ class ConfiguracionLivewireTest extends TestCase
 
         $this->assertDatabaseMissing('configuracion_global', ['clave' => 'pin_maestro_hash']);
     }
+
+    /**
+     * A diferencia del resto del formulario (configuracion_global, de negocio), el atajo de
+     * miles es una preferencia personal del admin logueado (users.atajo_miles_activado) — se
+     * guarda al instante (cambiarAtajoMiles()), no espera al botón "Guardar configuración".
+     */
+    public function test_cambiar_el_atajo_de_miles_se_guarda_al_instante_en_el_usuario_logueado(): void
+    {
+        $admin = User::factory()->admin()->create(['atajo_miles_activado' => true]);
+
+        Livewire::actingAs($admin)
+            ->test(Formulario::class)
+            ->assertSet('atajoMilesActivado', true)
+            ->set('atajoMilesActivado', false)
+            ->call('cambiarAtajoMiles');
+
+        $this->assertFalse($admin->fresh()->atajo_miles_activado);
+    }
 }

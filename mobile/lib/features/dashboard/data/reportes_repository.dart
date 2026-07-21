@@ -1,6 +1,6 @@
-import 'package:csv/csv.dart';
+import 'package:excel/excel.dart';
 
-import '../../../core/utils/csv_exportador.dart';
+import '../../../core/utils/archivo_exportador.dart';
 import '../../../core/utils/formato_dinero.dart';
 import '../../capital/data/cierres_caja_repository.dart';
 import '../../clientes/data/clientes_repository.dart';
@@ -8,12 +8,15 @@ import '../../pagos/data/pagos_repository.dart';
 import '../../prestamos/data/prestamos_repository.dart';
 import 'dashboard_repository.dart';
 
-/// Arma y comparte un reporte en CSV: resumen de cartera, listado de
+/// Arma y comparte un reporte en `.xlsx`: resumen de cartera, listado de
 /// préstamos, historial de pagos filtrable por rango de fechas y cliente
 /// (con el total ingresado por cliente en ese rango), y cierre de caja
-/// (diario + resumen agregado del rango) — mismas 5 secciones que arma el
-/// panel admin (`AdminReportesRepository`) a partir del backend, acá
-/// calculadas localmente desde Drift (offline-first).
+/// (diario + resumen agregado del rango) — una hoja por sección, mismo
+/// contenido que antes armaba como CSV. Se genera enteramente en el
+/// dispositivo con el paquete `excel` (sin pedirle nada al backend) para que
+/// el cobrador pueda exportar su reporte sin conexión — a diferencia del
+/// panel admin (`AdminReportesRepository`), que si descarga el `.xlsx` ya
+/// armado del servidor, porque esa parte de la app nunca trabaja offline.
 class ReportesRepository {
   ReportesRepository({
     PrestamosRepository? prestamosRepository,
@@ -33,10 +36,13 @@ class ReportesRepository {
   final DashboardRepository _dashboardRepository;
   final CierresCajaRepository _cierresCajaRepository;
 
-  /// Arma el texto CSV, sin tocar el sistema de archivos ni ningún plugin
+  /// Arma el workbook, sin tocar el sistema de archivos ni ningún plugin
   /// (fácil de testear). [desde]/[hasta] filtran el historial de pagos por
   /// `fechaPago` (inclusive); [clienteId] lo acota a un solo cliente.
-  Future<String> construirCsv({DateTime? desde, DateTime? hasta, int? clienteId}) async {
+  Future<Excel> construirXlsx({DateTime? desde, DateTime? hasta, int? clienteId}) async {
+    final excel = Excel.createExcel();
+    final sheetPorDefecto = excel.getDefaultSheet();
+
     final clientes = await _clientesRepository.listar();
     final clientePorId = {for (final cliente in clientes) cliente.id: cliente};
 
@@ -45,16 +51,16 @@ class ReportesRepository {
 
     final resumen = await _dashboardRepository.calcularResumen();
 
-    final filas = <List<dynamic>>[
-      ['Resumen de cartera'],
-      ['Cartera por cobrar', formatearMoneda(resumen.carteraPorCobrar)],
-      ['Saldo disponible', formatearMoneda(resumen.saldoDisponible)],
-      ['Ganancia realizada', formatearMoneda(resumen.gananciaTotal)],
-      [],
-      ['Préstamos'],
-      ['Cliente', 'Referencia', 'Saldo pendiente', 'Estado'],
-    ];
+    final hojaResumen = excel['Resumen'];
+    hojaResumen.appendRow([TextCellValue('Concepto'), TextCellValue('Valor')]);
+    hojaResumen.appendRow([TextCellValue('Cartera por cobrar'), TextCellValue(formatearMoneda(resumen.carteraPorCobrar))]);
+    hojaResumen.appendRow([TextCellValue('Saldo disponible'), TextCellValue(formatearMoneda(resumen.saldoDisponible))]);
+    hojaResumen.appendRow([TextCellValue('Ganancia realizada'), TextCellValue(formatearMoneda(resumen.gananciaTotal))]);
 
+    final hojaPrestamos = excel['Prestamos'];
+    hojaPrestamos.appendRow(
+      [TextCellValue('Cliente'), TextCellValue('Referencia'), TextCellValue('Saldo pendiente'), TextCellValue('Estado')],
+    );
     for (final prestamo in prestamos) {
       final cliente = clientePorId[prestamo.clienteId];
       final detalle = await _prestamosRepository.obtenerDetalle(prestamo.id);
@@ -62,18 +68,21 @@ class ReportesRepository {
       final totalAplicado = pagosPrestamo.fold<double>(0, (acumulado, pago) => acumulado + pago.montoAplicado);
       final saldoPendiente = detalle.montoTotal - totalAplicado;
 
-      filas.add([
-        cliente?.nombre ?? 'Cliente #${prestamo.clienteId}',
-        prestamo.referencia ?? '',
-        formatearMoneda(saldoPendiente < 0 ? 0 : saldoPendiente),
-        prestamo.estado,
+      hojaPrestamos.appendRow([
+        TextCellValue(cliente?.nombre ?? 'Cliente #${prestamo.clienteId}'),
+        TextCellValue(prestamo.referencia ?? ''),
+        TextCellValue(formatearMoneda(saldoPendiente < 0 ? 0 : saldoPendiente)),
+        TextCellValue(prestamo.estado),
       ]);
     }
 
-    filas.addAll([
-      [],
-      ['Historial de pagos'],
-      ['Fecha', 'Cliente', 'Préstamo', 'Monto abonado', 'Saldo restante después'],
+    final hojaHistorial = excel['Historial de pagos'];
+    hojaHistorial.appendRow([
+      TextCellValue('Fecha'),
+      TextCellValue('Cliente'),
+      TextCellValue('Préstamo'),
+      TextCellValue('Monto abonado'),
+      TextCellValue('Saldo restante después'),
     ]);
 
     final pagos = await _pagosRepository.listarTodos();
@@ -88,12 +97,12 @@ class ReportesRepository {
       if (clienteId != null && prestamo.clienteId != clienteId) continue;
 
       final cliente = clientePorId[prestamo.clienteId];
-      filas.add([
-        _formatearFecha(pago.fechaPago),
-        cliente?.nombre ?? 'Cliente #${prestamo.clienteId}',
-        prestamo.referencia ?? 'Préstamo #${prestamo.id}',
-        formatearMoneda(pago.montoAbonado),
-        formatearMoneda(pago.saldoRestanteDespues),
+      hojaHistorial.appendRow([
+        TextCellValue(_formatearFecha(pago.fechaPago)),
+        TextCellValue(cliente?.nombre ?? 'Cliente #${prestamo.clienteId}'),
+        TextCellValue(prestamo.referencia ?? 'Préstamo #${prestamo.id}'),
+        TextCellValue(formatearMoneda(pago.montoAbonado)),
+        TextCellValue(formatearMoneda(pago.saldoRestanteDespues)),
       ]);
 
       totalPorCliente.update(
@@ -103,28 +112,33 @@ class ReportesRepository {
       );
     }
 
-    filas.addAll([
-      [],
-      ['Total ingresado por cliente en el rango'],
-      ['Cliente', 'Total'],
-    ]);
+    final hojaTotalPorCliente = excel['Total por cliente'];
+    hojaTotalPorCliente.appendRow([TextCellValue('Cliente'), TextCellValue('Total')]);
     for (final entrada in totalPorCliente.entries) {
       final cliente = clientePorId[entrada.key];
-      filas.add([cliente?.nombre ?? 'Cliente #${entrada.key}', formatearMoneda(entrada.value)]);
+      hojaTotalPorCliente.appendRow([
+        TextCellValue(cliente?.nombre ?? 'Cliente #${entrada.key}'),
+        TextCellValue(formatearMoneda(entrada.value)),
+      ]);
     }
 
-    await _agregarSeccionCierreCaja(filas, desde: desde, hasta: hasta);
+    await _agregarSeccionCierreCaja(excel, desde: desde, hasta: hasta);
 
-    return Csv().encode(filas);
+    if (sheetPorDefecto != null && sheetPorDefecto != 'Resumen') {
+      excel.delete(sheetPorDefecto);
+    }
+
+    return excel;
   }
 
   /// Cierre de caja: una fila por día (fecha operativa, no filtra por
-  /// préstamo/cliente) dentro de [desde]/[hasta], más un resumen agregado
-  /// del rango (capital inicio del primer día, capital cierre del último,
-  /// suma de gastos) — misma lógica que
+  /// préstamo/cliente) dentro de [desde]/[hasta] en la hoja "Cierre de
+  /// caja", más un resumen agregado del rango (capital inicio del primer
+  /// día, capital cierre del último, suma de gastos) en la hoja "Resumen
+  /// cierre de caja" — misma lógica que
   /// `ExportarReporteService::filasCierreCaja()`/`filasCierreCajaResumen()`
   /// del backend, replicada acá porque este reporte se arma offline.
-  Future<void> _agregarSeccionCierreCaja(List<List<dynamic>> filas, {DateTime? desde, DateTime? hasta}) async {
+  Future<void> _agregarSeccionCierreCaja(Excel excel, {DateTime? desde, DateTime? hasta}) async {
     final cierres = await _cierresCajaRepository.listarTodos();
     final enRango =
         cierres.where((cierre) {
@@ -134,50 +148,59 @@ class ReportesRepository {
         }).toList()
           ..sort((a, b) => a.fecha.compareTo(b.fecha));
 
-    filas.addAll([
-      [],
-      ['Cierre de caja'],
-      ['Fecha', 'Capital inicio', 'Capital cierre', 'Total gastos', 'Detalle de gastos', 'Justificación'],
+    final hojaCierre = excel['Cierre de caja'];
+    hojaCierre.appendRow([
+      TextCellValue('Fecha'),
+      TextCellValue('Capital inicio'),
+      TextCellValue('Capital cierre'),
+      TextCellValue('Total gastos'),
+      TextCellValue('Detalle de gastos'),
+      TextCellValue('Justificación'),
     ]);
 
     for (final cierre in enRango) {
       final gastos = await _cierresCajaRepository.obtenerGastos(cierre.id);
       final detalleGastos = gastos.map((gasto) => '${gasto.detalle} (${formatearMoneda(gasto.monto)})').join('; ');
 
-      filas.add([
-        _formatearFecha(cierre.fecha),
-        formatearMoneda(cierre.capitalInicio),
-        formatearMoneda(cierre.capitalCierre),
-        formatearMoneda(cierre.gastosTotal),
-        detalleGastos,
-        cierre.justificacionDiferencia ?? '',
+      hojaCierre.appendRow([
+        TextCellValue(_formatearFecha(cierre.fecha)),
+        TextCellValue(formatearMoneda(cierre.capitalInicio)),
+        TextCellValue(formatearMoneda(cierre.capitalCierre)),
+        TextCellValue(formatearMoneda(cierre.gastosTotal)),
+        TextCellValue(detalleGastos),
+        TextCellValue(cierre.justificacionDiferencia ?? ''),
       ]);
     }
 
-    filas.addAll([
-      [],
-      ['Resumen de cierre de caja (rango)'],
-      ['Capital inicio (primer día)', 'Capital cierre (último día)', 'Total gastos (rango)'],
+    final hojaResumenCierre = excel['Resumen cierre de caja'];
+    hojaResumenCierre.appendRow([
+      TextCellValue('Capital inicio (primer día)'),
+      TextCellValue('Capital cierre (último día)'),
+      TextCellValue('Total gastos (rango)'),
     ]);
 
     if (enRango.isNotEmpty) {
       final totalGastosRango = enRango.fold<double>(0, (acumulado, cierre) => acumulado + cierre.gastosTotal);
-      filas.add([
-        formatearMoneda(enRango.first.capitalInicio),
-        formatearMoneda(enRango.last.capitalCierre),
-        formatearMoneda(totalGastosRango),
+      hojaResumenCierre.appendRow([
+        TextCellValue(formatearMoneda(enRango.first.capitalInicio)),
+        TextCellValue(formatearMoneda(enRango.last.capitalCierre)),
+        TextCellValue(formatearMoneda(totalGastosRango)),
       ]);
     }
   }
 
-  /// Arma el CSV y lo comparte como archivo vía `share_plus`, escrito en un
+  /// Arma el `.xlsx` y lo comparte vía `share_plus`, escrito en un
   /// directorio temporal.
   Future<void> exportarYCompartir({DateTime? desde, DateTime? hasta, int? clienteId}) async {
-    final contenidoCsv = await construirCsv(desde: desde, hasta: hasta, clienteId: clienteId);
+    final excel = await construirXlsx(desde: desde, hasta: hasta, clienteId: clienteId);
+    final bytes = excel.save();
+    if (bytes == null) {
+      throw StateError('No se pudo generar el archivo del reporte.');
+    }
 
-    await exportarCsvYCompartir(
-      contenidoCsv: contenidoCsv,
-      nombreArchivo: 'cobro_app_reporte_${DateTime.now().millisecondsSinceEpoch}.csv',
+    await exportarArchivoYCompartir(
+      bytes: bytes,
+      nombreArchivo: 'cobro_app_reporte_${DateTime.now().millisecondsSinceEpoch}.xlsx',
     );
   }
 }

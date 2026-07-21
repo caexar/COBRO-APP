@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/atajo_miles_repository.dart';
 import '../../../core/utils/formato_dinero.dart';
 import '../../prestamos/data/prestamos_repository.dart';
 import '../data/pagos_repository.dart';
@@ -9,9 +10,13 @@ import '../data/pagos_repository.dart';
 /// alcanza a cubrir la cuota pendiente más antigua o la supera, le pregunta
 /// al cobrador cómo proceder antes de guardar (ver [PagosRepository.registrar]).
 class RegistrarPagoScreen extends StatefulWidget {
-  const RegistrarPagoScreen({super.key, required this.prestamoId});
+  const RegistrarPagoScreen({super.key, required this.prestamoId, this.atajoMilesRepository});
 
   final int prestamoId;
+
+  /// Inyectable solo para pruebas; en la app real siempre se usa la
+  /// instancia por defecto.
+  final AtajoMilesRepository? atajoMilesRepository;
 
   @override
   State<RegistrarPagoScreen> createState() => _RegistrarPagoScreenState();
@@ -20,10 +25,12 @@ class RegistrarPagoScreen extends StatefulWidget {
 class _RegistrarPagoScreenState extends State<RegistrarPagoScreen> {
   final _repository = PagosRepository();
   final _prestamosRepository = PrestamosRepository();
+  late final _atajoMilesRepository = widget.atajoMilesRepository ?? AtajoMilesRepository();
   final _montoController = TextEditingController();
 
   DateTime _fechaPago = DateTime.now();
   bool _guardando = false;
+  bool _atajoMilesActivado = true;
   String? _error;
   Cuota? _cuotaReferencia;
 
@@ -32,6 +39,13 @@ class _RegistrarPagoScreenState extends State<RegistrarPagoScreen> {
     super.initState();
     _montoController.addListener(_alCambiarMonto);
     _cargarCuotaReferencia();
+    _cargarAtajoMiles();
+  }
+
+  Future<void> _cargarAtajoMiles() async {
+    final activado = await _atajoMilesRepository.estaActivado();
+    if (!mounted) return;
+    setState(() => _atajoMilesActivado = activado);
   }
 
   @override
@@ -67,7 +81,7 @@ class _RegistrarPagoScreenState extends State<RegistrarPagoScreen> {
   }
 
   Future<void> _guardar() async {
-    final monto = FormateadorDinero.valorNumerico(_montoController.text);
+    final monto = interpretarValorIngresado(_montoController.text, atajoMilesActivado: _atajoMilesActivado);
     if (monto == null || monto <= 0 || _guardando) return;
 
     final saldoPendiente = await _calcularSaldoPendiente();
@@ -240,8 +254,9 @@ class _RegistrarPagoScreenState extends State<RegistrarPagoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final monto = FormateadorDinero.valorNumerico(_montoController.text);
+    final monto = interpretarValorIngresado(_montoController.text, atajoMilesActivado: _atajoMilesActivado);
     final puedeGuardar = monto != null && monto > 0 && !_guardando;
+    final textoAyuda = textoAyudaAtajoMiles(_montoController.text, atajoMilesActivado: _atajoMilesActivado);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Registrar pago')),
@@ -261,6 +276,13 @@ class _RegistrarPagoScreenState extends State<RegistrarPagoScreen> {
                   prefixText: r'$ ',
                 ),
               ),
+              if (textoAyuda != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  textoAyuda,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+                ),
+              ],
               if (_cuotaReferencia != null) ...[
                 const SizedBox(height: 6),
                 Text(

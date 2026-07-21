@@ -4,7 +4,7 @@ import 'clientes_table.dart';
 
 /// Refleja la tabla `prestamos` del backend Laravel.
 ///
-/// `frecuenciaPago` (diario|semanal|mensual|personalizado), `estado`
+/// `frecuenciaPago` (diario|semanal|quincenal|mensual|personalizado), `estado`
 /// (activo|pagado|en_mora|anulado) y `politicaMora`
 /// (mantener|siguiente_pago|sumar_total) se guardan como texto plano, igual
 /// que los enums del lado del servidor.

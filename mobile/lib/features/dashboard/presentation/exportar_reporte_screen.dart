@@ -4,8 +4,8 @@ import '../../clientes/data/clientes_repository.dart';
 import '../../prestamos/presentation/seleccionar_cliente_sheet.dart';
 import '../data/reportes_repository.dart';
 
-/// Formulario para exportar el reporte en CSV: rango de fechas opcional
-/// (aplica solo al historial de pagos) y cliente opcional.
+/// Formulario para exportar el reporte en Excel (.xlsx): rango de fechas
+/// opcional (aplica solo al historial de pagos) y cliente opcional.
 class ExportarReporteScreen extends StatefulWidget {
   const ExportarReporteScreen({super.key});
 
@@ -80,7 +80,7 @@ class _ExportarReporteScreenState extends State<ExportarReporteScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'El rango de fechas y el cliente solo filtran el historial de pagos del CSV; '
+                'El rango de fechas y el cliente solo filtran el historial de pagos del Excel; '
                 'el resumen y el listado de préstamos siempre salen completos.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
@@ -127,7 +127,7 @@ class _ExportarReporteScreenState extends State<ExportarReporteScreen> {
                 icon: const Icon(Icons.ios_share),
                 label: _exportando
                     ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Exportar CSV', style: TextStyle(fontSize: 17)),
+                    : const Text('Exportar Excel', style: TextStyle(fontSize: 17)),
                 style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
               ),
             ],

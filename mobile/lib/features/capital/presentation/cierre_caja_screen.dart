@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/atajo_miles_repository.dart';
 import '../../../core/utils/formato_dinero.dart';
 import '../../dashboard/data/dashboard_repository.dart';
 import '../data/cierres_caja_repository.dart';
@@ -22,12 +23,13 @@ class _GastoControllers {
 /// Drift y lo encola para la próxima sincronización, mismo patrón
 /// offline-first que `AgregarCapitalScreen`.
 class CierreCajaScreen extends StatefulWidget {
-  const CierreCajaScreen({super.key, this.repository, this.dashboardRepository});
+  const CierreCajaScreen({super.key, this.repository, this.dashboardRepository, this.atajoMilesRepository});
 
   /// Inyectables solo para pruebas; en la app real siempre se usa la
   /// instancia por defecto.
   final CierresCajaRepository? repository;
   final DashboardRepository? dashboardRepository;
+  final AtajoMilesRepository? atajoMilesRepository;
 
   @override
   State<CierreCajaScreen> createState() => _CierreCajaScreenState();
@@ -36,6 +38,7 @@ class CierreCajaScreen extends StatefulWidget {
 class _CierreCajaScreenState extends State<CierreCajaScreen> {
   late final _repository = widget.repository ?? CierresCajaRepository();
   late final _dashboardRepository = widget.dashboardRepository ?? DashboardRepository();
+  late final _atajoMilesRepository = widget.atajoMilesRepository ?? AtajoMilesRepository();
 
   final _capitalInicioController = TextEditingController();
   final _capitalCierreController = TextEditingController();
@@ -47,6 +50,10 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
   double? _capitalCierrePrellenado;
   bool _cargandoSaldo = true;
   bool _guardando = false;
+  // Solo aplica a los gastos (montos escritos desde cero): capital_inicio y
+  // capital_cierre se prellenan con el saldo disponible ya calculado, no son
+  // texto libre, así que el atajo de miles no debe tocarlos.
+  bool _atajoMilesActivado = true;
   String? _error;
 
   @override
@@ -55,6 +62,13 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
     _capitalInicioController.addListener(_alCambiarCapital);
     _capitalCierreController.addListener(_alCambiarCapital);
     _cargarSaldoDisponible();
+    _cargarAtajoMiles();
+  }
+
+  Future<void> _cargarAtajoMiles() async {
+    final activado = await _atajoMilesRepository.estaActivado();
+    if (!mounted) return;
+    setState(() => _atajoMilesActivado = activado);
   }
 
   @override
@@ -119,7 +133,7 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
   double get _totalGastos {
     var total = 0.0;
     for (final controles in _gastos) {
-      total += FormateadorDinero.valorNumerico(controles.monto.text) ?? 0;
+      total += interpretarValorIngresado(controles.monto.text, atajoMilesActivado: _atajoMilesActivado) ?? 0;
     }
     return total;
   }
@@ -139,7 +153,7 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
 
     final gastos = <GastoCierreCaja>[];
     for (final controles in _gastos) {
-      final monto = FormateadorDinero.valorNumerico(controles.monto.text);
+      final monto = interpretarValorIngresado(controles.monto.text, atajoMilesActivado: _atajoMilesActivado);
       final detalle = controles.detalle.text.trim();
       if (monto != null && monto > 0 && detalle.isNotEmpty) {
         gastos.add(GastoCierreCaja(monto: monto, detalle: detalle));
@@ -242,12 +256,28 @@ class _CierreCajaScreenState extends State<CierreCajaScreen> {
                           children: [
                             Expanded(
                               flex: 2,
-                              child: TextField(
-                                controller: _gastos[i].monto,
-                                keyboardType: TextInputType.number,
-                                inputFormatters: [FormateadorDinero()],
-                                decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
-                                onChanged: (_) => setState(() {}),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  TextField(
+                                    controller: _gastos[i].monto,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [FormateadorDinero()],
+                                    decoration: const InputDecoration(labelText: 'Monto', border: OutlineInputBorder()),
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                  if (textoAyudaAtajoMiles(_gastos[i].monto.text, atajoMilesActivado: _atajoMilesActivado)
+                                      case final textoAyuda?)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        textoAyuda,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                             const SizedBox(width: 8),

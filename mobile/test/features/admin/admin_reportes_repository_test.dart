@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:io';
 
 import 'package:cobro_app/core/network/api_client.dart';
 import 'package:cobro_app/core/storage/secure_storage_service.dart';
@@ -7,69 +7,58 @@ import 'package:cobro_app/features/admin/data/admin_reportes_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:share_plus_platform_interface/platform_interface/share_plus_platform.dart';
 
 class _SecureStorageFalso extends SecureStorageService {
   @override
   Future<String?> leerToken() async => 'token-de-prueba';
 }
 
-http.Response _json(Object cuerpo) {
-  return http.Response(jsonEncode(cuerpo), 200, headers: {'content-type': 'application/json'});
+class _PathProviderFalso extends PathProviderPlatform with MockPlatformInterfaceMixin {
+  _PathProviderFalso(this.directorio);
+
+  final Directory directorio;
+
+  @override
+  Future<String?> getTemporaryPath() async => directorio.path;
 }
 
-Map<String, dynamic> _reporteJson() {
-  return {
-    'prestamos': {
-      'titulo': 'Detalle de préstamos',
-      'columnas': ['Cobrador', 'Cliente', 'Cédula', 'Capital'],
-      'filas': [
-        ['Ana Torres', 'Juan Perez', '123456', 100000],
-      ],
-    },
-    'resumen_por_cobrador': {
-      'titulo': 'Resumen por cobrador',
-      'columnas': ['Cobrador', 'Cartera pendiente al inicio', 'Total cobrado en el periodo'],
-      'filas': [
-        ['Ana Torres', 0, 62500],
-      ],
-    },
-    'movimientos_capital': {
-      'titulo': 'Movimientos de capital',
-      'columnas': ['Cobrador', 'Fecha', 'Tipo', 'Monto', 'Categoría'],
-      'filas': [
-        ['Ana Torres', '10/01/2026', 'retiro', 20000, 'gasto_operativo'],
-      ],
-    },
-    'cierre_caja': {
-      'titulo': 'Cierre de caja',
-      'columnas': ['Cobrador', 'Fecha', 'Capital inicio', 'Capital cierre', 'Total gastos'],
-      'filas': [
-        ['Ana Torres', '10/01/2026', 100000, 120000, 10000],
-      ],
-    },
-    'cierre_caja_resumen': {
-      'titulo': 'Resumen de cierre de caja (rango)',
-      'columnas': ['Cobrador', 'Capital inicio (primer día)', 'Capital cierre (último día)', 'Total gastos (rango)'],
-      'filas': [
-        ['Ana Torres', 100000, 120000, 10000],
-      ],
-    },
-  };
+class _ShareFalso extends SharePlatform with MockPlatformInterfaceMixin {
+  ShareParams? ultimaLlamada;
+
+  @override
+  Future<ShareResult> share(ShareParams params) async {
+    ultimaLlamada = params;
+    return const ShareResult('ok', ShareResultStatus.success);
+  }
 }
 
 void main() {
-  test('construirCsv arma un solo CSV con las 3 secciones del reporte financiero', () async {
+  test('descarga el .xlsx de GET /admin/reporte con los filtros correctos y lo comparte', () async {
+    final directorioTemporal = await Directory.systemTemp.createTemp('admin_reportes_repository_test');
+    addTearDown(() => directorioTemporal.delete(recursive: true));
+    PathProviderPlatform.instance = _PathProviderFalso(directorioTemporal);
+    final shareFalso = _ShareFalso();
+    SharePlatform.instance = shareFalso;
+
     Uri? urlLlamada;
+    final bytesXlsx = [0x50, 0x4B, 0x03, 0x04]; // firma ZIP, como cualquier .xlsx real
 
     final mock = MockClient((request) async {
       urlLlamada = request.url;
-      return _json({'data': _reporteJson()});
+      return http.Response.bytes(
+        bytesXlsx,
+        200,
+        headers: {'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},
+      );
     });
 
     final adminRepository = AdminRepository(apiClient: ApiClient(httpClient: mock), secureStorage: _SecureStorageFalso());
     final reportesRepository = AdminReportesRepository(adminRepository: adminRepository);
 
-    final csv = await reportesRepository.construirCsv(
+    await reportesRepository.exportarYCompartir(
       usuarioIds: [2, 3],
       desde: DateTime(2026, 1, 1),
       hasta: DateTime(2026, 1, 31),
@@ -84,32 +73,24 @@ void main() {
     expect(urlLlamada!.queryParameters['hasta'], '2026-01-31');
     expect(urlLlamada!.queryParameters['categoria'], 'gasto_operativo');
 
-    // Las 3 secciones, con su título y encabezados, aparecen en un solo CSV.
-    expect(csv, contains('Detalle de préstamos'));
-    expect(csv, contains('Cobrador,Cliente,Cédula,Capital'));
-    expect(csv, contains('Ana Torres,Juan Perez,123456,100000'));
-
-    expect(csv, contains('Resumen por cobrador'));
-    expect(csv, contains('Cobrador,Cartera pendiente al inicio,Total cobrado en el periodo'));
-    expect(csv, contains('Ana Torres,0,62500'));
-
-    expect(csv, contains('Movimientos de capital'));
-    expect(csv, contains('Cobrador,Fecha,Tipo,Monto,Categoría'));
-    expect(csv, contains('Ana Torres,10/01/2026,retiro,20000,gasto_operativo'));
+    // Comparte el archivo descargado tal cual, sin tocar los bytes.
+    expect(shareFalso.ultimaLlamada, isNotNull);
+    final archivoCompartido = File(shareFalso.ultimaLlamada!.files!.single.path);
+    expect(await archivoCompartido.readAsBytes(), bytesXlsx);
+    expect(archivoCompartido.path, endsWith('.xlsx'));
   });
 
-  test('exportarYCompartir antepone el BOM de UTF-8 (mismo helper que los demás exports)', () async {
-    final mock = MockClient((request) async => _json({'data': _reporteJson()}));
+  test('un error del servidor se propaga como ApiException, sin compartir nada', () async {
+    final mock = MockClient((request) async {
+      return http.Response('{"message":"El cobrador indicado no existe."}', 422, headers: {'content-type': 'application/json'});
+    });
 
     final adminRepository = AdminRepository(apiClient: ApiClient(httpClient: mock), secureStorage: _SecureStorageFalso());
     final reportesRepository = AdminReportesRepository(adminRepository: adminRepository);
 
-    // `exportarCsvYCompartir` (core/utils/csv_exportador.dart) es quien antepone el BOM antes
-    // de compartir — acá solo se confirma que `construirCsv` (lo que ese helper recibe) no lo
-    // antepone dos veces ni rompe si se llama sin filtros de fecha/categoria.
-    final csv = await reportesRepository.construirCsv(usuarioIds: [2]);
-
-    expect(csv.startsWith('﻿'), isFalse);
-    expect(csv, contains('Detalle de préstamos'));
+    await expectLater(
+      () => reportesRepository.exportarYCompartir(usuarioIds: [2]),
+      throwsA(isA<ApiException>()),
+    );
   });
 }

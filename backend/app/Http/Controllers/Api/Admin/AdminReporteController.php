@@ -4,21 +4,23 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\ExportarReporteService;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 /**
- * `GET /api/admin/reporte`: los mismos 3 bloques (préstamos, resumen por cobrador,
- * movimientos de capital) que `ExportarReporteService::generarXlsx()` ya arma para el panel
- * web, pero como JSON en vez de un archivo .xlsx — consumido por el panel admin móvil, que
- * arma su propio CSV con estos datos (ver `AdminReportesRepository` en Flutter) porque ahí un
- * CSV es más liviano/compatible para compartir por WhatsApp/correo que un .xlsx.
+ * `GET /api/admin/reporte`: el mismo .xlsx de 5 hojas (préstamos, resumen por cobrador,
+ * movimientos de capital, cierre de caja y su resumen agregado) que ya descarga el panel web
+ * en `POST /admin/exportar` — mismo `ExportarReporteService::generarXlsx()`, sin reimplementar
+ * nada. Antes este endpoint devolvía JSON y el panel admin móvil armaba su propio CSV con esos
+ * datos (`AdminReportesRepository`); se cambió a servir el .xlsx tal cual (igual que la web)
+ * para no tener que generar ni mantener un export en Dart — mobile solo descarga los bytes y
+ * los comparte con `share_plus`.
  */
 class AdminReporteController extends Controller
 {
-    public function index(Request $request, ExportarReporteService $servicio): JsonResponse
+    public function index(Request $request, ExportarReporteService $servicio): Response
     {
         $datos = $request->validate([
             'usuario_ids' => ['required', 'array', 'min:1'],
@@ -31,8 +33,12 @@ class AdminReporteController extends Controller
         $desde = filled($datos['desde'] ?? null) ? Carbon::parse($datos['desde'])->startOfDay() : null;
         $hasta = filled($datos['hasta'] ?? null) ? Carbon::parse($datos['hasta'])->endOfDay() : null;
 
-        return response()->json([
-            'data' => $servicio->datosReporte($datos['usuario_ids'], $desde, $hasta, $datos['categoria'] ?? null),
+        $xlsx = $servicio->generarXlsx($datos['usuario_ids'], $desde, $hasta, $datos['categoria'] ?? null);
+        $nombreArchivo = 'cobro_app_reporte_admin_'.now()->format('Ymd_His').'.xlsx';
+
+        return response($xlsx, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$nombreArchivo.'"',
         ]);
     }
 }

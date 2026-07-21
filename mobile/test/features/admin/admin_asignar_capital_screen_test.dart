@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:cobro_app/core/network/api_client.dart';
 import 'package:cobro_app/core/storage/secure_storage_service.dart';
+import 'package:cobro_app/core/utils/atajo_miles_repository.dart';
 import 'package:cobro_app/features/admin/data/admin_repository.dart';
 import 'package:cobro_app/features/admin/presentation/admin_asignar_capital_screen.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,14 @@ import 'package:http/testing.dart';
 class _SecureStorageFalso extends SecureStorageService {
   @override
   Future<String?> leerToken() async => 'token-de-prueba';
+}
+
+/// Desactivado en estas pruebas para que el monto escrito se interprete tal
+/// cual — el comportamiento del atajo en sí ya está cubierto en
+/// `formato_dinero_test.dart`.
+class _AtajoMilesRepositoryFalso extends AtajoMilesRepository {
+  @override
+  Future<bool> estaActivado() async => false;
 }
 
 http.Response _json(Object cuerpo, {int status = 200}) {
@@ -30,7 +39,12 @@ Widget _appConHomeYFormulario(AdminRepository repository) {
             child: const Text('Ir a asignar saldo'),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => AdminAsignarCapitalScreen(usuarioId: 9, nombreCobrador: 'Luis', repository: repository),
+                builder: (_) => AdminAsignarCapitalScreen(
+                usuarioId: 9,
+                nombreCobrador: 'Luis',
+                repository: repository,
+                atajoMilesRepository: _AtajoMilesRepositoryFalso(),
+              ),
               ),
             ),
           ),

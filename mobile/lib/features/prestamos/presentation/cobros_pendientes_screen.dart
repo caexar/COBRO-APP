@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/storage/secure_storage_service.dart';
 import '../../../core/utils/formato_dinero.dart';
 import '../data/prestamos_repository.dart';
 import 'prestamo_detalle_screen.dart';
+
+const _nombresOrden = {
+  OrdenPrestamos.alfabetico: 'Alfabético (nombre del cliente)',
+  OrdenPrestamos.masAntiguoPrimero: 'Más antiguo primero',
+  OrdenPrestamos.masRecientePrimero: 'Más reciente primero',
+};
 
 /// Préstamos activos/en mora del cobrador, con buscador por nombre o cédula
 /// del cliente (mismo criterio flexible que el buscador de clientes). Tocar
@@ -17,15 +24,17 @@ class CobrosPendientesScreen extends StatefulWidget {
 
 class _CobrosPendientesScreenState extends State<CobrosPendientesScreen> {
   final _repository = PrestamosRepository();
+  final _secureStorage = SecureStorageService();
   final _busquedaController = TextEditingController();
 
   List<PrestamoResumen> _prestamos = [];
   bool _cargando = true;
+  OrdenPrestamos _orden = OrdenPrestamos.alfabetico;
 
   @override
   void initState() {
     super.initState();
-    _cargar();
+    _inicializar();
   }
 
   @override
@@ -34,9 +43,39 @@ class _CobrosPendientesScreenState extends State<CobrosPendientesScreen> {
     super.dispose();
   }
 
+  Future<void> _inicializar() async {
+    await _cargarOrden();
+    await _cargar();
+  }
+
+  Future<void> _cargarOrden() async {
+    try {
+      final usuarioId = await _secureStorage.leerUsuarioId();
+      if (usuarioId == null) return;
+      final guardado = await _secureStorage.leerOrdenPrestamos(usuarioId);
+      if (!mounted) return;
+      setState(() => _orden = OrdenPrestamos.values.byName(guardado));
+    } catch (_) {
+      // Sin preferencia guardada (o sin sesión todavía) se queda alfabético.
+    }
+  }
+
+  Future<void> _cambiarOrden(OrdenPrestamos nuevo) async {
+    setState(() => _orden = nuevo);
+    _cargar();
+    try {
+      final usuarioId = await _secureStorage.leerUsuarioId();
+      if (usuarioId != null) {
+        await _secureStorage.guardarOrdenPrestamos(usuarioId, nuevo.name);
+      }
+    } catch (_) {
+      // Si no se pudo guardar, la preferencia queda solo para esta sesión.
+    }
+  }
+
   Future<void> _cargar() async {
     setState(() => _cargando = true);
-    final resultado = await _repository.listarPendientes(busqueda: _busquedaController.text);
+    final resultado = await _repository.listarPendientes(busqueda: _busquedaController.text, orden: _orden);
     if (!mounted) return;
     setState(() {
       _prestamos = resultado;
@@ -54,7 +93,33 @@ class _CobrosPendientesScreenState extends State<CobrosPendientesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Cobros pendientes')),
+      appBar: AppBar(
+        title: const Text('Cobros pendientes'),
+        actions: [
+          PopupMenuButton<OrdenPrestamos>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Ordenar',
+            initialValue: _orden,
+            onSelected: _cambiarOrden,
+            itemBuilder: (context) => [
+              for (final entrada in _nombresOrden.entries)
+                PopupMenuItem(
+                  value: entrada.key,
+                  child: Row(
+                    children: [
+                      Icon(
+                        entrada.key == _orden ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(entrada.value),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [

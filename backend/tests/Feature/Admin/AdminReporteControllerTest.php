@@ -9,13 +9,15 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 /**
- * `GET /api/admin/reporte`: mismos datos que `ExportarReporteTest` (el .xlsx del panel web),
- * pero como JSON — comparte `ExportarReporteService::datosReporte()` con `generarXlsx()`, así
- * que acá solo se prueba que el endpoint devuelve esos 3 bloques con las filas/filtros
- * correctos y que sigue protegido por `role:admin`.
+ * `GET /api/admin/reporte`: mismo .xlsx de 5 hojas que ya descarga el panel web (comparte
+ * `ExportarReporteService::generarXlsx()`, ver `ExportarReporteTest` para la cobertura completa
+ * de cada hoja/fórmula) — acá solo se prueba que el endpoint móvil responde con el binario
+ * correcto (headers + contenido de una hoja), los mismos filtros de `usuario_ids`/fechas/
+ * categoria, y que sigue protegido por `role:admin`.
  */
 class AdminReporteControllerTest extends TestCase
 {
@@ -63,7 +65,19 @@ class AdminReporteControllerTest extends TestCase
         return $prestamo->fresh();
     }
 
-    public function test_devuelve_los_3_bloques_con_los_datos_correctos_filtrados_por_cobrador_y_fecha(): void
+    private function leerFilas(string $contenidoXlsx, int $indiceHoja): array
+    {
+        $ruta = tempnam(sys_get_temp_dir(), 'cobro_app_xlsx_test_');
+        file_put_contents($ruta, $contenidoXlsx);
+
+        $filas = IOFactory::load($ruta)->getSheet($indiceHoja)->toArray(null, true, false, false);
+
+        unlink($ruta);
+
+        return $filas;
+    }
+
+    public function test_devuelve_el_xlsx_con_las_5_hojas_filtradas_por_cobrador_y_fecha(): void
     {
         $admin = User::factory()->admin()->create();
         $cobradorA = User::factory()->create(['nombre' => 'Ana Torres']);
@@ -80,53 +94,30 @@ class AdminReporteControllerTest extends TestCase
 
         Sanctum::actingAs($admin);
 
-        $respuesta = $this->getJson('/api/admin/reporte?'.http_build_query([
+        $respuesta = $this->get('/api/admin/reporte?'.http_build_query([
             'usuario_ids' => [$cobradorA->id],
             'desde' => '2026-01-01',
             'hasta' => '2026-01-31',
         ]));
 
         $respuesta->assertOk();
+        $respuesta->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
-        // Solo el cobrador filtrado (A) aparece, no B.
-        $respuesta->assertJsonPath('data.prestamos.titulo', 'Detalle de préstamos');
-        $respuesta->assertJsonCount(1, 'data.prestamos.filas');
-        $respuesta->assertJsonPath('data.prestamos.filas.0.0', 'Ana Torres');
-        // json_encode no conserva ".0" en un float de número entero, así que json_decode lo
-        // trae como int -- se compara así, no como 20000.0.
-        $respuesta->assertJsonPath('data.prestamos.filas.0.6', 20000); // ganancia (interés 10000 + extra 10000)
+        $contenido = $respuesta->getContent();
 
-        $respuesta->assertJsonPath('data.resumen_por_cobrador.filas.0.0', 'Ana Torres');
-        $respuesta->assertJsonPath('data.resumen_por_cobrador.filas.0.2', 62500); // total cobrado en el periodo
+        // Hoja 1: Detalle de préstamos — solo el cobrador filtrado (A) aparece, no B.
+        $filasPrestamos = $this->leerFilas($contenido, 0);
+        $this->assertCount(2, $filasPrestamos); // encabezado + 1 préstamo
+        $this->assertSame('Ana Torres', $filasPrestamos[1][0]);
 
-        $respuesta->assertJsonCount(1, 'data.movimientos_capital.filas');
-        $respuesta->assertJsonPath('data.movimientos_capital.filas.0.0', 'Ana Torres');
-        $respuesta->assertJsonPath('data.movimientos_capital.filas.0.4', 'gasto_operativo');
-    }
-
-    public function test_filtra_movimientos_de_capital_por_categoria_sin_afectar_las_otras_2_secciones(): void
-    {
-        $admin = User::factory()->admin()->create();
-        $cobrador = User::factory()->create(['nombre' => 'Ana Torres']);
-        $this->crearEscenario($cobrador);
-
-        $this->travelTo(Carbon::parse('2026-01-10'), function () use ($cobrador) {
-            CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'retiro', 'monto' => 20000, 'categoria' => 'gasto_operativo']);
-            CargaCapital::create(['usuario_id' => $cobrador->id, 'tipo' => 'retiro', 'monto' => 5000, 'categoria' => 'salario']);
-        });
-
-        Sanctum::actingAs($admin);
-
-        $respuesta = $this->getJson('/api/admin/reporte?'.http_build_query([
-            'usuario_ids' => [$cobrador->id],
-            'categoria' => 'salario',
-        ]));
-
-        $respuesta->assertOk();
-        $respuesta->assertJsonCount(1, 'data.movimientos_capital.filas');
-        $respuesta->assertJsonPath('data.movimientos_capital.filas.0.4', 'salario');
-
-        $respuesta->assertJsonCount(1, 'data.prestamos.filas');
+        // Hoja 4 (índice 3): Cierre de caja — presente aunque este escenario no tenga cierres,
+        // solo el encabezado (confirma que la hoja existe, no que la sección de cierre de caja
+        // desapareciera del endpoint móvil).
+        $filasCierre = $this->leerFilas($contenido, 3);
+        $this->assertSame(
+            ['Cobrador', 'Fecha', 'Capital inicio', 'Capital cierre', 'Total gastos', 'Detalle de gastos', 'Justificación'],
+            $filasCierre[0],
+        );
     }
 
     public function test_requiere_al_menos_un_cobrador(): void

@@ -12,11 +12,12 @@ const Map<String, String> _categoriasCapital = {
   'otro': 'Otro',
 };
 
-/// Formulario para que el admin exporte, en un solo CSV, el reporte
-/// financiero de 3 secciones (préstamos, resumen por cobrador, movimientos
-/// de capital) de uno, varios o todos los cobradores — mismo reporte que ya
-/// arma el panel web como .xlsx (`GET /admin/reporte`), filtrable por rango
-/// de fechas y categoria de movimiento de capital.
+/// Formulario para que el admin descargue el mismo `.xlsx` de 5 hojas
+/// (préstamos, resumen por cobrador, movimientos de capital, cierre de caja
+/// y su resumen agregado) que ya arma el panel web, de uno, varios o todos
+/// los cobradores — pedido tal cual a `GET /admin/reporte`, sin generar
+/// nada en el móvil, filtrable por rango de fechas y categoria de
+/// movimiento de capital.
 class AdminExportarReporteScreen extends StatefulWidget {
   const AdminExportarReporteScreen({super.key, this.repository, this.reportesRepository});
 
@@ -130,10 +131,10 @@ class _AdminExportarReporteScreenState extends State<AdminExportarReporteScreen>
                 padding: const EdgeInsets.all(24),
                 children: [
                   Text(
-                    'El CSV trae 3 secciones: detalle de préstamos, resumen por cobrador y '
-                    'movimientos de capital. El rango de fechas solo acota el resumen por '
-                    'cobrador y los movimientos de capital — la sección de préstamos siempre '
-                    'sale completa.',
+                    'El Excel trae 5 hojas: detalle de préstamos, resumen por cobrador, '
+                    'movimientos de capital, cierre de caja y su resumen agregado. El rango de '
+                    'fechas solo acota el resumen por cobrador y los movimientos de capital — '
+                    'la hoja de préstamos siempre sale completa.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 20),
@@ -197,7 +198,7 @@ class _AdminExportarReporteScreenState extends State<AdminExportarReporteScreen>
                     icon: const Icon(Icons.ios_share),
                     label: _exportando
                         ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Exportar CSV', style: TextStyle(fontSize: 17)),
+                        : const Text('Exportar Excel', style: TextStyle(fontSize: 17)),
                     style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18)),
                   ),
                 ],

@@ -334,4 +334,82 @@ void main() {
       expect(porCedula.first.cliente.nombre, 'Juan Perez');
     });
   });
+
+  group('orden de listarPendientes', () {
+    // Fechas de inicio y nombres deliberadamente "cruzados" (ninguno de los 3
+    // criterios de orden coincide con otro por casualidad), para que cada
+    // test distinga realmente el criterio que dice probar:
+    // - Andres: alfabéticamente primero, pero el préstamo más antiguo.
+    // - Carla: alfabéticamente último, préstamo con fecha intermedia.
+    // - Beatriz: alfabéticamente en el medio, préstamo más reciente.
+    Future<void> crearTresPrestamos() async {
+      final andres = await clientesRepository.crear(
+        nombre: 'Andres Lopez',
+        cedula: '111111',
+        telefono: '3001111111',
+        direccion: 'Calle 1',
+      );
+      final beatriz = await clientesRepository.crear(
+        nombre: 'Beatriz Ruiz',
+        cedula: '222222',
+        telefono: '3002222222',
+        direccion: 'Calle 2',
+      );
+      final carla = await clientesRepository.crear(
+        nombre: 'Carla Diaz',
+        cedula: '333333',
+        telefono: '3003333333',
+        direccion: 'Calle 3',
+      );
+
+      await prestamosRepository.crear(
+        clienteId: andres,
+        montoCapital: 10000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 2,
+        fechaInicio: DateTime(2026, 1, 1),
+      );
+      await prestamosRepository.crear(
+        clienteId: carla,
+        montoCapital: 10000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 2,
+        fechaInicio: DateTime(2026, 1, 10),
+      );
+      await prestamosRepository.crear(
+        clienteId: beatriz,
+        montoCapital: 10000,
+        porcentajeInteres: 0,
+        frecuenciaPago: 'diario',
+        plazoCuotas: 2,
+        fechaInicio: DateTime(2026, 1, 20),
+      );
+    }
+
+    test('alfabetico (default) ordena por nombre del cliente', () async {
+      await crearTresPrestamos();
+
+      final resultado = await prestamosRepository.listarPendientes();
+
+      expect(resultado.map((r) => r.cliente.nombre).toList(), ['Andres Lopez', 'Beatriz Ruiz', 'Carla Diaz']);
+    });
+
+    test('masAntiguoPrimero ordena por fecha_inicio ascendente', () async {
+      await crearTresPrestamos();
+
+      final resultado = await prestamosRepository.listarPendientes(orden: OrdenPrestamos.masAntiguoPrimero);
+
+      expect(resultado.map((r) => r.cliente.nombre).toList(), ['Andres Lopez', 'Carla Diaz', 'Beatriz Ruiz']);
+    });
+
+    test('masRecientePrimero ordena por fecha_inicio descendente', () async {
+      await crearTresPrestamos();
+
+      final resultado = await prestamosRepository.listarPendientes(orden: OrdenPrestamos.masRecientePrimero);
+
+      expect(resultado.map((r) => r.cliente.nombre).toList(), ['Beatriz Ruiz', 'Carla Diaz', 'Andres Lopez']);
+    });
+  });
 }

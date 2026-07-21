@@ -95,6 +95,23 @@ class ApiClient {
 
   Future<Map<String, dynamic>> get(String ruta, {String? token}) => _get(ruta, token: token);
 
+  /// Igual que [get], pero para respuestas binarias (ej. un .xlsx generado por el servidor)
+  /// en vez de JSON — un error (4xx/5xx) sí sigue viniendo como JSON (`{"message": "..."}`,
+  /// como cualquier otro endpoint), así que el cuerpo solo se decodifica como JSON en ese caso.
+  /// Nunca toca `respuesta.body` (que decodifica como texto) en el camino feliz: siempre
+  /// devuelve `respuesta.bodyBytes` tal cual, para no arriesgar corromper contenido binario que
+  /// no sea UTF-8 válido.
+  Future<List<int>> getBytes(String ruta, {String? token}) async {
+    final respuesta = await _http.get(Uri.parse('$_baseUrl$ruta'), headers: _headersBinario(token: token));
+
+    if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
+      final cuerpo = respuesta.body.isEmpty ? <String, dynamic>{} : jsonDecode(respuesta.body) as Map<String, dynamic>;
+      throw ApiException(_mensajeDeError(cuerpo), statusCode: respuesta.statusCode);
+    }
+
+    return respuesta.bodyBytes;
+  }
+
   Future<Map<String, dynamic>> post(String ruta, {Map<String, dynamic>? body, String? token}) =>
       _post(ruta, body: body, token: token);
 
@@ -137,6 +154,16 @@ class ApiClient {
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  /// Para [getBytes]: nunca declarar `Accept: application/json` en una descarga binaria — un
+  /// error sí sigue viniendo como JSON (ver [getBytes]), pero en el camino feliz sería
+  /// engañoso pedirle al servidor una respuesta que no es la que realmente se espera recibir.
+  Map<String, String> _headersBinario({String? token}) {
+    return {
+      'Accept': '*/*',
       if (token != null) 'Authorization': 'Bearer $token',
     };
   }

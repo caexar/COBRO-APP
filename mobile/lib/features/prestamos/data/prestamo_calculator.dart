@@ -105,6 +105,8 @@ class PrestamoCalculator {
         return _sumarDias(fechaInicio, numero);
       case 'semanal':
         return _sumarDias(fechaInicio, numero * 7);
+      case 'quincenal':
+        return _sumarDias(fechaInicio, numero * 15);
       case 'mensual':
         return _sumarMesesSinOverflow(fechaInicio, numero);
       case 'personalizado':

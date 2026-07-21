@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/utils/atajo_miles_repository.dart';
 import '../../../core/utils/formato_dinero.dart';
 import '../data/admin_repository.dart';
 
@@ -12,14 +13,16 @@ class AdminAsignarCapitalScreen extends StatefulWidget {
     required this.usuarioId,
     required this.nombreCobrador,
     this.repository,
+    this.atajoMilesRepository,
   });
 
   final int usuarioId;
   final String nombreCobrador;
 
-  /// Inyectable solo para pruebas; en la app real siempre se usa la
+  /// Inyectables solo para pruebas; en la app real siempre se usa la
   /// instancia por defecto.
   final AdminRepository? repository;
+  final AtajoMilesRepository? atajoMilesRepository;
 
   @override
   State<AdminAsignarCapitalScreen> createState() => _AdminAsignarCapitalScreenState();
@@ -27,17 +30,20 @@ class AdminAsignarCapitalScreen extends StatefulWidget {
 
 class _AdminAsignarCapitalScreenState extends State<AdminAsignarCapitalScreen> {
   late final _repository = widget.repository ?? AdminRepository();
+  late final _atajoMilesRepository = widget.atajoMilesRepository ?? AtajoMilesRepository();
   final _montoController = TextEditingController();
   final _descripcionController = TextEditingController();
 
   String _tipo = 'carga';
   bool _guardando = false;
+  bool _atajoMilesActivado = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _montoController.addListener(_alCambiarMonto);
+    _cargarAtajoMiles();
   }
 
   @override
@@ -50,8 +56,14 @@ class _AdminAsignarCapitalScreenState extends State<AdminAsignarCapitalScreen> {
 
   void _alCambiarMonto() => setState(() {});
 
+  Future<void> _cargarAtajoMiles() async {
+    final activado = await _atajoMilesRepository.estaActivado();
+    if (!mounted) return;
+    setState(() => _atajoMilesActivado = activado);
+  }
+
   Future<void> _guardar() async {
-    final monto = FormateadorDinero.valorNumerico(_montoController.text);
+    final monto = interpretarValorIngresado(_montoController.text, atajoMilesActivado: _atajoMilesActivado);
     if (monto == null || monto <= 0 || _guardando) return;
 
     setState(() {
@@ -79,8 +91,9 @@ class _AdminAsignarCapitalScreenState extends State<AdminAsignarCapitalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final monto = FormateadorDinero.valorNumerico(_montoController.text);
+    final monto = interpretarValorIngresado(_montoController.text, atajoMilesActivado: _atajoMilesActivado);
     final puedeGuardar = monto != null && monto > 0 && !_guardando;
+    final textoAyuda = textoAyudaAtajoMiles(_montoController.text, atajoMilesActivado: _atajoMilesActivado);
 
     return Scaffold(
       appBar: AppBar(title: Text(_tipo == 'retiro' ? 'Registrar retiro' : 'Asignar saldo')),
@@ -111,6 +124,13 @@ class _AdminAsignarCapitalScreenState extends State<AdminAsignarCapitalScreen> {
                   prefixText: r'$ ',
                 ),
               ),
+              if (textoAyuda != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  textoAyuda,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+                ),
+              ],
               const SizedBox(height: 20),
               TextField(
                 controller: _descripcionController,

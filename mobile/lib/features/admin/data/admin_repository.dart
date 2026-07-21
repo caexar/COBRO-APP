@@ -86,13 +86,14 @@ class AdminRepository {
     return ResumenAdmin.fromJson(respuesta['data'] as Map<String, dynamic>);
   }
 
-  /// Los mismos 3 bloques del reporte financiero (préstamos, resumen por
-  /// cobrador, movimientos de capital) que ya arma el panel web como .xlsx —
-  /// acá como JSON, para que `AdminReportesRepository` arme su propio CSV.
+  /// El mismo `.xlsx` de 5 hojas (préstamos, resumen por cobrador,
+  /// movimientos de capital, cierre de caja y su resumen agregado) que ya
+  /// descarga el panel web — se pide tal cual, sin generar ni parsear nada
+  /// en el móvil (`AdminReportesRepository` solo comparte estos bytes).
   /// [desde]/[hasta] no acotan la hoja de préstamos (siempre trae todos los
   /// préstamos existentes de los cobradores elegidos), solo el resumen por
   /// cobrador y los movimientos de capital — igual que en la web.
-  Future<ReporteAdminFinanciero> obtenerReporte({
+  Future<List<int>> descargarReporteXlsx({
     required List<int> usuarioIds,
     DateTime? desde,
     DateTime? hasta,
@@ -105,8 +106,7 @@ class AdminRepository {
       if (hasta != null) 'hasta=${_formatearFechaIso(hasta)}',
       if (categoria != null) 'categoria=$categoria',
     ];
-    final respuesta = await _apiClient.get('/admin/reporte?${parametros.join('&')}', token: token);
-    return ReporteAdminFinanciero.fromJson(respuesta['data'] as Map<String, dynamic>);
+    return _apiClient.getBytes('/admin/reporte?${parametros.join('&')}', token: token);
   }
 
   /// Asigna (o retira, según [tipo]) saldo de capital a [usuarioId] — el

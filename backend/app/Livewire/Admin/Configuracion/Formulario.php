@@ -28,9 +28,23 @@ class Formulario extends Component
 
     public ?string $mensaje = null;
 
+    /**
+     * Preferencia personal del admin logueado (`users.atajo_miles_activado`), no de
+     * `configuracion_global` — cada admin la edita para sí mismo, se guarda al instante (no
+     * espera al botón "Guardar" del resto del formulario, ver `cambiarAtajoMiles()`). Mismo
+     * criterio que `AtajoMilesRepository` del lado móvil.
+     */
+    public bool $atajoMilesActivado = true;
+
     public function mount(): void
     {
         $this->cargarDesdeServicio();
+        $this->atajoMilesActivado = (bool) auth('web')->user()->atajo_miles_activado;
+    }
+
+    public function cambiarAtajoMiles(): void
+    {
+        auth('web')->user()->update(['atajo_miles_activado' => $this->atajoMilesActivado]);
     }
 
     private function cargarDesdeServicio(): void

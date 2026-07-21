@@ -58,5 +58,42 @@ void main() {
       expect(formatearMoneda(1000000), r'$ 1.000.000');
       expect(formatearMoneda(500), r'$ 500');
     });
+
+    test('un mismo monto ya guardado se muestra igual sin importar el atajo de miles', () {
+      // El atajo de miles solo afecta la interpretación al escribir/guardar
+      // (interpretarValorIngresado); la visualización de un monto ya
+      // guardado siempre pasa por formatearMoneda tal cual, sin relación con
+      // esa preferencia.
+      expect(formatearMoneda(300000), r'$ 300.000');
+    });
+  });
+
+  group('interpretarValorIngresado', () {
+    test('con el atajo activado, multiplica por 1000 lo escrito', () {
+      expect(interpretarValorIngresado('300', atajoMilesActivado: true), 300000.0);
+    });
+
+    test('con el atajo desactivado, usa el valor escrito tal cual', () {
+      expect(interpretarValorIngresado('300', atajoMilesActivado: false), 300.0);
+    });
+
+    test('un campo vacío da null sin importar el atajo', () {
+      expect(interpretarValorIngresado('', atajoMilesActivado: true), isNull);
+      expect(interpretarValorIngresado('', atajoMilesActivado: false), isNull);
+    });
+  });
+
+  group('textoAyudaAtajoMiles', () {
+    test('con el atajo activado, describe el valor final con los tres ceros', () {
+      expect(textoAyudaAtajoMiles('300', atajoMilesActivado: true), 'Se agregarán tres ceros: \$ 300.000');
+    });
+
+    test('con el atajo desactivado, no muestra ningún texto de ayuda', () {
+      expect(textoAyudaAtajoMiles('300', atajoMilesActivado: false), isNull);
+    });
+
+    test('un campo vacío no muestra texto de ayuda aunque el atajo esté activado', () {
+      expect(textoAyudaAtajoMiles('', atajoMilesActivado: true), isNull);
+    });
   });
 }

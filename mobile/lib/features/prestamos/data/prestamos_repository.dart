@@ -34,6 +34,15 @@ class PrestamoResumen {
   bool get enMora => prestamo.estado == 'en_mora';
 }
 
+/// Orden de [PrestamosRepository.listarPendientes]/[listarPagados] para las
+/// pantallas "Cobros pendientes" e "Historial de préstamos". `alfabetico` es
+/// el comportamiento por defecto (ya viene así de [ClientesRepository.buscar],
+/// que ordena por nombre); los otros dos ordenan por `fecha_inicio` del
+/// préstamo. El nombre del enum (`.name`) se usa tal cual como valor guardado
+/// en `SecureStorageService.guardarOrdenPrestamos` — no renombrar sin migrar
+/// el valor ya persistido.
+enum OrdenPrestamos { alfabetico, masAntiguoPrimero, masRecientePrimero }
+
 /// Préstamo con sus extras y cuotas ya cargados, para la pantalla de detalle.
 class PrestamoDetalle {
   const PrestamoDetalle({required this.prestamo, required this.extras, required this.cuotas});
@@ -93,8 +102,12 @@ class PrestamosRepository {
   /// Préstamos `activo`/`en_mora` del cobrador con su cliente y saldo
   /// pendiente, filtrados por [busqueda] con el mismo criterio flexible de
   /// [ClientesRepository.buscar] (nombre siempre, cédula si el texto tiene
-  /// dígitos). Pensado para la pantalla de "Cobros pendientes".
-  Future<List<PrestamoResumen>> listarPendientes({String busqueda = ''}) async {
+  /// dígitos) y ordenados según [orden]. Pensado para la pantalla de "Cobros
+  /// pendientes".
+  Future<List<PrestamoResumen>> listarPendientes({
+    String busqueda = '',
+    OrdenPrestamos orden = OrdenPrestamos.alfabetico,
+  }) async {
     final usuarioId = await _usuarioIdActual();
     final clientes = await _clientesRepository.buscar(busqueda);
     final resumenes = <PrestamoResumen>[];
@@ -121,15 +134,19 @@ class PrestamosRepository {
       }
     }
 
+    _ordenar(resumenes, orden);
     return resumenes;
   }
 
   /// Préstamos `pagado` del cobrador con su cliente y saldo pendiente (0
   /// salvo redondeos), filtrados por [busqueda] con el mismo criterio que
-  /// [listarPendientes]. Pensado para la pantalla de "Historial de
-  /// préstamos" (mismo listado que "Cobros pendientes" pero solo lo que ya
-  /// se terminó de cobrar).
-  Future<List<PrestamoResumen>> listarPagados({String busqueda = ''}) async {
+  /// [listarPendientes] y ordenados según [orden]. Pensado para la pantalla
+  /// de "Historial de préstamos" (mismo listado que "Cobros pendientes" pero
+  /// solo lo que ya se terminó de cobrar).
+  Future<List<PrestamoResumen>> listarPagados({
+    String busqueda = '',
+    OrdenPrestamos orden = OrdenPrestamos.alfabetico,
+  }) async {
     final usuarioId = await _usuarioIdActual();
     final clientes = await _clientesRepository.buscar(busqueda);
     final resumenes = <PrestamoResumen>[];
@@ -156,7 +173,22 @@ class PrestamosRepository {
       }
     }
 
+    _ordenar(resumenes, orden);
     return resumenes;
+  }
+
+  /// Aplica [orden] a [resumenes] in-place. `alfabetico` no hace nada (ya
+  /// viene ordenado por nombre de cliente desde [ClientesRepository.buscar]);
+  /// los otros dos ordenan por `fecha_inicio` del préstamo.
+  void _ordenar(List<PrestamoResumen> resumenes, OrdenPrestamos orden) {
+    switch (orden) {
+      case OrdenPrestamos.alfabetico:
+        break;
+      case OrdenPrestamos.masAntiguoPrimero:
+        resumenes.sort((a, b) => a.prestamo.fechaInicio.compareTo(b.prestamo.fechaInicio));
+      case OrdenPrestamos.masRecientePrimero:
+        resumenes.sort((a, b) => b.prestamo.fechaInicio.compareTo(a.prestamo.fechaInicio));
+    }
   }
 
   /// Lanza [StateError] si el préstamo no existe **o pertenece a otro

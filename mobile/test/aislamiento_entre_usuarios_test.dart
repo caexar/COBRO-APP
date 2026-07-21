@@ -8,7 +8,18 @@ import 'package:cobro_app/features/dashboard/data/reportes_repository.dart';
 import 'package:cobro_app/features/pagos/data/pagos_repository.dart';
 import 'package:cobro_app/features/prestamos/data/prestamos_repository.dart';
 import 'package:drift/native.dart';
+import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Todas las celdas de [sheet] concatenadas en un solo texto, para poder
+/// seguir usando `contains` como cuando el reporte era un CSV plano.
+String _textoPlano(Sheet sheet) {
+  return sheet.rows.map((fila) => fila.map((celda) => celda?.value?.toString() ?? '').join(',')).join('\n');
+}
+
+String _textoPlanoDelReporte(Excel excel) {
+  return excel.tables.values.map(_textoPlano).join('\n');
+}
 
 class _SecureStorageFalso extends SecureStorageService {
   _SecureStorageFalso(this.usuarioId);
@@ -191,17 +202,17 @@ void main() {
     expect(resumen2.carteraPorCobrar, 666000);
   });
 
-  test('el CSV de reportes de cada cobrador no menciona nada del otro', () async {
+  test('el Excel de reportes de cada cobrador no menciona nada del otro', () async {
     await sembrarDatosDeAmbosCobradores();
 
-    final csv1 = await cobrador1.reportes.construirCsv();
-    expect(csv1, contains('Juan Perez'));
-    expect(csv1, isNot(contains('Maria Gomez')));
-    expect(csv1, isNot(contains('999000')));
+    final reporte1 = _textoPlanoDelReporte(await cobrador1.reportes.construirXlsx());
+    expect(reporte1, contains('Juan Perez'));
+    expect(reporte1, isNot(contains('Maria Gomez')));
+    expect(reporte1, isNot(contains('999000')));
 
-    final csv2 = await cobrador2.reportes.construirCsv();
-    expect(csv2, contains('Maria Gomez'));
-    expect(csv2, isNot(contains('Juan Perez')));
+    final reporte2 = _textoPlanoDelReporte(await cobrador2.reportes.construirXlsx());
+    expect(reporte2, contains('Maria Gomez'));
+    expect(reporte2, isNot(contains('Juan Perez')));
   });
 
   test('la cola de cambios_pendientes tampoco se cruza entre cobradores', () async {
