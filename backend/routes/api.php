@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\Admin\AdminReporteController;
 use App\Http\Controllers\Api\Admin\AdminResumenController;
 use App\Http\Controllers\Api\Admin\AdminUsuarioController;
 use App\Http\Controllers\Api\CargaCapitalController;
+use App\Http\Controllers\Api\CierreCajaController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\PagoController;
 use App\Http\Controllers\Api\PinMaestroController;
@@ -40,6 +41,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('pagos', [PagoController::class, 'store']);
 
         Route::post('cargas-capital', [CargaCapitalController::class, 'store']);
+
+        Route::get('cierres-caja', [CierreCajaController::class, 'index']);
+        Route::post('cierres-caja', [CierreCajaController::class, 'store']);
+        Route::get('cierres-caja/{cierreCaja}', [CierreCajaController::class, 'show']);
 
         Route::get('pin-maestro', [PinMaestroController::class, 'index']);
 

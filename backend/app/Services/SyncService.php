@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CargaCapital;
+use App\Models\CierreCaja;
 use App\Models\Cliente;
 use App\Models\ConfiguracionGlobal;
 use App\Models\Pago;
@@ -34,12 +35,12 @@ class SyncService
     ) {}
 
     /**
-     * @param  array{clientes?: array<int, array<string, mixed>>, prestamos?: array<int, array<string, mixed>>, pagos?: array<int, array<string, mixed>>, cargas_capital?: array<int, array<string, mixed>>}  $datos
-     * @return array{clientes: array<int, array<string, mixed>>, prestamos: array<int, array<string, mixed>>, pagos: array<int, array<string, mixed>>, cargas_capital: array<int, array<string, mixed>>}
+     * @param  array{clientes?: array<int, array<string, mixed>>, prestamos?: array<int, array<string, mixed>>, pagos?: array<int, array<string, mixed>>, cargas_capital?: array<int, array<string, mixed>>, cierres_caja?: array<int, array<string, mixed>>}  $datos
+     * @return array{clientes: array<int, array<string, mixed>>, prestamos: array<int, array<string, mixed>>, pagos: array<int, array<string, mixed>>, cargas_capital: array<int, array<string, mixed>>, cierres_caja: array<int, array<string, mixed>>}
      */
     public function sincronizar(User $usuario, array $datos): array
     {
-        $resultado = ['clientes' => [], 'prestamos' => [], 'pagos' => [], 'cargas_capital' => []];
+        $resultado = ['clientes' => [], 'prestamos' => [], 'pagos' => [], 'cargas_capital' => [], 'cierres_caja' => []];
 
         /** @var array<string, Cliente> $clientesPorUuid */
         $clientesPorUuid = [];
@@ -69,6 +70,10 @@ class SyncService
 
         foreach ($datos['cargas_capital'] ?? [] as $item) {
             $resultado['cargas_capital'][] = $this->sincronizarCargaCapital($usuario, $item);
+        }
+
+        foreach ($datos['cierres_caja'] ?? [] as $item) {
+            $resultado['cierres_caja'][] = $this->sincronizarCierreCaja($usuario, $item);
         }
 
         return $resultado;
@@ -338,6 +343,62 @@ class SyncService
         );
 
         return $this->itemCreado($item['uuid_local'], $carga->id);
+    }
+
+    /**
+     * cierres_caja sigue el mismo criterio que cargas_capital: solo se crea o se confirma
+     * (sin flujo de edición desde el móvil para un cierre ya registrado). `gastos_total` se
+     * deriva acá de la suma de los gastos recibidos, igual que en `CierreCajaController::store`
+     * — no se confía en un total que mande el cliente.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    private function sincronizarCierreCaja(User $usuario, array $item): array
+    {
+        $existente = CierreCaja::where('usuario_id', $usuario->id)->where('uuid_local', $item['uuid_local'])->first();
+
+        if ($existente) {
+            return $this->itemYaExistia($item['uuid_local'], $existente->id);
+        }
+
+        $gastos = $item['gastos'] ?? [];
+        $gastosTotal = round(collect($gastos)->sum('monto'), 2);
+
+        $cierre = DB::transaction(function () use ($usuario, $item, $gastos, $gastosTotal) {
+            $cierre = CierreCaja::create([
+                'usuario_id' => $usuario->id,
+                'fecha' => $item['fecha'],
+                'capital_inicio' => $item['capital_inicio'],
+                'capital_cierre' => $item['capital_cierre'],
+                'justificacion_diferencia' => $item['justificacion_diferencia'] ?? null,
+                'gastos_total' => $gastosTotal,
+                'uuid_local' => $item['uuid_local'],
+            ]);
+
+            foreach ($gastos as $gasto) {
+                $cierre->gastos()->create($gasto);
+            }
+
+            return $cierre;
+        });
+
+        $this->auditoria->registrar(
+            usuario: $usuario,
+            accion: 'registrar_cierre_caja',
+            entidad: 'CierreCaja',
+            entidadId: $cierre->id,
+            datosAnteriores: null,
+            datosNuevos: [
+                'fecha' => $cierre->fecha->toDateString(),
+                'capital_inicio' => (float) $cierre->capital_inicio,
+                'capital_cierre' => (float) $cierre->capital_cierre,
+                'gastos_total' => (float) $cierre->gastos_total,
+                'origen' => 'sync',
+            ],
+        );
+
+        return $this->itemCreado($item['uuid_local'], $cierre->id);
     }
 
     /**

@@ -4,6 +4,8 @@ import '../../../data/app_database.dart';
 export '../../../data/app_database.dart' show CambiosPendiente;
 import '../../../data/daos/cambios_pendientes_dao.dart';
 import '../../../data/daos/cargas_capital_dao.dart';
+import '../../../data/daos/cierre_caja_gastos_dao.dart';
+import '../../../data/daos/cierres_caja_dao.dart';
 import '../../../data/daos/clientes_dao.dart';
 import '../../../data/daos/cuotas_dao.dart';
 import '../../../data/daos/pagos_dao.dart';
@@ -72,6 +74,8 @@ class SincronizacionRepository {
   CuotasDao get _cuotasDao => _database.cuotasDao;
   PagosDao get _pagosDao => _database.pagosDao;
   CargasCapitalDao get _cargasCapitalDao => _database.cargasCapitalDao;
+  CierresCajaDao get _cierresCajaDao => _database.cierresCajaDao;
+  CierreCajaGastosDao get _cierreCajaGastosDao => _database.cierreCajaGastosDao;
   CambiosPendientesDao get _cambiosPendientesDao => _database.cambiosPendientesDao;
 
   /// Última vez que `sincronizar()` terminó con éxito para el cobrador con
@@ -97,6 +101,7 @@ class SincronizacionRepository {
       'prestamos': {},
       'pagos': {},
       'cargas_capital': {},
+      'cierres_caja': {},
     };
     for (final cambio in pendientes) {
       porTabla[cambio.tabla]?.putIfAbsent(cambio.registroId, () => []).add(cambio);
@@ -217,11 +222,31 @@ class SincronizacionRepository {
       });
     }
 
+    final cierresUuidARegistroId = <String, int>{};
+    final cierresItems = <Map<String, dynamic>>[];
+    for (final registroId in porTabla['cierres_caja']!.keys) {
+      final cierre = await _cierresCajaDao.obtenerPorId(registroId, usuarioId);
+      if (cierre == null || cierre.uuidLocal == null) continue;
+
+      final gastos = await _cierreCajaGastosDao.obtenerPorCierre(cierre.id);
+
+      cierresUuidARegistroId[cierre.uuidLocal!] = registroId;
+      cierresItems.add({
+        'uuid_local': cierre.uuidLocal,
+        'fecha': _soloFecha(cierre.fecha),
+        'capital_inicio': cierre.capitalInicio,
+        'capital_cierre': cierre.capitalCierre,
+        'justificacion_diferencia': cierre.justificacionDiferencia,
+        'gastos': gastos.map((gasto) => {'monto': gasto.monto, 'detalle': gasto.detalle}).toList(),
+      });
+    }
+
     final batch = <String, dynamic>{
       if (clientesItems.isNotEmpty) 'clientes': clientesItems,
       if (prestamosItems.isNotEmpty) 'prestamos': prestamosItems,
       if (pagosItems.isNotEmpty) 'pagos': pagosItems,
       if (cargasItems.isNotEmpty) 'cargas_capital': cargasItems,
+      if (cierresItems.isNotEmpty) 'cierres_caja': cierresItems,
     };
 
     Map<String, dynamic> respuesta;
@@ -298,6 +323,12 @@ class SincronizacionRepository {
       cargasUuidARegistroId,
       porTabla['cargas_capital']!,
       _cargasCapitalDao.marcarSincronizado,
+    );
+    await procesarResultados(
+      'cierres_caja',
+      cierresUuidARegistroId,
+      porTabla['cierres_caja']!,
+      _cierresCajaDao.marcarSincronizado,
     );
 
     await _descargarConfiguracion(respuesta);

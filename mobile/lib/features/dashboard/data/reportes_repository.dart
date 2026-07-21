@@ -2,29 +2,36 @@ import 'package:csv/csv.dart';
 
 import '../../../core/utils/csv_exportador.dart';
 import '../../../core/utils/formato_dinero.dart';
+import '../../capital/data/cierres_caja_repository.dart';
 import '../../clientes/data/clientes_repository.dart';
 import '../../pagos/data/pagos_repository.dart';
 import '../../prestamos/data/prestamos_repository.dart';
 import 'dashboard_repository.dart';
 
 /// Arma y comparte un reporte en CSV: resumen de cartera, listado de
-/// préstamos, e historial de pagos filtrable por rango de fechas y cliente
-/// (con el total ingresado por cliente en ese rango).
+/// préstamos, historial de pagos filtrable por rango de fechas y cliente
+/// (con el total ingresado por cliente en ese rango), y cierre de caja
+/// (diario + resumen agregado del rango) — mismas 5 secciones que arma el
+/// panel admin (`AdminReportesRepository`) a partir del backend, acá
+/// calculadas localmente desde Drift (offline-first).
 class ReportesRepository {
   ReportesRepository({
     PrestamosRepository? prestamosRepository,
     PagosRepository? pagosRepository,
     ClientesRepository? clientesRepository,
     DashboardRepository? dashboardRepository,
+    CierresCajaRepository? cierresCajaRepository,
   }) : _prestamosRepository = prestamosRepository ?? PrestamosRepository(),
        _pagosRepository = pagosRepository ?? PagosRepository(),
        _clientesRepository = clientesRepository ?? ClientesRepository(),
-       _dashboardRepository = dashboardRepository ?? DashboardRepository();
+       _dashboardRepository = dashboardRepository ?? DashboardRepository(),
+       _cierresCajaRepository = cierresCajaRepository ?? CierresCajaRepository();
 
   final PrestamosRepository _prestamosRepository;
   final PagosRepository _pagosRepository;
   final ClientesRepository _clientesRepository;
   final DashboardRepository _dashboardRepository;
+  final CierresCajaRepository _cierresCajaRepository;
 
   /// Arma el texto CSV, sin tocar el sistema de archivos ni ningún plugin
   /// (fácil de testear). [desde]/[hasta] filtran el historial de pagos por
@@ -106,7 +113,61 @@ class ReportesRepository {
       filas.add([cliente?.nombre ?? 'Cliente #${entrada.key}', formatearMoneda(entrada.value)]);
     }
 
+    await _agregarSeccionCierreCaja(filas, desde: desde, hasta: hasta);
+
     return Csv().encode(filas);
+  }
+
+  /// Cierre de caja: una fila por día (fecha operativa, no filtra por
+  /// préstamo/cliente) dentro de [desde]/[hasta], más un resumen agregado
+  /// del rango (capital inicio del primer día, capital cierre del último,
+  /// suma de gastos) — misma lógica que
+  /// `ExportarReporteService::filasCierreCaja()`/`filasCierreCajaResumen()`
+  /// del backend, replicada acá porque este reporte se arma offline.
+  Future<void> _agregarSeccionCierreCaja(List<List<dynamic>> filas, {DateTime? desde, DateTime? hasta}) async {
+    final cierres = await _cierresCajaRepository.listarTodos();
+    final enRango =
+        cierres.where((cierre) {
+          if (desde != null && cierre.fecha.isBefore(desde)) return false;
+          if (hasta != null && cierre.fecha.isAfter(hasta)) return false;
+          return true;
+        }).toList()
+          ..sort((a, b) => a.fecha.compareTo(b.fecha));
+
+    filas.addAll([
+      [],
+      ['Cierre de caja'],
+      ['Fecha', 'Capital inicio', 'Capital cierre', 'Total gastos', 'Detalle de gastos', 'Justificación'],
+    ]);
+
+    for (final cierre in enRango) {
+      final gastos = await _cierresCajaRepository.obtenerGastos(cierre.id);
+      final detalleGastos = gastos.map((gasto) => '${gasto.detalle} (${formatearMoneda(gasto.monto)})').join('; ');
+
+      filas.add([
+        _formatearFecha(cierre.fecha),
+        formatearMoneda(cierre.capitalInicio),
+        formatearMoneda(cierre.capitalCierre),
+        formatearMoneda(cierre.gastosTotal),
+        detalleGastos,
+        cierre.justificacionDiferencia ?? '',
+      ]);
+    }
+
+    filas.addAll([
+      [],
+      ['Resumen de cierre de caja (rango)'],
+      ['Capital inicio (primer día)', 'Capital cierre (último día)', 'Total gastos (rango)'],
+    ]);
+
+    if (enRango.isNotEmpty) {
+      final totalGastosRango = enRango.fold<double>(0, (acumulado, cierre) => acumulado + cierre.gastosTotal);
+      filas.add([
+        formatearMoneda(enRango.first.capitalInicio),
+        formatearMoneda(enRango.last.capitalCierre),
+        formatearMoneda(totalGastosRango),
+      ]);
+    }
   }
 
   /// Arma el CSV y lo comparte como archivo vía `share_plus`, escrito en un

@@ -1,6 +1,7 @@
 import 'package:cobro_app/core/storage/secure_storage_service.dart';
 import 'package:cobro_app/data/app_database.dart';
 import 'package:cobro_app/features/capital/data/cargas_capital_repository.dart';
+import 'package:cobro_app/features/capital/data/cierres_caja_repository.dart';
 import 'package:cobro_app/features/clientes/data/clientes_repository.dart';
 import 'package:cobro_app/features/dashboard/data/dashboard_repository.dart';
 import 'package:cobro_app/features/dashboard/data/reportes_repository.dart';
@@ -28,6 +29,7 @@ class _RepositoriosDeUnCobrador {
       prestamos = PrestamosRepository(database: db, secureStorage: _SecureStorageFalso(usuarioId)) {
     pagos = PagosRepository(database: db, secureStorage: secureStorage, prestamosRepository: prestamos);
     cargasCapital = CargasCapitalRepository(database: db, secureStorage: secureStorage);
+    cierresCaja = CierresCajaRepository(database: db, secureStorage: secureStorage);
     dashboard = DashboardRepository(
       prestamosRepository: prestamos,
       pagosRepository: pagos,
@@ -38,6 +40,7 @@ class _RepositoriosDeUnCobrador {
       pagosRepository: pagos,
       clientesRepository: clientes,
       dashboardRepository: dashboard,
+      cierresCajaRepository: cierresCaja,
     );
   }
 
@@ -46,6 +49,7 @@ class _RepositoriosDeUnCobrador {
   final PrestamosRepository prestamos;
   late final PagosRepository pagos;
   late final CargasCapitalRepository cargasCapital;
+  late final CierresCajaRepository cierresCaja;
   late final DashboardRepository dashboard;
   late final ReportesRepository reportes;
 }

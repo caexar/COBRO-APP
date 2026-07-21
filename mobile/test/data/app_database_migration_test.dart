@@ -137,6 +137,87 @@ const _crearPagosV1a6 = '''
   );
 ''';
 
+/// `clientes`/`prestamos`/`pagos`/`cargas_capital` en su forma final de v6 (con `uuid_local` ya
+/// agregado, y `origen`/`creado_por_usuario_id` en `cargas_capital`) — el esquema completo justo
+/// antes del paso v6->v7 que agrega `cierres_caja`/`cierre_caja_gastos`.
+const _crearClientesV6 = '''
+  CREATE TABLE clientes (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "servidor_id" INTEGER NULL UNIQUE,
+    "usuario_id" INTEGER NOT NULL,
+    "nombre" TEXT NOT NULL,
+    "cedula" TEXT NOT NULL,
+    "telefono" TEXT NOT NULL,
+    "direccion" TEXT NOT NULL,
+    "referencia" TEXT NULL,
+    "foto_url" TEXT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "actualizado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "eliminado_en" INTEGER NULL,
+    "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1)),
+    "uuid_local" TEXT NULL
+  );
+''';
+
+const _crearPrestamosV6 = '''
+  CREATE TABLE prestamos (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "servidor_id" INTEGER NULL UNIQUE,
+    "cliente_id" INTEGER NOT NULL,
+    "referencia" TEXT NULL,
+    "usuario_id" INTEGER NOT NULL,
+    "monto_capital" REAL NOT NULL,
+    "porcentaje_interes" REAL NOT NULL,
+    "frecuencia_pago" TEXT NOT NULL,
+    "dias_personalizado" INTEGER NULL,
+    "plazo_cuotas" INTEGER NOT NULL,
+    "fecha_inicio" INTEGER NOT NULL,
+    "estado" TEXT NOT NULL DEFAULT 'activo',
+    "politica_mora" TEXT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "actualizado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "eliminado_en" INTEGER NULL,
+    "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1)),
+    "uuid_local" TEXT NULL
+  );
+''';
+
+const _crearPagosV6 = '''
+  CREATE TABLE pagos (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "servidor_id" INTEGER NULL UNIQUE,
+    "prestamo_id" INTEGER NOT NULL,
+    "cuota_id" INTEGER NULL,
+    "monto_abonado" REAL NOT NULL,
+    "monto_aplicado" REAL NOT NULL,
+    "fecha_pago" INTEGER NOT NULL,
+    "dias_mora" INTEGER NOT NULL DEFAULT 0,
+    "saldo_restante_despues" REAL NOT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "actualizado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "eliminado_en" INTEGER NULL,
+    "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1)),
+    "uuid_local" TEXT NULL
+  );
+''';
+
+const _crearCargasCapitalV6 = '''
+  CREATE TABLE cargas_capital (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "servidor_id" INTEGER NULL UNIQUE,
+    "usuario_id" INTEGER NOT NULL,
+    "monto" REAL NOT NULL,
+    "tipo" TEXT NOT NULL DEFAULT 'carga',
+    "descripcion" TEXT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "eliminado_en" INTEGER NULL,
+    "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1)),
+    "uuid_local" TEXT NULL,
+    "origen" TEXT NOT NULL DEFAULT 'cobrador',
+    "creado_por_usuario_id" INTEGER NULL
+  );
+''';
+
 void main() {
   late Directory carpetaTemporal;
   late File archivoDb;
@@ -222,7 +303,7 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 6);
+    expect(version, 7);
 
     final dbReabierta = AppDatabase.paraPruebas(NativeDatabase(archivoDb));
     addTearDown(dbReabierta.close);
@@ -385,7 +466,7 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 6);
+    expect(version, 7);
   });
 
   /// Crea el archivo con el esquema "v5": clientes/prestamos/pagos/cargas_capital
@@ -482,6 +563,66 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 6);
+    expect(version, 7);
+  });
+
+  /// Crea el archivo con el esquema "v6": clientes/prestamos/pagos/cargas_capital ya con su
+  /// forma final (incluido `uuid_local`), pero sin `cierres_caja` ni `cierre_caja_gastos`
+  /// (tablas enteramente nuevas, agregadas recién en v7), con un cliente ya guardado.
+  void crearBaseDeDatosV6() {
+    final db = sqlite3.sqlite3.open(archivoDb.path);
+    db.execute(_crearCambiosPendientesV4masAdelante);
+    db.execute(_crearClientesV6);
+    db.execute(_crearPrestamosV6);
+    db.execute(_crearPagosV6);
+    db.execute(_crearCargasCapitalV6);
+
+    db.execute('''
+      INSERT INTO clientes (usuario_id, nombre, cedula, telefono, direccion, creado_en, actualizado_en, uuid_local)
+      VALUES (1, 'Juan Perez', '111', '3000000001', 'Calle 1', 1752192000, 1752192000, 'uuid-cliente-1');
+    ''');
+    db.execute('PRAGMA user_version = 6;');
+    db.close();
+  }
+
+  test('agrega las tablas cierres_caja y cierre_caja_gastos sin perder lo ya guardado', () async {
+    crearBaseDeDatosV6();
+
+    final db = AppDatabase.paraPruebas(NativeDatabase(archivoDb));
+    addTearDown(db.close);
+
+    final cliente = await db.clientesDao.obtenerPorId(1, 1);
+    expect(cliente, isNotNull);
+    expect(cliente!.nombre, 'Juan Perez');
+    expect(cliente.uuidLocal, 'uuid-cliente-1');
+
+    // Las tablas nuevas nacen vacías pero utilizables.
+    expect(await db.cierresCajaDao.obtenerTodos(1), isEmpty);
+
+    final cierreId = await db.cierresCajaDao.insertar(
+      CierresCajaCompanion.insert(
+        usuarioId: 1,
+        fecha: DateTime(2026, 7, 21),
+        capitalInicio: 100000,
+        capitalCierre: 150000,
+        uuidLocal: const Value('uuid-cierre-1'),
+      ),
+    );
+    await db.cierreCajaGastosDao.insertar(
+      CierreCajaGastosCompanion.insert(cierreCajaId: cierreId, monto: 10000, detalle: 'almuerzo'),
+    );
+
+    final cierres = await db.cierresCajaDao.obtenerTodos(1);
+    expect(cierres, hasLength(1));
+    expect(cierres.first.capitalCierre, 150000);
+
+    final gastos = await db.cierreCajaGastosDao.obtenerPorCierre(cierreId);
+    expect(gastos, hasLength(1));
+    expect(gastos.first.detalle, 'almuerzo');
+
+    final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
+    final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
+    rawDespues.close();
+    expect(version, 7);
   });
 }

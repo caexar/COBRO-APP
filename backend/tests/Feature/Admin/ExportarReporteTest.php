@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\CargaCapital;
+use App\Models\CierreCaja;
 use App\Models\Cliente;
 use App\Models\Prestamo;
 use App\Models\User;
@@ -203,6 +204,69 @@ class ExportarReporteTest extends TestCase
         // La hoja de préstamos no cambia por este filtro.
         $filasPrestamos = $this->leerFilas($contenido, 0);
         $this->assertCount(2, $filasPrestamos);
+    }
+
+    public function test_incluye_cierre_de_caja_diario_y_su_resumen_agregado_del_rango(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $cobrador = User::factory()->create(['nombre' => 'Ana Torres']);
+
+        $cierre1 = CierreCaja::create([
+            'usuario_id' => $cobrador->id,
+            'fecha' => '2026-01-01',
+            'capital_inicio' => 100000,
+            'capital_cierre' => 120000,
+            'gastos_total' => 35000,
+        ]);
+        $cierre1->gastos()->createMany([
+            ['monto' => 10000, 'detalle' => 'almuerzo'],
+            ['monto' => 25000, 'detalle' => 'gasolina'],
+        ]);
+
+        $cierre2 = CierreCaja::create([
+            'usuario_id' => $cobrador->id,
+            'fecha' => '2026-01-05',
+            'capital_inicio' => 120000,
+            'capital_cierre' => 200000,
+            'justificacion_diferencia' => 'Ajuste por cambio no registrado',
+            'gastos_total' => 5000,
+        ]);
+        $cierre2->gastos()->create(['monto' => 5000, 'detalle' => 'papeleria']);
+
+        $respuesta = $this->actingAs($admin)->post('/admin/exportar', [
+            'usuario_ids' => [$cobrador->id],
+            'desde' => '2026-01-01',
+            'hasta' => '2026-01-31',
+        ]);
+
+        $respuesta->assertOk();
+        $contenido = $respuesta->getContent();
+
+        // Hoja 4 (índice 3): Cierre de caja, una fila por día.
+        $filasCierre = $this->leerFilas($contenido, 3);
+        $this->assertSame(
+            ['Cobrador', 'Fecha', 'Capital inicio', 'Capital cierre', 'Total gastos', 'Detalle de gastos', 'Justificación'],
+            $filasCierre[0],
+        );
+        // "Justificación" queda vacía (null) para este día: no hay diferencia que explicar. Un
+        // valor null se escribe/lee como celda vacía en PhpSpreadsheet, no como cadena vacía.
+        $this->assertSame(
+            ['Ana Torres', '01/01/2026', 100000.0, 120000.0, 35000.0, 'almuerzo ($10.000); gasolina ($25.000)', null],
+            $filasCierre[1],
+        );
+        $this->assertSame(
+            ['Ana Torres', '05/01/2026', 120000.0, 200000.0, 5000.0, 'papeleria ($5.000)', 'Ajuste por cambio no registrado'],
+            $filasCierre[2],
+        );
+
+        // Hoja 5 (índice 4): resumen agregado del rango (capital inicio del primer día,
+        // capital cierre del último, suma de gastos de ambos días).
+        $filasResumen = $this->leerFilas($contenido, 4);
+        $this->assertSame(
+            ['Cobrador', 'Capital inicio (primer día)', 'Capital cierre (último día)', 'Total gastos (rango)'],
+            $filasResumen[0],
+        );
+        $this->assertSame(['Ana Torres', 100000.0, 200000.0, 40000.0], $filasResumen[1]);
     }
 
     public function test_el_formulario_renderiza_el_selector_de_categoria(): void

@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 
 import 'daos/cambios_pendientes_dao.dart';
 import 'daos/cargas_capital_dao.dart';
+import 'daos/cierre_caja_gastos_dao.dart';
+import 'daos/cierres_caja_dao.dart';
 import 'daos/clientes_dao.dart';
 import 'daos/cuotas_dao.dart';
 import 'daos/pagos_dao.dart';
@@ -14,6 +16,8 @@ import 'daos/prestamos_dao.dart';
 import 'daos/prestamos_extras_dao.dart';
 import 'tables/cambios_pendientes_table.dart';
 import 'tables/cargas_capital_table.dart';
+import 'tables/cierre_caja_gastos_table.dart';
+import 'tables/cierres_caja_table.dart';
 import 'tables/clientes_table.dart';
 import 'tables/cuotas_table.dart';
 import 'tables/pagos_table.dart';
@@ -26,8 +30,28 @@ part 'app_database.g.dart';
 /// Laravel para trabajar offline-first. Se sincroniza contra la API a través
 /// de la tabla [CambiosPendientes].
 @DriftDatabase(
-  tables: [Clientes, Prestamos, PrestamosExtras, Cuotas, Pagos, CambiosPendientes, CargasCapital],
-  daos: [ClientesDao, PrestamosDao, PrestamosExtrasDao, CuotasDao, PagosDao, CambiosPendientesDao, CargasCapitalDao],
+  tables: [
+    Clientes,
+    Prestamos,
+    PrestamosExtras,
+    Cuotas,
+    Pagos,
+    CambiosPendientes,
+    CargasCapital,
+    CierresCaja,
+    CierreCajaGastos,
+  ],
+  daos: [
+    ClientesDao,
+    PrestamosDao,
+    PrestamosExtrasDao,
+    CuotasDao,
+    PagosDao,
+    CambiosPendientesDao,
+    CargasCapitalDao,
+    CierresCajaDao,
+    CierreCajaGastosDao,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_abrirConexion());
@@ -39,7 +63,7 @@ class AppDatabase extends _$AppDatabase {
   static final AppDatabase instance = AppDatabase();
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -98,6 +122,15 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(cargasCapital, cargasCapital.uuidLocal);
         await m.addColumn(cargasCapital, cargasCapital.origen);
         await m.addColumn(cargasCapital, cargasCapital.creadoPorUsuarioId);
+      }
+      // v6 -> v7: tablas cierres_caja y cierre_caja_gastos (cierre de caja diario, con sus
+      // gastos del día) — tablas enteramente nuevas, no hay forma de que ya existieran en un
+      // paso anterior, así que el `createTable` acá siempre es incondicional (a diferencia de
+      // cargas_capital en el paso v2->v3, no hay ningún `addColumn` posterior sobre estas dos
+      // tablas del que cuidarse todavía).
+      if (from < 7) {
+        await m.createTable(cierresCaja);
+        await m.createTable(cierreCajaGastos);
       }
     },
   );

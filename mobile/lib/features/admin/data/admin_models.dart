@@ -407,25 +407,31 @@ class SeccionReporte {
   }
 }
 
-/// `GET /admin/reporte`: los mismos 3 bloques del reporte financiero que ya
-/// arma `ExportarReporteService::generarXlsx()` para el panel web (3 hojas),
+/// `GET /admin/reporte`: los mismos 5 bloques del reporte financiero que ya
+/// arma `ExportarReporteService::generarXlsx()` para el panel web (5 hojas),
 /// acá como JSON — misma fuente de verdad, sin recalcular nada en el móvil.
 class ReporteAdminFinanciero {
   const ReporteAdminFinanciero({
     required this.prestamos,
     required this.resumenPorCobrador,
     required this.movimientosCapital,
+    required this.cierreCaja,
+    required this.cierreCajaResumen,
   });
 
   final SeccionReporte prestamos;
   final SeccionReporte resumenPorCobrador;
   final SeccionReporte movimientosCapital;
+  final SeccionReporte cierreCaja;
+  final SeccionReporte cierreCajaResumen;
 
   factory ReporteAdminFinanciero.fromJson(Map<String, dynamic> json) {
     return ReporteAdminFinanciero(
       prestamos: SeccionReporte.fromJson(json['prestamos'] as Map<String, dynamic>),
       resumenPorCobrador: SeccionReporte.fromJson(json['resumen_por_cobrador'] as Map<String, dynamic>),
       movimientosCapital: SeccionReporte.fromJson(json['movimientos_capital'] as Map<String, dynamic>),
+      cierreCaja: SeccionReporte.fromJson(json['cierre_caja'] as Map<String, dynamic>),
+      cierreCajaResumen: SeccionReporte.fromJson(json['cierre_caja_resumen'] as Map<String, dynamic>),
     );
   }
 }

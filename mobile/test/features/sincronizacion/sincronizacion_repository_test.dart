@@ -4,6 +4,7 @@ import 'package:cobro_app/core/network/api_client.dart';
 import 'package:cobro_app/core/storage/secure_storage_service.dart';
 import 'package:cobro_app/data/app_database.dart';
 import 'package:cobro_app/features/capital/data/cargas_capital_repository.dart';
+import 'package:cobro_app/features/capital/data/cierres_caja_repository.dart';
 import 'package:cobro_app/features/clientes/data/clientes_repository.dart';
 import 'package:cobro_app/features/pagos/data/pagos_repository.dart';
 import 'package:cobro_app/features/prestamos/data/prestamos_repository.dart';
@@ -58,7 +59,7 @@ Map<String, dynamic> _respuestaConfirmandoTodo(
   var siguienteId = 100;
   final data = <String, dynamic>{};
 
-  for (final tabla in ['clientes', 'prestamos', 'pagos', 'cargas_capital']) {
+  for (final tabla in ['clientes', 'prestamos', 'pagos', 'cargas_capital', 'cierres_caja']) {
     final items = (cuerpoEnviado[tabla] as List?) ?? const [];
     data[tabla] = [
       for (final item in items) {'uuid_local': item['uuid_local'], 'estado': 'creado', 'id': siguienteId++},
@@ -86,6 +87,7 @@ void main() {
   late PrestamosRepository prestamosRepository;
   late PagosRepository pagosRepository;
   late CargasCapitalRepository cargasCapitalRepository;
+  late CierresCajaRepository cierresCajaRepository;
 
   setUp(() {
     db = AppDatabase.paraPruebas(NativeDatabase.memory());
@@ -94,6 +96,7 @@ void main() {
     prestamosRepository = PrestamosRepository(database: db, secureStorage: secureStorage);
     pagosRepository = PagosRepository(database: db, secureStorage: secureStorage, prestamosRepository: prestamosRepository);
     cargasCapitalRepository = CargasCapitalRepository(database: db, secureStorage: secureStorage);
+    cierresCajaRepository = CierresCajaRepository(database: db, secureStorage: secureStorage);
   });
 
   tearDown(() async {
@@ -215,6 +218,40 @@ void main() {
       expect(segundoIntento.exitosa, isTrue);
       expect(segundoIntento.confirmados, 4);
       expect(await db.cambiosPendientesDao.obtenerPendientes(1), isEmpty);
+    });
+
+    test('sube un cierre de caja con sus gastos anidados y lo confirma', () async {
+      await cierresCajaRepository.crear(
+        fecha: DateTime(2026, 7, 21),
+        capitalInicio: 100000,
+        capitalCierre: 150000,
+        justificacionDiferencia: 'Ajuste manual',
+        gastos: const [GastoCierreCaja(monto: 10000, detalle: 'almuerzo')],
+      );
+
+      Map<String, dynamic>? cuerpoEnviado;
+      final mock = MockClient((request) async {
+        cuerpoEnviado = jsonDecode(request.body) as Map<String, dynamic>;
+        return _json(_respuestaConfirmandoTodo(cuerpoEnviado!));
+      });
+
+      final resultado = await construirRepositorio(mock).sincronizar();
+
+      expect(resultado.exitosa, isTrue);
+      expect(resultado.confirmados, 1);
+      expect(cuerpoEnviado!['cierres_caja'], hasLength(1));
+      expect(cuerpoEnviado!['cierres_caja'][0]['capital_inicio'], 100000);
+      expect(cuerpoEnviado!['cierres_caja'][0]['justificacion_diferencia'], 'Ajuste manual');
+      expect(cuerpoEnviado!['cierres_caja'][0]['gastos'], [
+        {'monto': 10000.0, 'detalle': 'almuerzo'},
+      ]);
+
+      final pendientes = await db.cambiosPendientesDao.obtenerPendientes(1);
+      expect(pendientes, isEmpty);
+
+      final cierres = await cierresCajaRepository.listarTodos();
+      expect(cierres.single.sincronizado, isTrue);
+      expect(cierres.single.servidorId, isNotNull);
     });
 
     test('un registro en conflicto se queda pendiente, no se pierde ni se marca como sincronizado', () async {

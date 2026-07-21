@@ -5,6 +5,7 @@ import '../../../core/storage/secure_storage_service.dart';
 import '../../../core/utils/formato_dinero.dart';
 import '../../auth/presentation/configuracion_seguridad_screen.dart';
 import '../../capital/presentation/agregar_capital_screen.dart';
+import '../../capital/presentation/cierre_caja_screen.dart';
 import '../../capital/presentation/historial_capital_screen.dart';
 import '../../clientes/presentation/clientes_list_screen.dart';
 import '../../prestamos/presentation/cobros_pendientes_screen.dart';
@@ -280,6 +281,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   saldo: resumen.saldoDisponible,
                   onAgregarCapital: () => _ir(const AgregarCapitalScreen()),
                   onVerHistorial: () => _ir(const HistorialCapitalScreen()),
+                  onCierreCaja: () => _ir(const CierreCajaScreen()),
                 ),
                 const SizedBox(height: 16),
                 _StatTile(
@@ -494,11 +496,13 @@ class _TarjetaSaldoDisponible extends StatelessWidget {
     required this.saldo,
     required this.onAgregarCapital,
     required this.onVerHistorial,
+    required this.onCierreCaja,
   });
 
   final double saldo;
   final VoidCallback onAgregarCapital;
   final VoidCallback onVerHistorial;
+  final VoidCallback onCierreCaja;
 
   @override
   Widget build(BuildContext context) {
@@ -535,6 +539,12 @@ class _TarjetaSaldoDisponible extends StatelessWidget {
                   onPressed: onVerHistorial,
                   icon: const Icon(Icons.history),
                   tooltip: 'Historial de capital',
+                ),
+                const SizedBox(width: 8),
+                IconButton.outlined(
+                  onPressed: onCierreCaja,
+                  icon: const Icon(Icons.point_of_sale),
+                  tooltip: 'Cierre de caja',
                 ),
               ],
             ),

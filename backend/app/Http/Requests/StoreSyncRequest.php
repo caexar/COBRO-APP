@@ -78,6 +78,18 @@ class StoreSyncRequest extends FormRequest
             'cargas_capital.*.tipo' => ['required', 'in:carga,retiro'],
             'cargas_capital.*.monto' => ['required', 'numeric', 'min:0.01'],
             'cargas_capital.*.descripcion' => ['nullable', 'string', 'max:255'],
+
+            // Igual que cargas_capital: solo se crea o se confirma, sin flujo de edición desde
+            // el móvil para un cierre ya registrado.
+            'cierres_caja' => ['nullable', 'array'],
+            'cierres_caja.*.uuid_local' => ['required', 'string', 'max:255', 'distinct'],
+            'cierres_caja.*.fecha' => ['required', 'date'],
+            'cierres_caja.*.capital_inicio' => ['required', 'numeric', 'min:0'],
+            'cierres_caja.*.capital_cierre' => ['required', 'numeric', 'min:0'],
+            'cierres_caja.*.justificacion_diferencia' => ['nullable', 'string', 'max:1000'],
+            'cierres_caja.*.gastos' => ['nullable', 'array'],
+            'cierres_caja.*.gastos.*.monto' => ['required_with:cierres_caja.*.gastos', 'numeric', 'min:0.01'],
+            'cierres_caja.*.gastos.*.detalle' => ['required_with:cierres_caja.*.gastos', 'string', 'max:255'],
         ];
     }
 }

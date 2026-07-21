@@ -5148,6 +5148,1049 @@ class CargasCapitalCompanion extends UpdateCompanion<CargaCapital> {
   }
 }
 
+class $CierresCajaTable extends CierresCaja
+    with TableInfo<$CierresCajaTable, CierreCaja> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CierresCajaTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _servidorIdMeta = const VerificationMeta(
+    'servidorId',
+  );
+  @override
+  late final GeneratedColumn<int> servidorId = GeneratedColumn<int>(
+    'servidor_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _uuidLocalMeta = const VerificationMeta(
+    'uuidLocal',
+  );
+  @override
+  late final GeneratedColumn<String> uuidLocal = GeneratedColumn<String>(
+    'uuid_local',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _usuarioIdMeta = const VerificationMeta(
+    'usuarioId',
+  );
+  @override
+  late final GeneratedColumn<int> usuarioId = GeneratedColumn<int>(
+    'usuario_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fechaMeta = const VerificationMeta('fecha');
+  @override
+  late final GeneratedColumn<DateTime> fecha = GeneratedColumn<DateTime>(
+    'fecha',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _capitalInicioMeta = const VerificationMeta(
+    'capitalInicio',
+  );
+  @override
+  late final GeneratedColumn<double> capitalInicio = GeneratedColumn<double>(
+    'capital_inicio',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _capitalCierreMeta = const VerificationMeta(
+    'capitalCierre',
+  );
+  @override
+  late final GeneratedColumn<double> capitalCierre = GeneratedColumn<double>(
+    'capital_cierre',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _justificacionDiferenciaMeta =
+      const VerificationMeta('justificacionDiferencia');
+  @override
+  late final GeneratedColumn<String> justificacionDiferencia =
+      GeneratedColumn<String>(
+        'justificacion_diferencia',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _gastosTotalMeta = const VerificationMeta(
+    'gastosTotal',
+  );
+  @override
+  late final GeneratedColumn<double> gastosTotal = GeneratedColumn<double>(
+    'gastos_total',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _creadoEnMeta = const VerificationMeta(
+    'creadoEn',
+  );
+  @override
+  late final GeneratedColumn<DateTime> creadoEn = GeneratedColumn<DateTime>(
+    'creado_en',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _sincronizadoMeta = const VerificationMeta(
+    'sincronizado',
+  );
+  @override
+  late final GeneratedColumn<bool> sincronizado = GeneratedColumn<bool>(
+    'sincronizado',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("sincronizado" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    servidorId,
+    uuidLocal,
+    usuarioId,
+    fecha,
+    capitalInicio,
+    capitalCierre,
+    justificacionDiferencia,
+    gastosTotal,
+    creadoEn,
+    sincronizado,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cierres_caja';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CierreCaja> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('servidor_id')) {
+      context.handle(
+        _servidorIdMeta,
+        servidorId.isAcceptableOrUnknown(data['servidor_id']!, _servidorIdMeta),
+      );
+    }
+    if (data.containsKey('uuid_local')) {
+      context.handle(
+        _uuidLocalMeta,
+        uuidLocal.isAcceptableOrUnknown(data['uuid_local']!, _uuidLocalMeta),
+      );
+    }
+    if (data.containsKey('usuario_id')) {
+      context.handle(
+        _usuarioIdMeta,
+        usuarioId.isAcceptableOrUnknown(data['usuario_id']!, _usuarioIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_usuarioIdMeta);
+    }
+    if (data.containsKey('fecha')) {
+      context.handle(
+        _fechaMeta,
+        fecha.isAcceptableOrUnknown(data['fecha']!, _fechaMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fechaMeta);
+    }
+    if (data.containsKey('capital_inicio')) {
+      context.handle(
+        _capitalInicioMeta,
+        capitalInicio.isAcceptableOrUnknown(
+          data['capital_inicio']!,
+          _capitalInicioMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_capitalInicioMeta);
+    }
+    if (data.containsKey('capital_cierre')) {
+      context.handle(
+        _capitalCierreMeta,
+        capitalCierre.isAcceptableOrUnknown(
+          data['capital_cierre']!,
+          _capitalCierreMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_capitalCierreMeta);
+    }
+    if (data.containsKey('justificacion_diferencia')) {
+      context.handle(
+        _justificacionDiferenciaMeta,
+        justificacionDiferencia.isAcceptableOrUnknown(
+          data['justificacion_diferencia']!,
+          _justificacionDiferenciaMeta,
+        ),
+      );
+    }
+    if (data.containsKey('gastos_total')) {
+      context.handle(
+        _gastosTotalMeta,
+        gastosTotal.isAcceptableOrUnknown(
+          data['gastos_total']!,
+          _gastosTotalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('creado_en')) {
+      context.handle(
+        _creadoEnMeta,
+        creadoEn.isAcceptableOrUnknown(data['creado_en']!, _creadoEnMeta),
+      );
+    }
+    if (data.containsKey('sincronizado')) {
+      context.handle(
+        _sincronizadoMeta,
+        sincronizado.isAcceptableOrUnknown(
+          data['sincronizado']!,
+          _sincronizadoMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CierreCaja map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CierreCaja(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      servidorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}servidor_id'],
+      ),
+      uuidLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid_local'],
+      ),
+      usuarioId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}usuario_id'],
+      )!,
+      fecha: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fecha'],
+      )!,
+      capitalInicio: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}capital_inicio'],
+      )!,
+      capitalCierre: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}capital_cierre'],
+      )!,
+      justificacionDiferencia: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}justificacion_diferencia'],
+      ),
+      gastosTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}gastos_total'],
+      )!,
+      creadoEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}creado_en'],
+      )!,
+      sincronizado: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}sincronizado'],
+      )!,
+    );
+  }
+
+  @override
+  $CierresCajaTable createAlias(String alias) {
+    return $CierresCajaTable(attachedDatabase, alias);
+  }
+}
+
+class CierreCaja extends DataClass implements Insertable<CierreCaja> {
+  final int id;
+  final int? servidorId;
+
+  /// Generado al crear el registro localmente (no al sincronizar), mismo
+  /// patrón que `clientes`/`prestamos`/`pagos`/`cargas_capital`.
+  final String? uuidLocal;
+  final int usuarioId;
+  final DateTime fecha;
+  final double capitalInicio;
+  final double capitalCierre;
+  final String? justificacionDiferencia;
+  final double gastosTotal;
+  final DateTime creadoEn;
+  final bool sincronizado;
+  const CierreCaja({
+    required this.id,
+    this.servidorId,
+    this.uuidLocal,
+    required this.usuarioId,
+    required this.fecha,
+    required this.capitalInicio,
+    required this.capitalCierre,
+    this.justificacionDiferencia,
+    required this.gastosTotal,
+    required this.creadoEn,
+    required this.sincronizado,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || servidorId != null) {
+      map['servidor_id'] = Variable<int>(servidorId);
+    }
+    if (!nullToAbsent || uuidLocal != null) {
+      map['uuid_local'] = Variable<String>(uuidLocal);
+    }
+    map['usuario_id'] = Variable<int>(usuarioId);
+    map['fecha'] = Variable<DateTime>(fecha);
+    map['capital_inicio'] = Variable<double>(capitalInicio);
+    map['capital_cierre'] = Variable<double>(capitalCierre);
+    if (!nullToAbsent || justificacionDiferencia != null) {
+      map['justificacion_diferencia'] = Variable<String>(
+        justificacionDiferencia,
+      );
+    }
+    map['gastos_total'] = Variable<double>(gastosTotal);
+    map['creado_en'] = Variable<DateTime>(creadoEn);
+    map['sincronizado'] = Variable<bool>(sincronizado);
+    return map;
+  }
+
+  CierresCajaCompanion toCompanion(bool nullToAbsent) {
+    return CierresCajaCompanion(
+      id: Value(id),
+      servidorId: servidorId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(servidorId),
+      uuidLocal: uuidLocal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uuidLocal),
+      usuarioId: Value(usuarioId),
+      fecha: Value(fecha),
+      capitalInicio: Value(capitalInicio),
+      capitalCierre: Value(capitalCierre),
+      justificacionDiferencia: justificacionDiferencia == null && nullToAbsent
+          ? const Value.absent()
+          : Value(justificacionDiferencia),
+      gastosTotal: Value(gastosTotal),
+      creadoEn: Value(creadoEn),
+      sincronizado: Value(sincronizado),
+    );
+  }
+
+  factory CierreCaja.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CierreCaja(
+      id: serializer.fromJson<int>(json['id']),
+      servidorId: serializer.fromJson<int?>(json['servidorId']),
+      uuidLocal: serializer.fromJson<String?>(json['uuidLocal']),
+      usuarioId: serializer.fromJson<int>(json['usuarioId']),
+      fecha: serializer.fromJson<DateTime>(json['fecha']),
+      capitalInicio: serializer.fromJson<double>(json['capitalInicio']),
+      capitalCierre: serializer.fromJson<double>(json['capitalCierre']),
+      justificacionDiferencia: serializer.fromJson<String?>(
+        json['justificacionDiferencia'],
+      ),
+      gastosTotal: serializer.fromJson<double>(json['gastosTotal']),
+      creadoEn: serializer.fromJson<DateTime>(json['creadoEn']),
+      sincronizado: serializer.fromJson<bool>(json['sincronizado']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'servidorId': serializer.toJson<int?>(servidorId),
+      'uuidLocal': serializer.toJson<String?>(uuidLocal),
+      'usuarioId': serializer.toJson<int>(usuarioId),
+      'fecha': serializer.toJson<DateTime>(fecha),
+      'capitalInicio': serializer.toJson<double>(capitalInicio),
+      'capitalCierre': serializer.toJson<double>(capitalCierre),
+      'justificacionDiferencia': serializer.toJson<String?>(
+        justificacionDiferencia,
+      ),
+      'gastosTotal': serializer.toJson<double>(gastosTotal),
+      'creadoEn': serializer.toJson<DateTime>(creadoEn),
+      'sincronizado': serializer.toJson<bool>(sincronizado),
+    };
+  }
+
+  CierreCaja copyWith({
+    int? id,
+    Value<int?> servidorId = const Value.absent(),
+    Value<String?> uuidLocal = const Value.absent(),
+    int? usuarioId,
+    DateTime? fecha,
+    double? capitalInicio,
+    double? capitalCierre,
+    Value<String?> justificacionDiferencia = const Value.absent(),
+    double? gastosTotal,
+    DateTime? creadoEn,
+    bool? sincronizado,
+  }) => CierreCaja(
+    id: id ?? this.id,
+    servidorId: servidorId.present ? servidorId.value : this.servidorId,
+    uuidLocal: uuidLocal.present ? uuidLocal.value : this.uuidLocal,
+    usuarioId: usuarioId ?? this.usuarioId,
+    fecha: fecha ?? this.fecha,
+    capitalInicio: capitalInicio ?? this.capitalInicio,
+    capitalCierre: capitalCierre ?? this.capitalCierre,
+    justificacionDiferencia: justificacionDiferencia.present
+        ? justificacionDiferencia.value
+        : this.justificacionDiferencia,
+    gastosTotal: gastosTotal ?? this.gastosTotal,
+    creadoEn: creadoEn ?? this.creadoEn,
+    sincronizado: sincronizado ?? this.sincronizado,
+  );
+  CierreCaja copyWithCompanion(CierresCajaCompanion data) {
+    return CierreCaja(
+      id: data.id.present ? data.id.value : this.id,
+      servidorId: data.servidorId.present
+          ? data.servidorId.value
+          : this.servidorId,
+      uuidLocal: data.uuidLocal.present ? data.uuidLocal.value : this.uuidLocal,
+      usuarioId: data.usuarioId.present ? data.usuarioId.value : this.usuarioId,
+      fecha: data.fecha.present ? data.fecha.value : this.fecha,
+      capitalInicio: data.capitalInicio.present
+          ? data.capitalInicio.value
+          : this.capitalInicio,
+      capitalCierre: data.capitalCierre.present
+          ? data.capitalCierre.value
+          : this.capitalCierre,
+      justificacionDiferencia: data.justificacionDiferencia.present
+          ? data.justificacionDiferencia.value
+          : this.justificacionDiferencia,
+      gastosTotal: data.gastosTotal.present
+          ? data.gastosTotal.value
+          : this.gastosTotal,
+      creadoEn: data.creadoEn.present ? data.creadoEn.value : this.creadoEn,
+      sincronizado: data.sincronizado.present
+          ? data.sincronizado.value
+          : this.sincronizado,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CierreCaja(')
+          ..write('id: $id, ')
+          ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
+          ..write('usuarioId: $usuarioId, ')
+          ..write('fecha: $fecha, ')
+          ..write('capitalInicio: $capitalInicio, ')
+          ..write('capitalCierre: $capitalCierre, ')
+          ..write('justificacionDiferencia: $justificacionDiferencia, ')
+          ..write('gastosTotal: $gastosTotal, ')
+          ..write('creadoEn: $creadoEn, ')
+          ..write('sincronizado: $sincronizado')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    servidorId,
+    uuidLocal,
+    usuarioId,
+    fecha,
+    capitalInicio,
+    capitalCierre,
+    justificacionDiferencia,
+    gastosTotal,
+    creadoEn,
+    sincronizado,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CierreCaja &&
+          other.id == this.id &&
+          other.servidorId == this.servidorId &&
+          other.uuidLocal == this.uuidLocal &&
+          other.usuarioId == this.usuarioId &&
+          other.fecha == this.fecha &&
+          other.capitalInicio == this.capitalInicio &&
+          other.capitalCierre == this.capitalCierre &&
+          other.justificacionDiferencia == this.justificacionDiferencia &&
+          other.gastosTotal == this.gastosTotal &&
+          other.creadoEn == this.creadoEn &&
+          other.sincronizado == this.sincronizado);
+}
+
+class CierresCajaCompanion extends UpdateCompanion<CierreCaja> {
+  final Value<int> id;
+  final Value<int?> servidorId;
+  final Value<String?> uuidLocal;
+  final Value<int> usuarioId;
+  final Value<DateTime> fecha;
+  final Value<double> capitalInicio;
+  final Value<double> capitalCierre;
+  final Value<String?> justificacionDiferencia;
+  final Value<double> gastosTotal;
+  final Value<DateTime> creadoEn;
+  final Value<bool> sincronizado;
+  const CierresCajaCompanion({
+    this.id = const Value.absent(),
+    this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
+    this.usuarioId = const Value.absent(),
+    this.fecha = const Value.absent(),
+    this.capitalInicio = const Value.absent(),
+    this.capitalCierre = const Value.absent(),
+    this.justificacionDiferencia = const Value.absent(),
+    this.gastosTotal = const Value.absent(),
+    this.creadoEn = const Value.absent(),
+    this.sincronizado = const Value.absent(),
+  });
+  CierresCajaCompanion.insert({
+    this.id = const Value.absent(),
+    this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
+    required int usuarioId,
+    required DateTime fecha,
+    required double capitalInicio,
+    required double capitalCierre,
+    this.justificacionDiferencia = const Value.absent(),
+    this.gastosTotal = const Value.absent(),
+    this.creadoEn = const Value.absent(),
+    this.sincronizado = const Value.absent(),
+  }) : usuarioId = Value(usuarioId),
+       fecha = Value(fecha),
+       capitalInicio = Value(capitalInicio),
+       capitalCierre = Value(capitalCierre);
+  static Insertable<CierreCaja> custom({
+    Expression<int>? id,
+    Expression<int>? servidorId,
+    Expression<String>? uuidLocal,
+    Expression<int>? usuarioId,
+    Expression<DateTime>? fecha,
+    Expression<double>? capitalInicio,
+    Expression<double>? capitalCierre,
+    Expression<String>? justificacionDiferencia,
+    Expression<double>? gastosTotal,
+    Expression<DateTime>? creadoEn,
+    Expression<bool>? sincronizado,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (servidorId != null) 'servidor_id': servidorId,
+      if (uuidLocal != null) 'uuid_local': uuidLocal,
+      if (usuarioId != null) 'usuario_id': usuarioId,
+      if (fecha != null) 'fecha': fecha,
+      if (capitalInicio != null) 'capital_inicio': capitalInicio,
+      if (capitalCierre != null) 'capital_cierre': capitalCierre,
+      if (justificacionDiferencia != null)
+        'justificacion_diferencia': justificacionDiferencia,
+      if (gastosTotal != null) 'gastos_total': gastosTotal,
+      if (creadoEn != null) 'creado_en': creadoEn,
+      if (sincronizado != null) 'sincronizado': sincronizado,
+    });
+  }
+
+  CierresCajaCompanion copyWith({
+    Value<int>? id,
+    Value<int?>? servidorId,
+    Value<String?>? uuidLocal,
+    Value<int>? usuarioId,
+    Value<DateTime>? fecha,
+    Value<double>? capitalInicio,
+    Value<double>? capitalCierre,
+    Value<String?>? justificacionDiferencia,
+    Value<double>? gastosTotal,
+    Value<DateTime>? creadoEn,
+    Value<bool>? sincronizado,
+  }) {
+    return CierresCajaCompanion(
+      id: id ?? this.id,
+      servidorId: servidorId ?? this.servidorId,
+      uuidLocal: uuidLocal ?? this.uuidLocal,
+      usuarioId: usuarioId ?? this.usuarioId,
+      fecha: fecha ?? this.fecha,
+      capitalInicio: capitalInicio ?? this.capitalInicio,
+      capitalCierre: capitalCierre ?? this.capitalCierre,
+      justificacionDiferencia:
+          justificacionDiferencia ?? this.justificacionDiferencia,
+      gastosTotal: gastosTotal ?? this.gastosTotal,
+      creadoEn: creadoEn ?? this.creadoEn,
+      sincronizado: sincronizado ?? this.sincronizado,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (servidorId.present) {
+      map['servidor_id'] = Variable<int>(servidorId.value);
+    }
+    if (uuidLocal.present) {
+      map['uuid_local'] = Variable<String>(uuidLocal.value);
+    }
+    if (usuarioId.present) {
+      map['usuario_id'] = Variable<int>(usuarioId.value);
+    }
+    if (fecha.present) {
+      map['fecha'] = Variable<DateTime>(fecha.value);
+    }
+    if (capitalInicio.present) {
+      map['capital_inicio'] = Variable<double>(capitalInicio.value);
+    }
+    if (capitalCierre.present) {
+      map['capital_cierre'] = Variable<double>(capitalCierre.value);
+    }
+    if (justificacionDiferencia.present) {
+      map['justificacion_diferencia'] = Variable<String>(
+        justificacionDiferencia.value,
+      );
+    }
+    if (gastosTotal.present) {
+      map['gastos_total'] = Variable<double>(gastosTotal.value);
+    }
+    if (creadoEn.present) {
+      map['creado_en'] = Variable<DateTime>(creadoEn.value);
+    }
+    if (sincronizado.present) {
+      map['sincronizado'] = Variable<bool>(sincronizado.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CierresCajaCompanion(')
+          ..write('id: $id, ')
+          ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
+          ..write('usuarioId: $usuarioId, ')
+          ..write('fecha: $fecha, ')
+          ..write('capitalInicio: $capitalInicio, ')
+          ..write('capitalCierre: $capitalCierre, ')
+          ..write('justificacionDiferencia: $justificacionDiferencia, ')
+          ..write('gastosTotal: $gastosTotal, ')
+          ..write('creadoEn: $creadoEn, ')
+          ..write('sincronizado: $sincronizado')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CierreCajaGastosTable extends CierreCajaGastos
+    with TableInfo<$CierreCajaGastosTable, CierreCajaGasto> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CierreCajaGastosTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _cierreCajaIdMeta = const VerificationMeta(
+    'cierreCajaId',
+  );
+  @override
+  late final GeneratedColumn<int> cierreCajaId = GeneratedColumn<int>(
+    'cierre_caja_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES cierres_caja (id)',
+    ),
+  );
+  static const VerificationMeta _montoMeta = const VerificationMeta('monto');
+  @override
+  late final GeneratedColumn<double> monto = GeneratedColumn<double>(
+    'monto',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _detalleMeta = const VerificationMeta(
+    'detalle',
+  );
+  @override
+  late final GeneratedColumn<String> detalle = GeneratedColumn<String>(
+    'detalle',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _creadoEnMeta = const VerificationMeta(
+    'creadoEn',
+  );
+  @override
+  late final GeneratedColumn<DateTime> creadoEn = GeneratedColumn<DateTime>(
+    'creado_en',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    cierreCajaId,
+    monto,
+    detalle,
+    creadoEn,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cierre_caja_gastos';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CierreCajaGasto> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('cierre_caja_id')) {
+      context.handle(
+        _cierreCajaIdMeta,
+        cierreCajaId.isAcceptableOrUnknown(
+          data['cierre_caja_id']!,
+          _cierreCajaIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cierreCajaIdMeta);
+    }
+    if (data.containsKey('monto')) {
+      context.handle(
+        _montoMeta,
+        monto.isAcceptableOrUnknown(data['monto']!, _montoMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_montoMeta);
+    }
+    if (data.containsKey('detalle')) {
+      context.handle(
+        _detalleMeta,
+        detalle.isAcceptableOrUnknown(data['detalle']!, _detalleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_detalleMeta);
+    }
+    if (data.containsKey('creado_en')) {
+      context.handle(
+        _creadoEnMeta,
+        creadoEn.isAcceptableOrUnknown(data['creado_en']!, _creadoEnMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CierreCajaGasto map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CierreCajaGasto(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      cierreCajaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cierre_caja_id'],
+      )!,
+      monto: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}monto'],
+      )!,
+      detalle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}detalle'],
+      )!,
+      creadoEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}creado_en'],
+      )!,
+    );
+  }
+
+  @override
+  $CierreCajaGastosTable createAlias(String alias) {
+    return $CierreCajaGastosTable(attachedDatabase, alias);
+  }
+}
+
+class CierreCajaGasto extends DataClass implements Insertable<CierreCajaGasto> {
+  final int id;
+  final int cierreCajaId;
+  final double monto;
+  final String detalle;
+  final DateTime creadoEn;
+  const CierreCajaGasto({
+    required this.id,
+    required this.cierreCajaId,
+    required this.monto,
+    required this.detalle,
+    required this.creadoEn,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['cierre_caja_id'] = Variable<int>(cierreCajaId);
+    map['monto'] = Variable<double>(monto);
+    map['detalle'] = Variable<String>(detalle);
+    map['creado_en'] = Variable<DateTime>(creadoEn);
+    return map;
+  }
+
+  CierreCajaGastosCompanion toCompanion(bool nullToAbsent) {
+    return CierreCajaGastosCompanion(
+      id: Value(id),
+      cierreCajaId: Value(cierreCajaId),
+      monto: Value(monto),
+      detalle: Value(detalle),
+      creadoEn: Value(creadoEn),
+    );
+  }
+
+  factory CierreCajaGasto.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CierreCajaGasto(
+      id: serializer.fromJson<int>(json['id']),
+      cierreCajaId: serializer.fromJson<int>(json['cierreCajaId']),
+      monto: serializer.fromJson<double>(json['monto']),
+      detalle: serializer.fromJson<String>(json['detalle']),
+      creadoEn: serializer.fromJson<DateTime>(json['creadoEn']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'cierreCajaId': serializer.toJson<int>(cierreCajaId),
+      'monto': serializer.toJson<double>(monto),
+      'detalle': serializer.toJson<String>(detalle),
+      'creadoEn': serializer.toJson<DateTime>(creadoEn),
+    };
+  }
+
+  CierreCajaGasto copyWith({
+    int? id,
+    int? cierreCajaId,
+    double? monto,
+    String? detalle,
+    DateTime? creadoEn,
+  }) => CierreCajaGasto(
+    id: id ?? this.id,
+    cierreCajaId: cierreCajaId ?? this.cierreCajaId,
+    monto: monto ?? this.monto,
+    detalle: detalle ?? this.detalle,
+    creadoEn: creadoEn ?? this.creadoEn,
+  );
+  CierreCajaGasto copyWithCompanion(CierreCajaGastosCompanion data) {
+    return CierreCajaGasto(
+      id: data.id.present ? data.id.value : this.id,
+      cierreCajaId: data.cierreCajaId.present
+          ? data.cierreCajaId.value
+          : this.cierreCajaId,
+      monto: data.monto.present ? data.monto.value : this.monto,
+      detalle: data.detalle.present ? data.detalle.value : this.detalle,
+      creadoEn: data.creadoEn.present ? data.creadoEn.value : this.creadoEn,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CierreCajaGasto(')
+          ..write('id: $id, ')
+          ..write('cierreCajaId: $cierreCajaId, ')
+          ..write('monto: $monto, ')
+          ..write('detalle: $detalle, ')
+          ..write('creadoEn: $creadoEn')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, cierreCajaId, monto, detalle, creadoEn);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CierreCajaGasto &&
+          other.id == this.id &&
+          other.cierreCajaId == this.cierreCajaId &&
+          other.monto == this.monto &&
+          other.detalle == this.detalle &&
+          other.creadoEn == this.creadoEn);
+}
+
+class CierreCajaGastosCompanion extends UpdateCompanion<CierreCajaGasto> {
+  final Value<int> id;
+  final Value<int> cierreCajaId;
+  final Value<double> monto;
+  final Value<String> detalle;
+  final Value<DateTime> creadoEn;
+  const CierreCajaGastosCompanion({
+    this.id = const Value.absent(),
+    this.cierreCajaId = const Value.absent(),
+    this.monto = const Value.absent(),
+    this.detalle = const Value.absent(),
+    this.creadoEn = const Value.absent(),
+  });
+  CierreCajaGastosCompanion.insert({
+    this.id = const Value.absent(),
+    required int cierreCajaId,
+    required double monto,
+    required String detalle,
+    this.creadoEn = const Value.absent(),
+  }) : cierreCajaId = Value(cierreCajaId),
+       monto = Value(monto),
+       detalle = Value(detalle);
+  static Insertable<CierreCajaGasto> custom({
+    Expression<int>? id,
+    Expression<int>? cierreCajaId,
+    Expression<double>? monto,
+    Expression<String>? detalle,
+    Expression<DateTime>? creadoEn,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (cierreCajaId != null) 'cierre_caja_id': cierreCajaId,
+      if (monto != null) 'monto': monto,
+      if (detalle != null) 'detalle': detalle,
+      if (creadoEn != null) 'creado_en': creadoEn,
+    });
+  }
+
+  CierreCajaGastosCompanion copyWith({
+    Value<int>? id,
+    Value<int>? cierreCajaId,
+    Value<double>? monto,
+    Value<String>? detalle,
+    Value<DateTime>? creadoEn,
+  }) {
+    return CierreCajaGastosCompanion(
+      id: id ?? this.id,
+      cierreCajaId: cierreCajaId ?? this.cierreCajaId,
+      monto: monto ?? this.monto,
+      detalle: detalle ?? this.detalle,
+      creadoEn: creadoEn ?? this.creadoEn,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (cierreCajaId.present) {
+      map['cierre_caja_id'] = Variable<int>(cierreCajaId.value);
+    }
+    if (monto.present) {
+      map['monto'] = Variable<double>(monto.value);
+    }
+    if (detalle.present) {
+      map['detalle'] = Variable<String>(detalle.value);
+    }
+    if (creadoEn.present) {
+      map['creado_en'] = Variable<DateTime>(creadoEn.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CierreCajaGastosCompanion(')
+          ..write('id: $id, ')
+          ..write('cierreCajaId: $cierreCajaId, ')
+          ..write('monto: $monto, ')
+          ..write('detalle: $detalle, ')
+          ..write('creadoEn: $creadoEn')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5161,6 +6204,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CambiosPendientesTable cambiosPendientes =
       $CambiosPendientesTable(this);
   late final $CargasCapitalTable cargasCapital = $CargasCapitalTable(this);
+  late final $CierresCajaTable cierresCaja = $CierresCajaTable(this);
+  late final $CierreCajaGastosTable cierreCajaGastos = $CierreCajaGastosTable(
+    this,
+  );
   late final ClientesDao clientesDao = ClientesDao(this as AppDatabase);
   late final PrestamosDao prestamosDao = PrestamosDao(this as AppDatabase);
   late final PrestamosExtrasDao prestamosExtrasDao = PrestamosExtrasDao(
@@ -5172,6 +6219,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this as AppDatabase,
   );
   late final CargasCapitalDao cargasCapitalDao = CargasCapitalDao(
+    this as AppDatabase,
+  );
+  late final CierresCajaDao cierresCajaDao = CierresCajaDao(
+    this as AppDatabase,
+  );
+  late final CierreCajaGastosDao cierreCajaGastosDao = CierreCajaGastosDao(
     this as AppDatabase,
   );
   @override
@@ -5186,6 +6239,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     pagos,
     cambiosPendientes,
     cargasCapital,
+    cierresCaja,
+    cierreCajaGastos,
   ];
 }
 
@@ -8624,6 +9679,754 @@ typedef $$CargasCapitalTableProcessedTableManager =
       CargaCapital,
       PrefetchHooks Function()
     >;
+typedef $$CierresCajaTableCreateCompanionBuilder =
+    CierresCajaCompanion Function({
+      Value<int> id,
+      Value<int?> servidorId,
+      Value<String?> uuidLocal,
+      required int usuarioId,
+      required DateTime fecha,
+      required double capitalInicio,
+      required double capitalCierre,
+      Value<String?> justificacionDiferencia,
+      Value<double> gastosTotal,
+      Value<DateTime> creadoEn,
+      Value<bool> sincronizado,
+    });
+typedef $$CierresCajaTableUpdateCompanionBuilder =
+    CierresCajaCompanion Function({
+      Value<int> id,
+      Value<int?> servidorId,
+      Value<String?> uuidLocal,
+      Value<int> usuarioId,
+      Value<DateTime> fecha,
+      Value<double> capitalInicio,
+      Value<double> capitalCierre,
+      Value<String?> justificacionDiferencia,
+      Value<double> gastosTotal,
+      Value<DateTime> creadoEn,
+      Value<bool> sincronizado,
+    });
+
+final class $$CierresCajaTableReferences
+    extends BaseReferences<_$AppDatabase, $CierresCajaTable, CierreCaja> {
+  $$CierresCajaTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$CierreCajaGastosTable, List<CierreCajaGasto>>
+  _cierreCajaGastosRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.cierreCajaGastos,
+    aliasName: 'cierres_caja__id__cierre_caja_gastos__cierre_caja_id',
+  );
+
+  $$CierreCajaGastosTableProcessedTableManager get cierreCajaGastosRefs {
+    final manager = $$CierreCajaGastosTableTableManager(
+      $_db,
+      $_db.cierreCajaGastos,
+    ).filter((f) => f.cierreCajaId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _cierreCajaGastosRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$CierresCajaTableFilterComposer
+    extends Composer<_$AppDatabase, $CierresCajaTable> {
+  $$CierresCajaTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get usuarioId => $composableBuilder(
+    column: $table.usuarioId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get fecha => $composableBuilder(
+    column: $table.fecha,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get capitalInicio => $composableBuilder(
+    column: $table.capitalInicio,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get capitalCierre => $composableBuilder(
+    column: $table.capitalCierre,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get justificacionDiferencia => $composableBuilder(
+    column: $table.justificacionDiferencia,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get gastosTotal => $composableBuilder(
+    column: $table.gastosTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get creadoEn => $composableBuilder(
+    column: $table.creadoEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> cierreCajaGastosRefs(
+    Expression<bool> Function($$CierreCajaGastosTableFilterComposer f) f,
+  ) {
+    final $$CierreCajaGastosTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.cierreCajaGastos,
+      getReferencedColumn: (t) => t.cierreCajaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CierreCajaGastosTableFilterComposer(
+            $db: $db,
+            $table: $db.cierreCajaGastos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$CierresCajaTableOrderingComposer
+    extends Composer<_$AppDatabase, $CierresCajaTable> {
+  $$CierresCajaTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get usuarioId => $composableBuilder(
+    column: $table.usuarioId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get fecha => $composableBuilder(
+    column: $table.fecha,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get capitalInicio => $composableBuilder(
+    column: $table.capitalInicio,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get capitalCierre => $composableBuilder(
+    column: $table.capitalCierre,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get justificacionDiferencia => $composableBuilder(
+    column: $table.justificacionDiferencia,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get gastosTotal => $composableBuilder(
+    column: $table.gastosTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get creadoEn => $composableBuilder(
+    column: $table.creadoEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CierresCajaTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CierresCajaTable> {
+  $$CierresCajaTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get uuidLocal =>
+      $composableBuilder(column: $table.uuidLocal, builder: (column) => column);
+
+  GeneratedColumn<int> get usuarioId =>
+      $composableBuilder(column: $table.usuarioId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get fecha =>
+      $composableBuilder(column: $table.fecha, builder: (column) => column);
+
+  GeneratedColumn<double> get capitalInicio => $composableBuilder(
+    column: $table.capitalInicio,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get capitalCierre => $composableBuilder(
+    column: $table.capitalCierre,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get justificacionDiferencia => $composableBuilder(
+    column: $table.justificacionDiferencia,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get gastosTotal => $composableBuilder(
+    column: $table.gastosTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get creadoEn =>
+      $composableBuilder(column: $table.creadoEn, builder: (column) => column);
+
+  GeneratedColumn<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => column,
+  );
+
+  Expression<T> cierreCajaGastosRefs<T extends Object>(
+    Expression<T> Function($$CierreCajaGastosTableAnnotationComposer a) f,
+  ) {
+    final $$CierreCajaGastosTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.cierreCajaGastos,
+      getReferencedColumn: (t) => t.cierreCajaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CierreCajaGastosTableAnnotationComposer(
+            $db: $db,
+            $table: $db.cierreCajaGastos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$CierresCajaTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CierresCajaTable,
+          CierreCaja,
+          $$CierresCajaTableFilterComposer,
+          $$CierresCajaTableOrderingComposer,
+          $$CierresCajaTableAnnotationComposer,
+          $$CierresCajaTableCreateCompanionBuilder,
+          $$CierresCajaTableUpdateCompanionBuilder,
+          (CierreCaja, $$CierresCajaTableReferences),
+          CierreCaja,
+          PrefetchHooks Function({bool cierreCajaGastosRefs})
+        > {
+  $$CierresCajaTableTableManager(_$AppDatabase db, $CierresCajaTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CierresCajaTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CierresCajaTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CierresCajaTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
+                Value<int> usuarioId = const Value.absent(),
+                Value<DateTime> fecha = const Value.absent(),
+                Value<double> capitalInicio = const Value.absent(),
+                Value<double> capitalCierre = const Value.absent(),
+                Value<String?> justificacionDiferencia = const Value.absent(),
+                Value<double> gastosTotal = const Value.absent(),
+                Value<DateTime> creadoEn = const Value.absent(),
+                Value<bool> sincronizado = const Value.absent(),
+              }) => CierresCajaCompanion(
+                id: id,
+                servidorId: servidorId,
+                uuidLocal: uuidLocal,
+                usuarioId: usuarioId,
+                fecha: fecha,
+                capitalInicio: capitalInicio,
+                capitalCierre: capitalCierre,
+                justificacionDiferencia: justificacionDiferencia,
+                gastosTotal: gastosTotal,
+                creadoEn: creadoEn,
+                sincronizado: sincronizado,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
+                required int usuarioId,
+                required DateTime fecha,
+                required double capitalInicio,
+                required double capitalCierre,
+                Value<String?> justificacionDiferencia = const Value.absent(),
+                Value<double> gastosTotal = const Value.absent(),
+                Value<DateTime> creadoEn = const Value.absent(),
+                Value<bool> sincronizado = const Value.absent(),
+              }) => CierresCajaCompanion.insert(
+                id: id,
+                servidorId: servidorId,
+                uuidLocal: uuidLocal,
+                usuarioId: usuarioId,
+                fecha: fecha,
+                capitalInicio: capitalInicio,
+                capitalCierre: capitalCierre,
+                justificacionDiferencia: justificacionDiferencia,
+                gastosTotal: gastosTotal,
+                creadoEn: creadoEn,
+                sincronizado: sincronizado,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$CierresCajaTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({cierreCajaGastosRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (cierreCajaGastosRefs) db.cierreCajaGastos,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (cierreCajaGastosRefs)
+                    await $_getPrefetchedData<
+                      CierreCaja,
+                      $CierresCajaTable,
+                      CierreCajaGasto
+                    >(
+                      currentTable: table,
+                      referencedTable: $$CierresCajaTableReferences
+                          ._cierreCajaGastosRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$CierresCajaTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).cierreCajaGastosRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where(
+                            (e) => e.cierreCajaId == item.id,
+                          ),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$CierresCajaTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CierresCajaTable,
+      CierreCaja,
+      $$CierresCajaTableFilterComposer,
+      $$CierresCajaTableOrderingComposer,
+      $$CierresCajaTableAnnotationComposer,
+      $$CierresCajaTableCreateCompanionBuilder,
+      $$CierresCajaTableUpdateCompanionBuilder,
+      (CierreCaja, $$CierresCajaTableReferences),
+      CierreCaja,
+      PrefetchHooks Function({bool cierreCajaGastosRefs})
+    >;
+typedef $$CierreCajaGastosTableCreateCompanionBuilder =
+    CierreCajaGastosCompanion Function({
+      Value<int> id,
+      required int cierreCajaId,
+      required double monto,
+      required String detalle,
+      Value<DateTime> creadoEn,
+    });
+typedef $$CierreCajaGastosTableUpdateCompanionBuilder =
+    CierreCajaGastosCompanion Function({
+      Value<int> id,
+      Value<int> cierreCajaId,
+      Value<double> monto,
+      Value<String> detalle,
+      Value<DateTime> creadoEn,
+    });
+
+final class $$CierreCajaGastosTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $CierreCajaGastosTable, CierreCajaGasto> {
+  $$CierreCajaGastosTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $CierresCajaTable _cierreCajaIdTable(_$AppDatabase db) => db
+      .cierresCaja
+      .createAlias('cierre_caja_gastos__cierre_caja_id__cierres_caja__id');
+
+  $$CierresCajaTableProcessedTableManager get cierreCajaId {
+    final $_column = $_itemColumn<int>('cierre_caja_id')!;
+
+    final manager = $$CierresCajaTableTableManager(
+      $_db,
+      $_db.cierresCaja,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_cierreCajaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$CierreCajaGastosTableFilterComposer
+    extends Composer<_$AppDatabase, $CierreCajaGastosTable> {
+  $$CierreCajaGastosTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get monto => $composableBuilder(
+    column: $table.monto,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get detalle => $composableBuilder(
+    column: $table.detalle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get creadoEn => $composableBuilder(
+    column: $table.creadoEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CierresCajaTableFilterComposer get cierreCajaId {
+    final $$CierresCajaTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.cierreCajaId,
+      referencedTable: $db.cierresCaja,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CierresCajaTableFilterComposer(
+            $db: $db,
+            $table: $db.cierresCaja,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CierreCajaGastosTableOrderingComposer
+    extends Composer<_$AppDatabase, $CierreCajaGastosTable> {
+  $$CierreCajaGastosTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get monto => $composableBuilder(
+    column: $table.monto,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get detalle => $composableBuilder(
+    column: $table.detalle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get creadoEn => $composableBuilder(
+    column: $table.creadoEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CierresCajaTableOrderingComposer get cierreCajaId {
+    final $$CierresCajaTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.cierreCajaId,
+      referencedTable: $db.cierresCaja,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CierresCajaTableOrderingComposer(
+            $db: $db,
+            $table: $db.cierresCaja,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CierreCajaGastosTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CierreCajaGastosTable> {
+  $$CierreCajaGastosTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<double> get monto =>
+      $composableBuilder(column: $table.monto, builder: (column) => column);
+
+  GeneratedColumn<String> get detalle =>
+      $composableBuilder(column: $table.detalle, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get creadoEn =>
+      $composableBuilder(column: $table.creadoEn, builder: (column) => column);
+
+  $$CierresCajaTableAnnotationComposer get cierreCajaId {
+    final $$CierresCajaTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.cierreCajaId,
+      referencedTable: $db.cierresCaja,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CierresCajaTableAnnotationComposer(
+            $db: $db,
+            $table: $db.cierresCaja,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CierreCajaGastosTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CierreCajaGastosTable,
+          CierreCajaGasto,
+          $$CierreCajaGastosTableFilterComposer,
+          $$CierreCajaGastosTableOrderingComposer,
+          $$CierreCajaGastosTableAnnotationComposer,
+          $$CierreCajaGastosTableCreateCompanionBuilder,
+          $$CierreCajaGastosTableUpdateCompanionBuilder,
+          (CierreCajaGasto, $$CierreCajaGastosTableReferences),
+          CierreCajaGasto,
+          PrefetchHooks Function({bool cierreCajaId})
+        > {
+  $$CierreCajaGastosTableTableManager(
+    _$AppDatabase db,
+    $CierreCajaGastosTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CierreCajaGastosTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CierreCajaGastosTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CierreCajaGastosTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> cierreCajaId = const Value.absent(),
+                Value<double> monto = const Value.absent(),
+                Value<String> detalle = const Value.absent(),
+                Value<DateTime> creadoEn = const Value.absent(),
+              }) => CierreCajaGastosCompanion(
+                id: id,
+                cierreCajaId: cierreCajaId,
+                monto: monto,
+                detalle: detalle,
+                creadoEn: creadoEn,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int cierreCajaId,
+                required double monto,
+                required String detalle,
+                Value<DateTime> creadoEn = const Value.absent(),
+              }) => CierreCajaGastosCompanion.insert(
+                id: id,
+                cierreCajaId: cierreCajaId,
+                monto: monto,
+                detalle: detalle,
+                creadoEn: creadoEn,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$CierreCajaGastosTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({cierreCajaId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (cierreCajaId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.cierreCajaId,
+                                referencedTable:
+                                    $$CierreCajaGastosTableReferences
+                                        ._cierreCajaIdTable(db),
+                                referencedColumn:
+                                    $$CierreCajaGastosTableReferences
+                                        ._cierreCajaIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$CierreCajaGastosTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CierreCajaGastosTable,
+      CierreCajaGasto,
+      $$CierreCajaGastosTableFilterComposer,
+      $$CierreCajaGastosTableOrderingComposer,
+      $$CierreCajaGastosTableAnnotationComposer,
+      $$CierreCajaGastosTableCreateCompanionBuilder,
+      $$CierreCajaGastosTableUpdateCompanionBuilder,
+      (CierreCajaGasto, $$CierreCajaGastosTableReferences),
+      CierreCajaGasto,
+      PrefetchHooks Function({bool cierreCajaId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -8642,4 +10445,8 @@ class $AppDatabaseManager {
       $$CambiosPendientesTableTableManager(_db, _db.cambiosPendientes);
   $$CargasCapitalTableTableManager get cargasCapital =>
       $$CargasCapitalTableTableManager(_db, _db.cargasCapital);
+  $$CierresCajaTableTableManager get cierresCaja =>
+      $$CierresCajaTableTableManager(_db, _db.cierresCaja);
+  $$CierreCajaGastosTableTableManager get cierreCajaGastos =>
+      $$CierreCajaGastosTableTableManager(_db, _db.cierreCajaGastos);
 }

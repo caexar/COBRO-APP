@@ -191,6 +191,49 @@ class SyncControllerTest extends TestCase
         $this->assertDatabaseCount('prestamos', 0);
     }
 
+    public function test_sincroniza_un_cierre_de_caja_con_sus_gastos_derivando_el_total(): void
+    {
+        $cobrador = User::factory()->create();
+        Sanctum::actingAs($cobrador);
+
+        $respuesta = $this->postJson('/api/sync', [
+            'cierres_caja' => [[
+                'uuid_local' => 'cz-1',
+                'fecha' => '2026-07-21',
+                'capital_inicio' => 100000,
+                'capital_cierre' => 150000,
+                'justificacion_diferencia' => null,
+                'gastos' => [
+                    ['monto' => 10000, 'detalle' => 'almuerzo'],
+                    ['monto' => 25000, 'detalle' => 'gasolina'],
+                ],
+            ]],
+        ]);
+
+        $respuesta->assertOk();
+        $respuesta->assertJsonPath('data.cierres_caja.0.estado', 'creado');
+
+        $this->assertDatabaseHas('cierres_caja', [
+            'uuid_local' => 'cz-1', 'usuario_id' => $cobrador->id, 'gastos_total' => 35000,
+        ]);
+        $this->assertDatabaseCount('cierre_caja_gastos', 2);
+
+        // Reenviar el mismo batch no duplica.
+        $respuestaReenviada = $this->postJson('/api/sync', [
+            'cierres_caja' => [[
+                'uuid_local' => 'cz-1',
+                'fecha' => '2026-07-21',
+                'capital_inicio' => 100000,
+                'capital_cierre' => 150000,
+            ]],
+        ]);
+
+        $respuestaReenviada->assertOk();
+        $respuestaReenviada->assertJsonPath('data.cierres_caja.0.estado', 'ya_existia');
+        $this->assertDatabaseCount('cierres_caja', 1);
+        $this->assertDatabaseCount('cierre_caja_gastos', 2);
+    }
+
     public function test_un_admin_no_puede_usar_este_endpoint(): void
     {
         $admin = User::factory()->admin()->create();

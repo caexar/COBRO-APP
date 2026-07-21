@@ -1,6 +1,7 @@
 import 'package:cobro_app/core/storage/secure_storage_service.dart';
 import 'package:cobro_app/data/app_database.dart';
 import 'package:cobro_app/features/capital/data/cargas_capital_repository.dart';
+import 'package:cobro_app/features/capital/data/cierres_caja_repository.dart';
 import 'package:cobro_app/features/clientes/data/clientes_repository.dart';
 import 'package:cobro_app/features/dashboard/data/dashboard_repository.dart';
 import 'package:cobro_app/features/dashboard/data/reportes_repository.dart';
@@ -20,6 +21,7 @@ void main() {
   late PrestamosRepository prestamosRepository;
   late PagosRepository pagosRepository;
   late ReportesRepository reportesRepository;
+  late CierresCajaRepository cierresCajaRepository;
 
   setUp(() async {
     db = AppDatabase.paraPruebas(NativeDatabase.memory());
@@ -32,6 +34,7 @@ void main() {
       prestamosRepository: prestamosRepository,
     );
     final cargasCapitalRepository = CargasCapitalRepository(database: db, secureStorage: secureStorage);
+    cierresCajaRepository = CierresCajaRepository(database: db, secureStorage: secureStorage);
     reportesRepository = ReportesRepository(
       prestamosRepository: prestamosRepository,
       pagosRepository: pagosRepository,
@@ -41,6 +44,7 @@ void main() {
         pagosRepository: pagosRepository,
         cargasCapitalRepository: cargasCapitalRepository,
       ),
+      cierresCajaRepository: cierresCajaRepository,
     );
   });
 
@@ -118,6 +122,33 @@ void main() {
     expect(filasDePago, isNotEmpty);
     expect(csvFiltrado, isNot(contains('02/01/2026')));
     expect(csvFiltrado, contains('05/02/2026'));
+  });
+
+  test('incluye la sección de cierre de caja (diario y resumen agregado del rango)', () async {
+    await cierresCajaRepository.crear(
+      fecha: DateTime(2026, 1, 1),
+      capitalInicio: 100000,
+      capitalCierre: 120000,
+      gastos: const [GastoCierreCaja(monto: 10000, detalle: 'almuerzo')],
+    );
+    await cierresCajaRepository.crear(
+      fecha: DateTime(2026, 1, 5),
+      capitalInicio: 120000,
+      capitalCierre: 200000,
+      justificacionDiferencia: 'Ajuste por cambio no registrado',
+    );
+
+    final csv = await reportesRepository.construirCsv(desde: DateTime(2026, 1, 1), hasta: DateTime(2026, 1, 31));
+
+    expect(csv, contains('Cierre de caja'));
+    expect(csv, contains('almuerzo'));
+    expect(csv, contains('Ajuste por cambio no registrado'));
+
+    expect(csv, contains('Resumen de cierre de caja (rango)'));
+    final seccionResumen = csv.split('Resumen de cierre de caja (rango)').last;
+    // Capital inicio del primer día (100.000) y capital cierre del último (200.000).
+    expect(seccionResumen, contains('100.000'));
+    expect(seccionResumen, contains('200.000'));
   });
 
   test('filtra el historial de pagos por cliente', () async {

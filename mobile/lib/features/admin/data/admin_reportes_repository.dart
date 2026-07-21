@@ -4,9 +4,10 @@ import '../../../core/utils/csv_exportador.dart';
 import 'admin_repository.dart';
 
 /// Arma y comparte, para uno o varios cobradores elegidos por el admin, un
-/// CSV con el mismo reporte financiero de 3 secciones que ya arma el panel
-/// web como .xlsx (préstamos, resumen por cobrador, movimientos de capital)
-/// — trayendo los datos ya calculados vía `GET /admin/reporte` en vez de
+/// CSV con el mismo reporte financiero de 5 secciones que ya arma el panel
+/// web como .xlsx (préstamos, resumen por cobrador, movimientos de capital,
+/// cierre de caja y su resumen agregado) — trayendo los datos ya calculados
+/// vía `GET /admin/reporte` en vez de
 /// recalcularlos en el móvil. Se eligió CSV (no .xlsx) para mobile a
 /// propósito: acá el archivo se comparte por WhatsApp/correo con
 /// `share_plus`, donde un CSV es más liviano y compatible que un .xlsx.
@@ -50,6 +51,14 @@ class AdminReportesRepository {
       [reporte.movimientosCapital.titulo],
       reporte.movimientosCapital.columnas,
       ...reporte.movimientosCapital.filas,
+      [],
+      [reporte.cierreCaja.titulo],
+      reporte.cierreCaja.columnas,
+      ...reporte.cierreCaja.filas,
+      [],
+      [reporte.cierreCajaResumen.titulo],
+      reporte.cierreCajaResumen.columnas,
+      ...reporte.cierreCajaResumen.filas,
     ];
 
     return Csv().encode(filas);

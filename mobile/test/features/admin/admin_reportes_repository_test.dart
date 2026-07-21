@@ -40,6 +40,20 @@ Map<String, dynamic> _reporteJson() {
         ['Ana Torres', '10/01/2026', 'retiro', 20000, 'gasto_operativo'],
       ],
     },
+    'cierre_caja': {
+      'titulo': 'Cierre de caja',
+      'columnas': ['Cobrador', 'Fecha', 'Capital inicio', 'Capital cierre', 'Total gastos'],
+      'filas': [
+        ['Ana Torres', '10/01/2026', 100000, 120000, 10000],
+      ],
+    },
+    'cierre_caja_resumen': {
+      'titulo': 'Resumen de cierre de caja (rango)',
+      'columnas': ['Cobrador', 'Capital inicio (primer día)', 'Capital cierre (último día)', 'Total gastos (rango)'],
+      'filas': [
+        ['Ana Torres', 100000, 120000, 10000],
+      ],
+    },
   };
 }
 

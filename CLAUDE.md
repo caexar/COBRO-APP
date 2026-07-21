@@ -1047,10 +1047,12 @@ Dos reglas que ya causaron bugs reales y no deben repetirse:
    mano con `package:sqlite3` crudo, verificado contra `sqlite_master` real, no de memoria).
    Sin esto, un dispositivo con la app ya instalada rompe en silencio (`no such column`/`no
    such table`) la primera vez que se toca esa tabla — ya pasó con `prestamos.referencia`.
-   Versión actual: `6` (v1→v2 `referencia`, v2→v3 tabla `cargas_capital`, v3→v4
+   Versión actual: `7` (v1→v2 `referencia`, v2→v3 tabla `cargas_capital`, v3→v4
    `cambios_pendientes.usuario_id`, v4→v5 `cargas_capital.tipo`/`eliminadoEn`, v5→v6
    `uuid_local` en `clientes`/`prestamos`/`pagos`/`cargas_capital` +
-   `cargas_capital.origen`/`creadoPorUsuarioId`, todo para `POST /api/sync`). **Cuidado con
+   `cargas_capital.origen`/`creadoPorUsuarioId`, todo para `POST /api/sync`, v6→v7 tablas
+   `cierres_caja`/`cierre_caja_gastos` — ver sección "Cierre de caja diario" más abajo).
+   **Cuidado con
    `m.createTable(tabla)` en un paso `if (from < N)`**: siempre crea la tabla con la definición
    *actual* del código, no con la forma histórica de esa versión — si más adelante se agregan
    columnas a esa misma tabla en un paso posterior (`m.addColumn`), un dispositivo que migra
@@ -1074,6 +1076,96 @@ Dos reglas que ya causaron bugs reales y no deben repetirse:
    sincronización tampoco debe cruzarse entre cobradores. Cubierto end-to-end en
    `test/aislamiento_entre_usuarios_test.dart` (dos cobradores, misma base de datos en
    memoria, un solo `AppDatabase`).
+
+## Cierre de caja diario (backend + mobile)
+
+Entidad nueva y **separada** de `cargas_capital` (no comparte tabla ni lógica con
+`CapitalService`/`saldo_disponible` — no se tocó nada de esa funcionalidad existente): un
+cobrador registra, normalmente una vez por día, cuánto capital tenía al empezar y al cerrar el
+día, más los gastos operativos del día.
+
+### Backend
+
+- **`cierres_caja`**: `usuario_id` (FK), `fecha` (date, operativa, editable, default hoy),
+  `capital_inicio`/`capital_cierre` (decimal 12,2 — en el móvil se prellenan con el saldo
+  disponible del cobrador al momento de abrir el formulario, mismo cálculo de
+  `DashboardRepository.calcularResumen`/`CapitalService::calcularSaldoDisponible`, pero son
+  editables), `justificacion_diferencia` (text nullable, solo relevante si el cobrador edita
+  `capital_inicio`/`capital_cierre` lejos del valor prellenado), `gastos_total` (decimal 12,2,
+  default 0, **derivado server-side** sumando los gastos recibidos, nunca confiado del
+  cliente), `uuid_local` (nullable, único junto con `usuario_id`, mismo patrón de dedup que el
+  resto de sync). `created_at` es el timestamp real de creación del registro, distinto de
+  `fecha` (la fecha operativa elegida por el cobrador). Índice `(usuario_id, fecha)`.
+- **`cierre_caja_gastos`**: `cierre_caja_id` (FK, cascade delete), `monto` (decimal 12,2),
+  `detalle` (string, requerido, texto libre — ej. "almuerzo", "gasolina").
+- **`App\Models\CierreCaja`** tiene `protected $table = 'cierres_caja';` explícito —
+  **necesario**, Eloquent pluraliza "CierreCaja" como `cierre_cajas` por defecto (mismo bug ya
+  conocido y corregido antes en `CargaCapital`/`cargas_capital`; cualquier modelo nuevo con
+  nombre compuesto en español debe revisar esto).
+- **`GET/POST /api/cierres-caja`** (`App\Http\Controllers\Api\CierreCajaController`,
+  `auth:sanctum` + `role:cobrador`, filtrado por `usuario_id` del cobrador autenticado; `show()`
+  usa `abort_if` de ownership): `store()` recalcula `gastos_total` en el servidor (suma de los
+  `gastos` recibidos), todo dentro de `DB::transaction`, y audita vía `AuditoriaLogger` con
+  `accion = 'registrar_cierre_caja'`.
+- **Sync** (`POST /api/sync`): `StoreSyncRequest` valida `cierres_caja[]` (incluida la forma
+  anidada de `gastos`); `SyncService::sincronizarCierreCaja()` sigue **exactamente** el mismo
+  patrón que `sincronizarCargaCapital()` — solo crea o confirma por `uuid_local`, **no
+  reconcilia nada** en un cierre ya existente (igual que `cargas_capital`: no hay flujo de
+  edición de un cierre ya sincronizado desde el móvil).
+- **Export** (`App\Services\ExportarReporteService::datosReporte()`): dos bloques nuevos,
+  consumidos automáticamente tanto por el `.xlsx` web (`generarXlsx()`) como por
+  `GET /api/admin/reporte` (JSON, CSV mobile) sin tocar ningún controller:
+  - `cierre_caja`: una fila por día/cierre (`filasCierreCaja()`) — Cobrador, Fecha, Capital
+    inicio, Capital cierre, Gastos total, Detalle de gastos (`detalleGastos()`, texto plano
+    tipo "almuerzo: 15.000; gasolina: 20.000"), Justificación de diferencia (**nullable, sin
+    coercionar a `''`** — un `''` escrito a una celda xlsx vuelve como `null` al leerla, así
+    que se dejó como pass-through; el test de export ya lo asume así).
+  - `cierre_caja_resumen`: solo aparece si el rango filtrado abarca más de un día — total de
+    gastos del rango, `capital_inicio` del primer día del rango, `capital_cierre` del último
+    día (`filasCierreCajaResumen()`).
+
+### Mobile
+
+- Drift: tablas `CierresCaja`/`CierreCajaGastos` (mismas columnas que el backend),
+  `CierresCajaDao`/`CierreCajaGastosDao`.
+- **`CierresCajaRepository`** (`features/capital/data/cierres_caja_repository.dart`): sigue el
+  patrón ya usado por `PrestamosRepository.crear()` (padre + hijos, **un solo**
+  `cambios_pendientes` encolado para el cierre completo aunque tenga varios gastos) — no
+  inventar un patrón nuevo si se agrega otra entidad con hijos en el futuro, replicar este.
+- **`CierreCajaScreen`**: botón junto a "Agregar capital" en el dashboard (ícono
+  `Icons.point_of_sale`). Campos: fecha (default hoy, editable), capital de inicio/cierre
+  prellenados con el saldo disponible actual (editables), campo de justificación que se vuelve
+  **requerido** solo si el cobrador edita capital_inicio o capital_cierre lejos del valor
+  prellenado, lista de gastos (monto + detalle, varios permitidos). Todo se guarda primero en
+  Drift y queda encolado para el próximo `/sync` — la pantalla no hace ninguna llamada de red
+  directa.
+- **Sync** (`SincronizacionRepository`): `cierres_caja` agregado al batch de subida (con sus
+  `gastos` anidados en el payload) y a `procesarResultados`, mismo criterio que
+  `cargas_capital` — sin reconciliación, solo creación/confirmación por `uuid_local`.
+- **Export CSV**: `ReportesRepository._agregarSeccionCierreCaja()` (reporte del propio
+  cobrador) y `AdminReportesRepository.construirCsv()` (reporte admin) agregan las 2 secciones
+  nuevas (`cierre_caja`/`cierre_caja_resumen`) tal cual vienen del backend — mismo criterio de
+  "una sola fuente de verdad" que el resto de este reporte financiero.
+- **Gotcha real ya corregido**: `ReportesRepository` ahora requiere `cierresCajaRepository`
+  como dependencia. Cualquier test o pantalla que la construya manualmente (sin usar el
+  constructor por defecto de producción) debe inyectarla explícitamente, igual que las demás
+  dependencias de ese repositorio — si no, cae al `CierresCajaRepository()`/
+  `SecureStorageService()` reales y revienta por canal de plataforma no inicializado en tests.
+  Ya corregido en `test/aislamiento_entre_usuarios_test.dart`; si aparece un test nuevo con el
+  mismo tipo de crash, revisar primero si le falta este parámetro.
+
+### Test preexistente y no relacionado que sigue fallando
+
+`test/features/dashboard/dashboard_repository_test.dart` (`calcula saldo disponible, cartera,
+proyección y ganancia realizada`) falla por fragilidad de fechas **preexistente, sin relación
+con esta tarea**: hardcodea `final hoy = DateTime(2026, 7, 15)` para las fechas de pago del
+fixture, pero `DashboardRepository.calcularResumen()` usa `DateTime.now()` real para su ventana
+de "últimos 7 días" — a medida que avanza el calendario real, esas fechas fijas quedan fuera de
+la ventana y el test empieza a fallar solo, sin que nadie haya tocado el código. Confirmado con
+`git status` que ni el test ni `dashboard_repository.dart` fueron modificados durante esta
+tarea — se dejó **deliberadamente sin tocar** (fuera de alcance: "no toques tests de módulos no
+relacionados"). Pendiente de decidir en una tarea aparte si se fija el reloj del test o se
+parametriza "hoy".
 
 ## Despliegue: Laravel Cloud (`/backend`)
 

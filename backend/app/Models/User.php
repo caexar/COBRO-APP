@@ -64,6 +64,14 @@ class User extends Authenticatable
         return $this->hasMany(CargaCapital::class, 'usuario_id');
     }
 
+    /**
+     * @return HasMany<CierreCaja>
+     */
+    public function cierresCaja(): HasMany
+    {
+        return $this->hasMany(CierreCaja::class, 'usuario_id');
+    }
+
     public function isAdmin(): bool
     {
         return $this->rol === 'admin';

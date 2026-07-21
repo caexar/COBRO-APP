@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exports\Admin\ArraySheetExport;
 use App\Exports\Admin\ReporteAdminExport;
 use App\Models\CargaCapital;
+use App\Models\CierreCaja;
 use App\Models\Cuota;
 use App\Models\Prestamo;
 use App\Models\User;
@@ -75,6 +76,16 @@ class ExportarReporteService
                 'titulo' => 'Movimientos de capital',
                 'columnas' => ['Cobrador', 'Fecha', 'Tipo', 'Monto', 'Categoría', 'Descripción', 'Origen'],
                 'filas' => $this->filasMovimientosCapital($cobradores, $desde, $hasta, $categoriaCapital),
+            ],
+            'cierre_caja' => [
+                'titulo' => 'Cierre de caja',
+                'columnas' => ['Cobrador', 'Fecha', 'Capital inicio', 'Capital cierre', 'Total gastos', 'Detalle de gastos', 'Justificación'],
+                'filas' => $this->filasCierreCaja($cobradores, $desde, $hasta),
+            ],
+            'cierre_caja_resumen' => [
+                'titulo' => 'Resumen de cierre de caja (rango)',
+                'columnas' => ['Cobrador', 'Capital inicio (primer día)', 'Capital cierre (último día)', 'Total gastos (rango)'],
+                'filas' => $this->filasCierreCajaResumen($cobradores, $desde, $hasta),
             ],
         ];
     }
@@ -227,5 +238,78 @@ class ExportarReporteService
             $carga->descripcion ?? '',
             $carga->origen,
         ])->all();
+    }
+
+    /**
+     * Una fila por día (por `fecha`, la fecha operativa elegida por el cobrador — no
+     * `created_at`) de los cierres de caja de los cobradores filtrados, dentro del rango.
+     * "Detalle de gastos" concatena cada gasto del día ("almuerzo ($10.000); gasolina
+     * ($25.000)") porque el pedido es una fila por día, no una fila por gasto.
+     *
+     * @param  Collection<int, User>  $cobradores
+     * @return array<int, array<int, mixed>>
+     */
+    private function filasCierreCaja(Collection $cobradores, ?Carbon $desde, ?Carbon $hasta): array
+    {
+        $nombresPorId = $cobradores->pluck('nombre', 'id');
+
+        $cierres = CierreCaja::whereIn('usuario_id', $cobradores->pluck('id'))
+            ->when($desde, fn ($query) => $query->where('fecha', '>=', $desde))
+            ->when($hasta, fn ($query) => $query->where('fecha', '<=', $hasta))
+            ->with('gastos')
+            ->orderBy('fecha')
+            ->get();
+
+        return $cierres->map(fn (CierreCaja $cierre) => [
+            $nombresPorId[$cierre->usuario_id] ?? '—',
+            $cierre->fecha->format('d/m/Y'),
+            (float) $cierre->capital_inicio,
+            (float) $cierre->capital_cierre,
+            (float) $cierre->gastos_total,
+            $this->detalleGastos($cierre),
+            $cierre->justificacion_diferencia,
+        ])->all();
+    }
+
+    private function detalleGastos(CierreCaja $cierre): string
+    {
+        return $cierre->gastos
+            ->map(fn ($gasto) => "{$gasto->detalle} (\$".number_format((float) $gasto->monto, 0, ',', '.').')')
+            ->implode('; ');
+    }
+
+    /**
+     * Una fila por cobrador con el total agregado del rango filtrado (suma de gastos, capital
+     * inicio del primer día del rango, capital cierre del último) — complementa la vista diaria
+     * de arriba para ver de un vistazo el total semanal/mensual. Un cobrador sin ningún cierre
+     * en el rango no aparece (no hay nada que resumir).
+     *
+     * @param  Collection<int, User>  $cobradores
+     * @return array<int, array<int, mixed>>
+     */
+    private function filasCierreCajaResumen(Collection $cobradores, ?Carbon $desde, ?Carbon $hasta): array
+    {
+        $filas = [];
+
+        foreach ($cobradores as $cobrador) {
+            $cierres = CierreCaja::where('usuario_id', $cobrador->id)
+                ->when($desde, fn ($query) => $query->where('fecha', '>=', $desde))
+                ->when($hasta, fn ($query) => $query->where('fecha', '<=', $hasta))
+                ->orderBy('fecha')
+                ->get();
+
+            if ($cierres->isEmpty()) {
+                continue;
+            }
+
+            $filas[] = [
+                $cobrador->nombre,
+                (float) $cierres->first()->capital_inicio,
+                (float) $cierres->last()->capital_cierre,
+                round((float) $cierres->sum('gastos_total'), 2),
+            ];
+        }
+
+        return $filas;
     }
 }
