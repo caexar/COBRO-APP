@@ -985,7 +985,8 @@ para `AdminAsignarCapitalScreen`, ver sección de panel admin más arriba); `His
   admin (que sí descarga su `.xlsx` ya armado del servidor, ver sección de admin), este reporte
   es del propio cobrador y debe seguir funcionando sin conexión (offline-first). Una hoja por
   sección (`Resumen`, `Prestamos`, `Historial de pagos`, `Total por cliente`, `Cierre de caja`,
-  `Resumen cierre de caja`) en vez del bloque-por-bloque de un CSV plano. El paquete `csv` y
+  `Resumen cierre de caja`, `Rutas` — ver sección "Rutas de cobro" más abajo) en vez del
+  bloque-por-bloque de un CSV plano. El paquete `csv` y
   `csv_exportador.dart` (con su BOM manual) se eliminaron del todo — el nuevo
   `mobile/lib/core/utils/archivo_exportador.dart` (`exportarArchivoYCompartir()`, bytes crudos a
   un archivo temporal + `share_plus`) es ahora el único exportador de archivos, reutilizado
@@ -1071,11 +1072,13 @@ Dos reglas que ya causaron bugs reales y no deben repetirse:
    mano con `package:sqlite3` crudo, verificado contra `sqlite_master` real, no de memoria).
    Sin esto, un dispositivo con la app ya instalada rompe en silencio (`no such column`/`no
    such table`) la primera vez que se toca esa tabla — ya pasó con `prestamos.referencia`.
-   Versión actual: `7` (v1→v2 `referencia`, v2→v3 tabla `cargas_capital`, v3→v4
+   Versión actual: `9` (v1→v2 `referencia`, v2→v3 tabla `cargas_capital`, v3→v4
    `cambios_pendientes.usuario_id`, v4→v5 `cargas_capital.tipo`/`eliminadoEn`, v5→v6
    `uuid_local` en `clientes`/`prestamos`/`pagos`/`cargas_capital` +
    `cargas_capital.origen`/`creadoPorUsuarioId`, todo para `POST /api/sync`, v6→v7 tablas
-   `cierres_caja`/`cierre_caja_gastos` — ver sección "Cierre de caja diario" más abajo).
+   `cierres_caja`/`cierre_caja_gastos` — ver sección "Cierre de caja diario" más abajo, v7→v8
+   tablas `rutas`/`ruta_items`, v8→v9 `rutas.incluyeVencidas` — ver sección "Rutas de cobro"
+   más abajo).
    **Cuidado con
    `m.createTable(tabla)` en un paso `if (from < N)`**: siempre crea la tabla con la definición
    *actual* del código, no con la forma histórica de esa versión — si más adelante se agregan
@@ -1190,6 +1193,112 @@ a fallar solo, sin que nadie tocara el código. El test ahora pasa `ahora: hoy` 
 las dos pruebas que dependen de la ventana temporal, así que ya no depende del reloj real. Si se
 agrega otro consumidor de `calcularResumen()` que necesite fijar "hoy" en un test, usar el mismo
 parámetro en vez de reintroducir una dependencia del reloj real.
+
+## Rutas de cobro (backend + mobile)
+
+Una "ruta" es una lista organizada de préstamos a cobrar, propiedad de un cobrador — puramente
+organizativa (drag-and-drop, marcar cobrado), no reemplaza ni toca `PagoProcessor`/
+`cambios_pendientes` de pagos. Entrada desde el dashboard: botón "Rutas" (ícono
+`Icons.alt_route`) justo debajo de "Cobros pendientes".
+
+### Backend
+
+- **`rutas`**: `usuario_id` (FK), `nombre`, `descripcion` (nullable), `fecha` (nullable — con
+  valor la ruta está asociada a un día específico, ej. una autogenerada; `null` es una ruta
+  general/reutilizable), `orden` (posición manual de la LISTA de rutas del cobrador, no de sus
+  items), `incluye_vencidas` (boolean nullable — solo aplica a una ruta autogenerada, `null` en
+  una manual, ver más abajo), `uuid_local`.
+- **`ruta_items`**: `ruta_id`, `prestamo_id`, `orden` (posición manual DENTRO de esa ruta),
+  `estado` (`pendiente`|`cobrado`), `cobrado_en` (nullable), `uuid_local` (único junto con
+  `ruta_id`, no `usuario_id` — mismo criterio que `pagos.uuid_local`/`prestamo_id`).
+- **`RutaPolicy`**: a diferencia de `ClientePolicy`/`PrestamoPolicy`, sin caso admin — una ruta
+  no tiene lectura de `/admin/*`, es puramente del cobrador dueño.
+- **Endpoints** (`role:cobrador`, `App\Http\Controllers\Api\RutaController`/`RutaItemController`):
+  CRUD de rutas + `PUT /rutas/reordenar` (lista completa de ids en el nuevo orden, mismo
+  contrato simple en mobile) + CRUD de `ruta_items` dentro de una ruta + `PUT
+  /rutas/{ruta}/items/{rutaItem}/marcar-cobrado`. Las rutas de path literal
+  (`reordenar`, `autogenerar-hoy`) están declaradas en `routes/api.php` **antes** que
+  `/rutas/{ruta}`, o el router las confundiría con el parámetro dinámico.
+- **`POST /api/rutas/autogenerar-hoy`** (`RutaService::autogenerarHoy`): crea una ruta nueva y
+  la llena con un `ruta_item` por cada préstamo `activo`/`en_mora` cuya **próxima cuota
+  pendiente** (mismo criterio que `PagoProcessor`: la de menor `numero_cuota` con
+  `estado != pagada`) cae dentro del criterio pedido. Dos parámetros opcionales en el body:
+  - `fecha` (default hoy — de ahí el nombre del método, aunque acepte cualquier día). El nombre
+    de la ruta generada es `"Ruta de hoy {fecha}"` si `fecha` es hoy, `"Ruta del {fecha}"` si no.
+  - `incluir_vencidas` (default `false`): con `false`, solo entran préstamos cuya próxima cuota
+    pendiente vence **exactamente** ese día (uno en mora cuya cuota atrasada es de días
+    anteriores no entra hasta que se ponga al día). Con `true`, también entran los que ya estén
+    atrasados de **antes** de `fecha` (`fecha_esperada <= fecha` en vez de `isSameDay`). Un
+    préstamo que deba de varios días atrás aparece **una sola vez** (nunca dos `ruta_items`),
+    porque siempre se evalúa una sola cuota por préstamo, la más antigua sin pagar. El valor
+    elegido se guarda en `rutas.incluye_vencidas` para mostrarlo después en el listado (ver
+    mobile).
+- **Sync** (`POST /api/sync`): `rutas` se procesa **antes** que `ruta_items` (un ruta_item puede
+  referenciar una ruta recién creada en el mismo batch) — `SyncService::sincronizarRuta()`
+  reconcilia **todos** los campos editables (igual que `clientes`, a diferencia de `prestamos`
+  que solo reconcilia `politica_mora`), `sincronizarRutaItem()` solo reconcilia
+  `orden`/`estado`/`cobrado_en` (la asociación ruta↔préstamo no se reescribe después de creada,
+  igual que capital/interés/cuotas en `prestamos`). No hay flujo de borrado por sync — ver nota
+  de mobile.
+- **Export** (`App\Services\ExportarReporteService::datosReporte()`, bloque `rutas`): una fila
+  por ítem (préstamo dentro de una ruta) de los cobradores filtrados, en el orden en que
+  quedaron, con estado/`cobrado_en`/monto pendiente — filtrado por `created_at` de la ruta (no
+  `fecha`, que es nullable en una ruta general y la dejaría fuera del reporte por completo;
+  mismo criterio que `cargas_capital` en el bloque de movimientos de capital).
+
+### Mobile (`mobile/lib/features/rutas`)
+
+- Drift: tablas `Rutas`/`RutaItems` (mismas columnas que el backend), agregadas en
+  schemaVersion v7→v8 (tablas nuevas) y v8→v9 (`rutas.incluyeVencidas`) — ver sección de Drift
+  más arriba.
+- **`RutasRepository`**: CRUD local + encolado en `cambios_pendientes`, offline-first como el
+  resto de la app — **excepto `autogenerarHoy()`**, que sí requiere conexión (el servidor
+  evalúa todos los préstamos). Eliminar una ruta o un ítem (`eliminar()`/`quitarPrestamo()`) es
+  **solo local**: el contrato de sync no tiene borrado para estas entidades (igual que
+  `cargas_capital`/`cierres_caja`), así que si la ruta ya se había sincronizado el registro
+  sigue existiendo en el servidor.
+- **`marcarCobradoSiPertenece({rutaId, prestamoId})`**: si `rutaId` tiene un ítem pendiente para
+  ese préstamo, lo marca `cobrado` con `cobradoEn = ahora`. Es el mecanismo central de conexión
+  con el flujo de pago (ver más abajo) — no toca nada si el préstamo no está en esa ruta
+  puntual, ni si ya estaba cobrado (idempotente).
+- **Conexión con el flujo de pago**: al tocar un ítem pendiente, `RutaDetalleScreen` navega a
+  **`PrestamoDetalleScreen`** — la misma pantalla que ya usa `CobrosPendientesScreen`, sin
+  duplicarla. `PrestamoDetalleScreen` acepta un parámetro opcional `onPagoRegistrado`
+  (`VoidCallback?`, default `null`, no afecta a los demás llamadores) que se dispara junto al
+  `_cargar()` de siempre cuando `RegistrarPagoScreen` devuelve `true`. `RutaDetalleScreen` le
+  pasa `() => _repository.marcarCobradoSiPertenece(rutaId: ..., prestamoId: ...)` — funciona
+  sin importar si el pago fue parcial o cubrió la cuota completa.
+- **`comoFecha()`** (`core/utils/json_fecha.dart`): el backend serializa cualquier columna
+  `date` de Eloquent (una fecha de calendario, sin hora real) como string con hora y "Z" de UTC
+  (ej. `"2026-07-22T00:00:00.000000Z"`). Parsear eso con `DateTime.parse` directo da un
+  `DateTime` en UTC — y como Drift guarda sus columnas de fecha como epoch y las reconstruye en
+  hora **local** al leerlas, en cualquier huso detrás de UTC (ej. Colombia, UTC-5) el día queda
+  desplazado uno hacia atrás apenas se guarda (bug real, confirmado con un test que reproducía
+  el corrimiento). `comoFecha()` toma solo la parte `YYYY-MM-DD` del string y arma un `DateTime`
+  local a medianoche sin pasar por UTC — mismo patrón que `comoDouble()` para decimales;
+  cualquier campo `date` nuevo del backend (no un timestamp real como `created_at`, donde sí
+  importa la hora) debe parsearse con esta función, no con `DateTime.parse` directo.
+- **`RutasListScreen`**: listado reordenable (drag-and-drop). El botón de crear ofrece "Crear
+  ruta manual" (funciona sin conexión) o "Autogenerar ruta por día" (deshabilitado con aviso si
+  `core/utils/conectividad.dart::hayConexion()` da `false` — chequeo liviano con
+  `InternetAddress.lookup`, sin agregar el paquete `connectivity_plus`). Autogenerar pide,
+  en orden: la fecha (`showDatePicker`, default hoy) y luego si incluir vencidas (diálogo
+  sí/no) — cancelar cualquiera de los dos pasos aborta sin llamar al endpoint. Cada ruta
+  autogenerada muestra un aviso sutil junto al nombre (`"Solo ese día"` / `"+ vencidas"`, fondo
+  neutro, no un `Chip` de color) según `rutas.incluyeVencidas`; una ruta manual (`null`) no
+  muestra nada.
+- **`RutaDetalleScreen`**: ítems en el orden manual guardado, reordenables por drag-and-drop o
+  menú de tres puntos ("Mover arriba"/"Mover abajo"/"Quitar de la ruta", con confirmación). Los
+  cobrados se muestran tachados/grises con check verde, ordenados al final **visualmente**, sin
+  alterar el `orden` guardado de los pendientes. FAB "Agregar préstamo" abre
+  `agregar_prestamo_a_ruta_sheet.dart` (reutiliza `PrestamosRepository.listarPendientes`,
+  excluyendo los que ya están en la ruta). Una ruta autogenerada es una ruta normal como
+  cualquier otra una vez creada — agregar/quitar ítems funciona igual sobre ella.
+- **Export**: `ReportesRepository._agregarSeccionRutas()` agrega una hoja `Rutas` (mismo
+  criterio de "una sola fuente de verdad" que el resto del reporte, filtrado por `creadoEn` de
+  la ruta) — requiere inyectar `RutasRepository` en cualquier test/construcción manual de
+  `ReportesRepository`, mismo gotcha ya documentado para `cierresCajaRepository` en la sección
+  de Cierre de caja.
 
 ## Despliegue: Laravel Cloud (`/backend`)
 
