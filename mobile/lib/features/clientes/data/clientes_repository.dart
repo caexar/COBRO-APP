@@ -43,6 +43,11 @@ class ClientesRepository {
     return _clientesDao.obtenerTodos(usuarioId);
   }
 
+  Future<Cliente?> obtenerPorId(int id) async {
+    final usuarioId = await _usuarioIdActual();
+    return _clientesDao.obtenerPorId(id, usuarioId);
+  }
+
   /// Busca siempre por nombre; si [termino] contiene dígitos, también busca
   /// por cédula y agrega esos resultados al final (sin duplicar filas).
   /// Nunca cruza datos entre cobradores, aunque compartan dispositivo.

@@ -70,10 +70,19 @@ class PinMaestroHashes {
 class ApiClient {
   ApiClient({http.Client? httpClient, String? baseUrl})
       : _http = httpClient ?? http.Client(),
-        _baseUrl = baseUrl ?? kApiBaseUrl;
+        // `.trim()`: kApiBaseUrl (o un baseUrl pasado a mano) puede venir de un flag
+        // `--dart-define` escrito/copiado a mano — un espacio de más ahí (o en [ruta] al
+        // llamar) rompe silenciosamente la URL final ("…/api/ rutas/…", 404 "route not
+        // found" en vez de un error claro). Se recorta acá una sola vez en vez de en cada
+        // sitio que arma una URL, ver [_uri].
+        _baseUrl = (baseUrl ?? kApiBaseUrl).trim();
 
   final http.Client _http;
   final String _baseUrl;
+
+  /// Único lugar donde se concatena `_baseUrl` con una ruta — [ruta] también se recorta,
+  /// por si el string literal (o algo construido dinámicamente) trae un espacio de más.
+  Uri _uri(String ruta) => Uri.parse('$_baseUrl${ruta.trim()}');
 
   Future<LoginResult> login({required String email, required String password}) async {
     final respuesta = await _post('/login', body: {'email': email, 'password': password});
@@ -81,7 +90,7 @@ class ApiClient {
   }
 
   Future<void> logout(String token) async {
-    await _http.post(Uri.parse('$_baseUrl/logout'), headers: _headers(token: token));
+    await _http.post(_uri('/logout'), headers: _headers(token: token));
   }
 
   Future<PinMaestroHashes> obtenerPinMaestro(String token) async {
@@ -102,7 +111,7 @@ class ApiClient {
   /// devuelve `respuesta.bodyBytes` tal cual, para no arriesgar corromper contenido binario que
   /// no sea UTF-8 válido.
   Future<List<int>> getBytes(String ruta, {String? token}) async {
-    final respuesta = await _http.get(Uri.parse('$_baseUrl$ruta'), headers: _headersBinario(token: token));
+    final respuesta = await _http.get(_uri(ruta), headers: _headersBinario(token: token));
 
     if (respuesta.statusCode < 200 || respuesta.statusCode >= 300) {
       final cuerpo = respuesta.body.isEmpty ? <String, dynamic>{} : jsonDecode(respuesta.body) as Map<String, dynamic>;
@@ -117,7 +126,7 @@ class ApiClient {
 
   Future<Map<String, dynamic>> put(String ruta, {Map<String, dynamic>? body, String? token}) async {
     final respuesta = await _http.put(
-      Uri.parse('$_baseUrl$ruta'),
+      _uri(ruta),
       headers: _headers(token: token),
       body: jsonEncode(body ?? {}),
     );
@@ -126,7 +135,7 @@ class ApiClient {
 
   Future<Map<String, dynamic>> _post(String ruta, {Map<String, dynamic>? body, String? token}) async {
     final respuesta = await _http.post(
-      Uri.parse('$_baseUrl$ruta'),
+      _uri(ruta),
       headers: _headers(token: token),
       body: jsonEncode(body ?? {}),
     );
@@ -134,7 +143,7 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> _get(String ruta, {String? token}) async {
-    final respuesta = await _http.get(Uri.parse('$_baseUrl$ruta'), headers: _headers(token: token));
+    final respuesta = await _http.get(_uri(ruta), headers: _headers(token: token));
     return _procesar(respuesta);
   }
 

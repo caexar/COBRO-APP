@@ -7,6 +7,7 @@ import 'package:cobro_app/features/dashboard/data/dashboard_repository.dart';
 import 'package:cobro_app/features/dashboard/data/reportes_repository.dart';
 import 'package:cobro_app/features/pagos/data/pagos_repository.dart';
 import 'package:cobro_app/features/prestamos/data/prestamos_repository.dart';
+import 'package:cobro_app/features/rutas/data/rutas_repository.dart';
 import 'package:drift/native.dart';
 import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +42,7 @@ class _RepositoriosDeUnCobrador {
     pagos = PagosRepository(database: db, secureStorage: secureStorage, prestamosRepository: prestamos);
     cargasCapital = CargasCapitalRepository(database: db, secureStorage: secureStorage);
     cierresCaja = CierresCajaRepository(database: db, secureStorage: secureStorage);
+    rutas = RutasRepository(database: db, secureStorage: secureStorage);
     dashboard = DashboardRepository(
       prestamosRepository: prestamos,
       pagosRepository: pagos,
@@ -52,6 +54,7 @@ class _RepositoriosDeUnCobrador {
       clientesRepository: clientes,
       dashboardRepository: dashboard,
       cierresCajaRepository: cierresCaja,
+      rutasRepository: rutas,
     );
   }
 
@@ -61,6 +64,7 @@ class _RepositoriosDeUnCobrador {
   late final PagosRepository pagos;
   late final CargasCapitalRepository cargasCapital;
   late final CierresCajaRepository cierresCaja;
+  late final RutasRepository rutas;
   late final DashboardRepository dashboard;
   late final ReportesRepository reportes;
 }

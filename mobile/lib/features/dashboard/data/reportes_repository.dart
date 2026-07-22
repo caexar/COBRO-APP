@@ -6,6 +6,7 @@ import '../../capital/data/cierres_caja_repository.dart';
 import '../../clientes/data/clientes_repository.dart';
 import '../../pagos/data/pagos_repository.dart';
 import '../../prestamos/data/prestamos_repository.dart';
+import '../../rutas/data/rutas_repository.dart';
 import 'dashboard_repository.dart';
 
 /// Arma y comparte un reporte en `.xlsx`: resumen de cartera, listado de
@@ -24,17 +25,20 @@ class ReportesRepository {
     ClientesRepository? clientesRepository,
     DashboardRepository? dashboardRepository,
     CierresCajaRepository? cierresCajaRepository,
+    RutasRepository? rutasRepository,
   }) : _prestamosRepository = prestamosRepository ?? PrestamosRepository(),
        _pagosRepository = pagosRepository ?? PagosRepository(),
        _clientesRepository = clientesRepository ?? ClientesRepository(),
        _dashboardRepository = dashboardRepository ?? DashboardRepository(),
-       _cierresCajaRepository = cierresCajaRepository ?? CierresCajaRepository();
+       _cierresCajaRepository = cierresCajaRepository ?? CierresCajaRepository(),
+       _rutasRepository = rutasRepository ?? RutasRepository();
 
   final PrestamosRepository _prestamosRepository;
   final PagosRepository _pagosRepository;
   final ClientesRepository _clientesRepository;
   final DashboardRepository _dashboardRepository;
   final CierresCajaRepository _cierresCajaRepository;
+  final RutasRepository _rutasRepository;
 
   /// Arma el workbook, sin tocar el sistema de archivos ni ningún plugin
   /// (fácil de testear). [desde]/[hasta] filtran el historial de pagos por
@@ -63,15 +67,12 @@ class ReportesRepository {
     );
     for (final prestamo in prestamos) {
       final cliente = clientePorId[prestamo.clienteId];
-      final detalle = await _prestamosRepository.obtenerDetalle(prestamo.id);
-      final pagosPrestamo = await _pagosRepository.listarPorPrestamo(prestamo.id);
-      final totalAplicado = pagosPrestamo.fold<double>(0, (acumulado, pago) => acumulado + pago.montoAplicado);
-      final saldoPendiente = detalle.montoTotal - totalAplicado;
+      final saldoPendiente = await _saldoPendienteDe(prestamo);
 
       hojaPrestamos.appendRow([
         TextCellValue(cliente?.nombre ?? 'Cliente #${prestamo.clienteId}'),
         TextCellValue(prestamo.referencia ?? ''),
-        TextCellValue(formatearMoneda(saldoPendiente < 0 ? 0 : saldoPendiente)),
+        TextCellValue(formatearMoneda(saldoPendiente)),
         TextCellValue(prestamo.estado),
       ]);
     }
@@ -123,12 +124,21 @@ class ReportesRepository {
     }
 
     await _agregarSeccionCierreCaja(excel, desde: desde, hasta: hasta);
+    await _agregarSeccionRutas(excel, clientePorId: clientePorId, prestamoPorId: prestamoPorId, desde: desde, hasta: hasta);
 
     if (sheetPorDefecto != null && sheetPorDefecto != 'Resumen') {
       excel.delete(sheetPorDefecto);
     }
 
     return excel;
+  }
+
+  Future<double> _saldoPendienteDe(Prestamo prestamo) async {
+    final detalle = await _prestamosRepository.obtenerDetalle(prestamo.id);
+    final pagosPrestamo = await _pagosRepository.listarPorPrestamo(prestamo.id);
+    final totalAplicado = pagosPrestamo.fold<double>(0, (acumulado, pago) => acumulado + pago.montoAplicado);
+    final saldo = detalle.montoTotal - totalAplicado;
+    return saldo < 0 ? 0 : saldo;
   }
 
   /// Cierre de caja: una fila por día (fecha operativa, no filtra por
@@ -189,6 +199,60 @@ class ReportesRepository {
     }
   }
 
+  /// Rutas de cobro: una fila por ítem (préstamo dentro de una ruta), en el
+  /// orden en que quedaron, dentro de [desde]/[hasta] (por `creadoEn` de la
+  /// ruta, igual que `cargas_capital` en el reporte del admin — mismo
+  /// criterio replicado en `App\Services\ExportarReporteService::filasRutas()`
+  /// del backend). "Monto pendiente" es el saldo del préstamo al momento de
+  /// exportar, no un histórico congelado a la fecha del ítem.
+  Future<void> _agregarSeccionRutas(
+    Excel excel, {
+    required Map<int, Cliente> clientePorId,
+    required Map<int, Prestamo> prestamoPorId,
+    DateTime? desde,
+    DateTime? hasta,
+  }) async {
+    final rutas = await _rutasRepository.listar();
+    final enRango = rutas.where((ruta) {
+      if (desde != null && ruta.creadoEn.isBefore(desde)) return false;
+      if (hasta != null && ruta.creadoEn.isAfter(hasta)) return false;
+      return true;
+    }).toList();
+
+    final hojaRutas = excel['Rutas'];
+    hojaRutas.appendRow([
+      TextCellValue('Ruta'),
+      TextCellValue('Fecha de la ruta'),
+      TextCellValue('Orden'),
+      TextCellValue('Cliente'),
+      TextCellValue('Préstamo'),
+      TextCellValue('Estado'),
+      TextCellValue('Cobrado en'),
+      TextCellValue('Monto pendiente'),
+    ]);
+
+    for (final ruta in enRango) {
+      final items = await _rutasRepository.listarItems(ruta.id);
+
+      for (final item in items) {
+        final prestamo = prestamoPorId[item.prestamoId];
+        final cliente = prestamo != null ? clientePorId[prestamo.clienteId] : null;
+        final saldoPendiente = prestamo != null ? await _saldoPendienteDe(prestamo) : 0.0;
+
+        hojaRutas.appendRow([
+          TextCellValue(ruta.nombre),
+          TextCellValue(ruta.fecha != null ? _formatearFecha(ruta.fecha!) : ''),
+          TextCellValue('${item.orden}'),
+          TextCellValue(cliente?.nombre ?? (prestamo != null ? 'Cliente #${prestamo.clienteId}' : '—')),
+          TextCellValue(prestamo?.referencia ?? (prestamo != null ? 'Préstamo #${prestamo.id}' : '—')),
+          TextCellValue(item.estado),
+          TextCellValue(item.cobradoEn != null ? '${_formatearFecha(item.cobradoEn!)} ${_formatearHora(item.cobradoEn!)}' : ''),
+          TextCellValue(formatearMoneda(saldoPendiente)),
+        ]);
+      }
+    }
+  }
+
   /// Arma el `.xlsx` y lo comparte vía `share_plus`, escrito en un
   /// directorio temporal.
   Future<void> exportarYCompartir({DateTime? desde, DateTime? hasta, int? clienteId}) async {
@@ -209,4 +273,10 @@ String _formatearFecha(DateTime fecha) {
   final dia = fecha.day.toString().padLeft(2, '0');
   final mes = fecha.month.toString().padLeft(2, '0');
   return '$dia/$mes/${fecha.year}';
+}
+
+String _formatearHora(DateTime fecha) {
+  final hora = fecha.hour.toString().padLeft(2, '0');
+  final minuto = fecha.minute.toString().padLeft(2, '0');
+  return '$hora:$minuto';
 }

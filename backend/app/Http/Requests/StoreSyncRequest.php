@@ -92,6 +92,25 @@ class StoreSyncRequest extends FormRequest
             'cierres_caja.*.gastos' => ['nullable', 'array'],
             'cierres_caja.*.gastos.*.monto' => ['required_with:cierres_caja.*.gastos', 'numeric', 'min:0.01'],
             'cierres_caja.*.gastos.*.detalle' => ['required_with:cierres_caja.*.gastos', 'string', 'max:255'],
+
+            'rutas' => ['nullable', 'array'],
+            'rutas.*.uuid_local' => ['required', 'string', 'max:255', 'distinct'],
+            'rutas.*.actualizado_en' => ['required', 'date'],
+            'rutas.*.nombre' => ['required', 'string', 'max:255'],
+            'rutas.*.descripcion' => ['nullable', 'string', 'max:1000'],
+            'rutas.*.fecha' => ['nullable', 'date'],
+            'rutas.*.orden' => ['required', 'integer', 'min:0'],
+
+            // Debe procesarse después de "rutas" y "prestamos" (ver SyncService::sincronizar):
+            // ruta_uuid_local/prestamo_uuid_local pueden referenciar algo del mismo batch.
+            'ruta_items' => ['nullable', 'array'],
+            'ruta_items.*.uuid_local' => ['required', 'string', 'max:255', 'distinct'],
+            'ruta_items.*.actualizado_en' => ['required', 'date'],
+            'ruta_items.*.ruta_uuid_local' => ['required', 'string', 'max:255'],
+            'ruta_items.*.prestamo_uuid_local' => ['required', 'string', 'max:255'],
+            'ruta_items.*.orden' => ['required', 'integer', 'min:0'],
+            'ruta_items.*.estado' => ['required', 'in:pendiente,cobrado'],
+            'ruta_items.*.cobrado_en' => ['nullable', 'date'],
         ];
     }
 }

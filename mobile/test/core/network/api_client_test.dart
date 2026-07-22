@@ -46,4 +46,37 @@ void main() {
       );
     });
   });
+
+  group('construcción de URL', () {
+    /// Bug real: un espacio de más en `baseUrl` (típico de un `--dart-define` escrito/copiado
+    /// a mano) o en la ruta pasada a `post`/`get`/`put` rompía silenciosamente la URL final
+    /// ("…/api/ rutas/…"), y el backend respondía 404 "route not found" sin que fuera obvio
+    /// por qué — ver `ApiClient._uri`.
+    test('recorta espacios de más en baseUrl y en la ruta antes de armar la URL', () async {
+      Uri? urlPedida;
+      final mock = MockClient((request) async {
+        urlPedida = request.url;
+        return http.Response('{"data":{}}', 200, headers: {'content-type': 'application/json'});
+      });
+
+      final apiClient = ApiClient(httpClient: mock, baseUrl: 'http://test/api ');
+      await apiClient.post(' /rutas/autogenerar-hoy', token: 'token-de-prueba');
+
+      expect(urlPedida.toString(), 'http://test/api/rutas/autogenerar-hoy');
+      expect(urlPedida.toString(), isNot(contains(' ')));
+    });
+
+    test('sin espacios de más, arma la misma URL de siempre', () async {
+      Uri? urlPedida;
+      final mock = MockClient((request) async {
+        urlPedida = request.url;
+        return http.Response('{"data":{}}', 200, headers: {'content-type': 'application/json'});
+      });
+
+      final apiClient = ApiClient(httpClient: mock, baseUrl: 'http://test/api');
+      await apiClient.post('/rutas/autogenerar-hoy', token: 'token-de-prueba');
+
+      expect(urlPedida.toString(), 'http://test/api/rutas/autogenerar-hoy');
+    });
+  });
 }

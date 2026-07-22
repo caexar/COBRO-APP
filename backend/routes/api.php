@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\PagoController;
 use App\Http\Controllers\Api\PinMaestroController;
 use App\Http\Controllers\Api\PrestamoController;
 use App\Http\Controllers\Api\RestaurarController;
+use App\Http\Controllers\Api\RutaController;
+use App\Http\Controllers\Api\RutaItemController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Auth\AuthController;
 use Illuminate\Http\Request;
@@ -41,6 +43,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('pagos', [PagoController::class, 'store']);
 
         Route::post('cargas-capital', [CargaCapitalController::class, 'store']);
+
+        // Rutas de cobro. Las de path literal (reordenar, autogenerar-hoy) van antes que
+        // '/{ruta}' para que el router no las confunda con el parámetro dinámico.
+        Route::get('rutas', [RutaController::class, 'index']);
+        Route::post('rutas', [RutaController::class, 'store']);
+        Route::put('rutas/reordenar', [RutaController::class, 'reordenar']);
+        Route::post('rutas/autogenerar-hoy', [RutaController::class, 'autogenerarHoy']);
+        Route::get('rutas/{ruta}', [RutaController::class, 'show']);
+        Route::put('rutas/{ruta}', [RutaController::class, 'update']);
+        Route::delete('rutas/{ruta}', [RutaController::class, 'destroy']);
+
+        Route::post('rutas/{ruta}/items', [RutaItemController::class, 'store']);
+        Route::put('rutas/{ruta}/items/reordenar', [RutaItemController::class, 'reordenar']);
+        Route::delete('rutas/{ruta}/items/{rutaItem}', [RutaItemController::class, 'destroy']);
+        Route::put('rutas/{ruta}/items/{rutaItem}/marcar-cobrado', [RutaItemController::class, 'marcarCobrado']);
 
         Route::get('cierres-caja', [CierreCajaController::class, 'index']);
         Route::post('cierres-caja', [CierreCajaController::class, 'store']);

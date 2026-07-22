@@ -218,6 +218,35 @@ const _crearCargasCapitalV6 = '''
   );
 ''';
 
+/// `cierres_caja`/`cierre_caja_gastos` en su forma final de v7 (volcado real de
+/// `sqlite_master` para estas dos tablas, sin cambios desde que se agregaron en v7 — no
+/// dependen de nada de rutas/ruta_items, que son tablas completamente nuevas en v8).
+const _crearCierresCajaV7 = '''
+  CREATE TABLE "cierres_caja" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "servidor_id" INTEGER NULL UNIQUE,
+    "uuid_local" TEXT NULL,
+    "usuario_id" INTEGER NOT NULL,
+    "fecha" INTEGER NOT NULL,
+    "capital_inicio" REAL NOT NULL,
+    "capital_cierre" REAL NOT NULL,
+    "justificacion_diferencia" TEXT NULL,
+    "gastos_total" REAL NOT NULL DEFAULT 0.0,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+    "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1))
+  );
+''';
+
+const _crearCierreCajaGastosV7 = '''
+  CREATE TABLE "cierre_caja_gastos" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "cierre_caja_id" INTEGER NOT NULL REFERENCES cierres_caja (id),
+    "monto" REAL NOT NULL,
+    "detalle" TEXT NOT NULL,
+    "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER))
+  );
+''';
+
 void main() {
   late Directory carpetaTemporal;
   late File archivoDb;
@@ -303,7 +332,7 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 7);
+    expect(version, 8);
 
     final dbReabierta = AppDatabase.paraPruebas(NativeDatabase(archivoDb));
     addTearDown(dbReabierta.close);
@@ -466,7 +495,7 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 7);
+    expect(version, 8);
   });
 
   /// Crea el archivo con el esquema "v5": clientes/prestamos/pagos/cargas_capital
@@ -563,7 +592,7 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 7);
+    expect(version, 8);
   });
 
   /// Crea el archivo con el esquema "v6": clientes/prestamos/pagos/cargas_capital ya con su
@@ -623,6 +652,71 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 7);
+    expect(version, 8);
+  });
+
+  /// Crea el archivo con el esquema "v7": clientes/prestamos/pagos/cargas_capital en su forma
+  /// final, más cierres_caja/cierre_caja_gastos ya creadas, pero sin rutas/ruta_items (tablas
+  /// enteramente nuevas, agregadas recién en v8), con un cliente y un préstamo ya guardados.
+  void crearBaseDeDatosV7() {
+    final db = sqlite3.sqlite3.open(archivoDb.path);
+    db.execute(_crearCambiosPendientesV4masAdelante);
+    db.execute(_crearClientesV6);
+    db.execute(_crearPrestamosV6);
+    db.execute(_crearPagosV6);
+    db.execute(_crearCargasCapitalV6);
+    db.execute(_crearCierresCajaV7);
+    db.execute(_crearCierreCajaGastosV7);
+
+    db.execute('''
+      INSERT INTO clientes (usuario_id, nombre, cedula, telefono, direccion, creado_en, actualizado_en, uuid_local)
+      VALUES (1, 'Juan Perez', '111', '3000000001', 'Calle 1', 1752192000, 1752192000, 'uuid-cliente-1');
+    ''');
+    db.execute('''
+      INSERT INTO prestamos
+        (id, cliente_id, usuario_id, monto_capital, porcentaje_interes, frecuencia_pago, plazo_cuotas, fecha_inicio, creado_en, actualizado_en, uuid_local)
+      VALUES
+        (1, 1, 1, 100000.0, 20.0, 'diario', 10, 1752192000, 1752192000, 1752192000, 'uuid-prestamo-1');
+    ''');
+    db.execute('PRAGMA user_version = 7;');
+    db.close();
+  }
+
+  test('agrega las tablas rutas y ruta_items sin perder lo ya guardado', () async {
+    crearBaseDeDatosV7();
+
+    final db = AppDatabase.paraPruebas(NativeDatabase(archivoDb));
+    addTearDown(db.close);
+
+    final cliente = await db.clientesDao.obtenerPorId(1, 1);
+    expect(cliente, isNotNull);
+    expect(cliente!.nombre, 'Juan Perez');
+
+    final prestamo = await db.prestamosDao.obtenerPorId(1, 1);
+    expect(prestamo, isNotNull);
+
+    // Las tablas nuevas nacen vacías pero utilizables.
+    expect(await db.rutasDao.obtenerTodas(1), isEmpty);
+
+    final rutaId = await db.rutasDao.insertar(
+      RutasCompanion.insert(usuarioId: 1, nombre: 'Ruta barrio Centro', uuidLocal: const Value('uuid-ruta-1')),
+    );
+    await db.rutaItemsDao.insertar(
+      RutaItemsCompanion.insert(rutaId: rutaId, prestamoId: 1, uuidLocal: const Value('uuid-item-1')),
+    );
+
+    final rutas = await db.rutasDao.obtenerTodas(1);
+    expect(rutas, hasLength(1));
+    expect(rutas.first.nombre, 'Ruta barrio Centro');
+
+    final items = await db.rutaItemsDao.obtenerPorRuta(rutaId);
+    expect(items, hasLength(1));
+    expect(items.first.prestamoId, 1);
+    expect(items.first.estado, 'pendiente');
+
+    final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
+    final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
+    rawDespues.close();
+    expect(version, 8);
   });
 }

@@ -118,19 +118,7 @@ class PrestamosRepository {
       for (final prestamo in prestamosCliente) {
         if (prestamo.estado != 'activo' && prestamo.estado != 'en_mora') continue;
 
-        final detalle = await obtenerDetalle(prestamo.id);
-        final pagos = await _pagosDao.obtenerPorPrestamo(prestamo.id);
-        final totalAplicado = pagos.fold<double>(0, (acumulado, pago) => acumulado + pago.montoAplicado);
-        final saldoPendiente = detalle.montoTotal - totalAplicado;
-
-        resumenes.add(
-          PrestamoResumen(
-            prestamo: prestamo,
-            cliente: cliente,
-            totalPagado: totalAplicado,
-            saldoPendiente: saldoPendiente < 0 ? 0 : saldoPendiente,
-          ),
-        );
+        resumenes.add(await _resumenDe(prestamo, cliente));
       }
     }
 
@@ -157,24 +145,45 @@ class PrestamosRepository {
       for (final prestamo in prestamosCliente) {
         if (prestamo.estado != 'pagado') continue;
 
-        final detalle = await obtenerDetalle(prestamo.id);
-        final pagos = await _pagosDao.obtenerPorPrestamo(prestamo.id);
-        final totalAplicado = pagos.fold<double>(0, (acumulado, pago) => acumulado + pago.montoAplicado);
-        final saldoPendiente = detalle.montoTotal - totalAplicado;
-
-        resumenes.add(
-          PrestamoResumen(
-            prestamo: prestamo,
-            cliente: cliente,
-            totalPagado: totalAplicado,
-            saldoPendiente: saldoPendiente < 0 ? 0 : saldoPendiente,
-          ),
-        );
+        resumenes.add(await _resumenDe(prestamo, cliente));
       }
     }
 
     _ordenar(resumenes, orden);
     return resumenes;
+  }
+
+  /// [PrestamoResumen] de un solo préstamo puntual (a diferencia de
+  /// [listarPendientes]/[listarPagados], que arman la lista completa de un
+  /// estado) — pensado para pantallas que ya conocen el `prestamoId` de
+  /// antemano, como `RutaDetalleScreen`.
+  Future<PrestamoResumen> obtenerResumen(int prestamoId) async {
+    final usuarioId = await _usuarioIdActual();
+    final prestamo = await _prestamosDao.obtenerPorId(prestamoId, usuarioId);
+    if (prestamo == null) {
+      throw StateError('El préstamo ya no existe.');
+    }
+
+    final cliente = await _clientesRepository.obtenerPorId(prestamo.clienteId);
+    if (cliente == null) {
+      throw StateError('El cliente de este préstamo ya no existe.');
+    }
+
+    return _resumenDe(prestamo, cliente);
+  }
+
+  Future<PrestamoResumen> _resumenDe(Prestamo prestamo, Cliente cliente) async {
+    final detalle = await obtenerDetalle(prestamo.id);
+    final pagos = await _pagosDao.obtenerPorPrestamo(prestamo.id);
+    final totalAplicado = pagos.fold<double>(0, (acumulado, pago) => acumulado + pago.montoAplicado);
+    final saldoPendiente = detalle.montoTotal - totalAplicado;
+
+    return PrestamoResumen(
+      prestamo: prestamo,
+      cliente: cliente,
+      totalPagado: totalAplicado,
+      saldoPendiente: saldoPendiente < 0 ? 0 : saldoPendiente,
+    );
   }
 
   /// Aplica [orden] a [resumenes] in-place. `alfabetico` no hace nada (ya

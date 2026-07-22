@@ -7,6 +7,7 @@ import 'package:cobro_app/features/dashboard/data/dashboard_repository.dart';
 import 'package:cobro_app/features/dashboard/data/reportes_repository.dart';
 import 'package:cobro_app/features/pagos/data/pagos_repository.dart';
 import 'package:cobro_app/features/prestamos/data/prestamos_repository.dart';
+import 'package:cobro_app/features/rutas/data/rutas_repository.dart';
 import 'package:drift/native.dart';
 import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,6 +55,7 @@ void main() {
         cargasCapitalRepository: cargasCapitalRepository,
       ),
       cierresCajaRepository: cierresCajaRepository,
+      rutasRepository: RutasRepository(database: db, secureStorage: secureStorage),
     );
   });
 

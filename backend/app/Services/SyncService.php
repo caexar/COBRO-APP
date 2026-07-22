@@ -8,6 +8,8 @@ use App\Models\Cliente;
 use App\Models\ConfiguracionGlobal;
 use App\Models\Pago;
 use App\Models\Prestamo;
+use App\Models\Ruta;
+use App\Models\RutaItem;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -35,12 +37,15 @@ class SyncService
     ) {}
 
     /**
-     * @param  array{clientes?: array<int, array<string, mixed>>, prestamos?: array<int, array<string, mixed>>, pagos?: array<int, array<string, mixed>>, cargas_capital?: array<int, array<string, mixed>>, cierres_caja?: array<int, array<string, mixed>>}  $datos
-     * @return array{clientes: array<int, array<string, mixed>>, prestamos: array<int, array<string, mixed>>, pagos: array<int, array<string, mixed>>, cargas_capital: array<int, array<string, mixed>>, cierres_caja: array<int, array<string, mixed>>}
+     * @param  array{clientes?: array<int, array<string, mixed>>, prestamos?: array<int, array<string, mixed>>, pagos?: array<int, array<string, mixed>>, cargas_capital?: array<int, array<string, mixed>>, cierres_caja?: array<int, array<string, mixed>>, rutas?: array<int, array<string, mixed>>, ruta_items?: array<int, array<string, mixed>>}  $datos
+     * @return array{clientes: array<int, array<string, mixed>>, prestamos: array<int, array<string, mixed>>, pagos: array<int, array<string, mixed>>, cargas_capital: array<int, array<string, mixed>>, cierres_caja: array<int, array<string, mixed>>, rutas: array<int, array<string, mixed>>, ruta_items: array<int, array<string, mixed>>}
      */
     public function sincronizar(User $usuario, array $datos): array
     {
-        $resultado = ['clientes' => [], 'prestamos' => [], 'pagos' => [], 'cargas_capital' => [], 'cierres_caja' => []];
+        $resultado = [
+            'clientes' => [], 'prestamos' => [], 'pagos' => [], 'cargas_capital' => [],
+            'cierres_caja' => [], 'rutas' => [], 'ruta_items' => [],
+        ];
 
         /** @var array<string, Cliente> $clientesPorUuid */
         $clientesPorUuid = [];
@@ -74,6 +79,23 @@ class SyncService
 
         foreach ($datos['cierres_caja'] ?? [] as $item) {
             $resultado['cierres_caja'][] = $this->sincronizarCierreCaja($usuario, $item);
+        }
+
+        /** @var array<string, Ruta> $rutasPorUuid */
+        $rutasPorUuid = [];
+        foreach ($datos['rutas'] ?? [] as $item) {
+            [$itemResultado, $ruta] = $this->sincronizarRuta($usuario, $item);
+            $resultado['rutas'][] = $itemResultado;
+
+            if ($ruta) {
+                $rutasPorUuid[$item['uuid_local']] = $ruta;
+            }
+        }
+
+        // Después de "rutas" y "prestamos": ruta_uuid_local/prestamo_uuid_local pueden
+        // referenciar algo recién creado más arriba, en el mismo batch.
+        foreach ($datos['ruta_items'] ?? [] as $item) {
+            $resultado['ruta_items'][] = $this->sincronizarRutaItem($usuario, $item, $rutasPorUuid, $prestamosPorUuid);
         }
 
         return $resultado;
@@ -399,6 +421,133 @@ class SyncService
         );
 
         return $this->itemCreado($item['uuid_local'], $cierre->id);
+    }
+
+    /**
+     * Igual que clientes: todos los campos son editables desde el móvil (nombre, descripcion,
+     * fecha, orden pueden cambiar por edición manual o por el reordenamiento de la lista de
+     * rutas) — a diferencia de prestamos, donde solo politica_mora se reconcilia.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array{0: array<string, mixed>, 1: ?Ruta}
+     */
+    private function sincronizarRuta(User $usuario, array $item): array
+    {
+        $campos = [
+            'nombre' => $item['nombre'],
+            'descripcion' => $item['descripcion'] ?? null,
+            'fecha' => $item['fecha'] ?? null,
+            'orden' => $item['orden'],
+        ];
+
+        $existente = Ruta::where('usuario_id', $usuario->id)->where('uuid_local', $item['uuid_local'])->first();
+
+        if (! $existente) {
+            $ruta = Ruta::create([...$campos, 'usuario_id' => $usuario->id, 'uuid_local' => $item['uuid_local']]);
+
+            return [$this->itemCreado($item['uuid_local'], $ruta->id), $ruta];
+        }
+
+        $huboCambios = collect($campos)->contains(function ($valor, $clave) use ($existente) {
+            if ($clave === 'fecha') {
+                return optional($existente->fecha)->toDateString() !== $valor;
+            }
+
+            return $existente->{$clave} !== $valor;
+        });
+
+        if (! $huboCambios) {
+            return [$this->itemYaExistia($item['uuid_local'], $existente->id), $existente];
+        }
+
+        if (Carbon::parse($item['actualizado_en'])->gt($existente->updated_at)) {
+            $existente->update($campos);
+
+            return [$this->itemActualizado($item['uuid_local'], $existente->id), $existente];
+        }
+
+        $this->registrarConflicto($usuario, 'Ruta', $existente->id, $campos, $existente->only(array_keys($campos)));
+
+        return [$this->itemConflicto($item['uuid_local'], $existente->id), $existente];
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @param  array<string, Ruta>  $rutasPorUuid
+     * @param  array<string, Prestamo>  $prestamosPorUuid
+     * @return array<string, mixed>
+     */
+    private function sincronizarRutaItem(User $usuario, array $item, array $rutasPorUuid, array $prestamosPorUuid): array
+    {
+        $ruta = $rutasPorUuid[$item['ruta_uuid_local']]
+            ?? Ruta::where('usuario_id', $usuario->id)->where('uuid_local', $item['ruta_uuid_local'])->first();
+
+        if (! $ruta) {
+            return $this->itemError($item['uuid_local'], 'La ruta referenciada (ruta_uuid_local) no se encontró; sincronízala primero.');
+        }
+
+        $existente = RutaItem::where('ruta_id', $ruta->id)->where('uuid_local', $item['uuid_local'])->first();
+
+        if ($existente) {
+            return $this->reconciliarRutaItem($usuario, $existente, $item);
+        }
+
+        $prestamo = $prestamosPorUuid[$item['prestamo_uuid_local']]
+            ?? Prestamo::where('usuario_id', $usuario->id)->where('uuid_local', $item['prestamo_uuid_local'])->first();
+
+        if (! $prestamo) {
+            return $this->itemError($item['uuid_local'], 'El préstamo referenciado (prestamo_uuid_local) no se encontró; sincronízalo primero.');
+        }
+
+        $rutaItem = RutaItem::create([
+            'ruta_id' => $ruta->id,
+            'prestamo_id' => $prestamo->id,
+            'orden' => $item['orden'],
+            'estado' => $item['estado'],
+            'cobrado_en' => $item['cobrado_en'] ?? null,
+            'uuid_local' => $item['uuid_local'],
+        ]);
+
+        return $this->itemCreado($item['uuid_local'], $rutaItem->id);
+    }
+
+    /**
+     * Solo `orden` (reordenamiento manual) y `estado`/`cobrado_en` (marcar cobrado) pueden
+     * cambiar en un ruta_item ya existente — la asociación ruta/préstamo nunca se reescribe
+     * después de creado, mismo criterio que prestamos con capital/interés/cuotas.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    private function reconciliarRutaItem(User $usuario, RutaItem $existente, array $item): array
+    {
+        $campos = [
+            'orden' => $item['orden'],
+            'estado' => $item['estado'],
+            'cobrado_en' => $item['cobrado_en'] ?? null,
+        ];
+
+        $huboCambios = collect($campos)->contains(function ($valor, $clave) use ($existente) {
+            if ($clave === 'cobrado_en') {
+                return optional($existente->cobrado_en)->toIso8601String() !== ($valor ? Carbon::parse($valor)->toIso8601String() : null);
+            }
+
+            return $existente->{$clave} !== $valor;
+        });
+
+        if (! $huboCambios) {
+            return $this->itemYaExistia($item['uuid_local'], $existente->id);
+        }
+
+        if (Carbon::parse($item['actualizado_en'])->gt($existente->updated_at)) {
+            $existente->update($campos);
+
+            return $this->itemActualizado($item['uuid_local'], $existente->id);
+        }
+
+        $this->registrarConflicto($usuario, 'RutaItem', $existente->id, $campos, $existente->only(array_keys($campos)));
+
+        return $this->itemConflicto($item['uuid_local'], $existente->id);
     }
 
     /**

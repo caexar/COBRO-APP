@@ -12,6 +12,7 @@ import '../../prestamos/presentation/cobros_pendientes_screen.dart';
 import '../../prestamos/presentation/historial_prestamos_screen.dart';
 import '../../prestamos/presentation/prestamo_form_screen.dart';
 import '../../prestamos/presentation/simular_prestamo_screen.dart';
+import '../../rutas/presentation/rutas_list_screen.dart';
 import '../../sincronizacion/data/restauracion_repository.dart';
 import '../../sincronizacion/data/sincronizacion_repository.dart';
 import '../../sincronizacion/presentation/restaurar_datos_screen.dart';
@@ -335,6 +336,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 icon: const Icon(Icons.payments_outlined),
                 label: const Text(
                   'Cobros pendientes',
+                  style: TextStyle(fontSize: 17),
+                ),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () => _ir(const RutasListScreen()),
+                icon: const Icon(Icons.alt_route),
+                label: const Text(
+                  'Rutas',
                   style: TextStyle(fontSize: 17),
                 ),
                 style: FilledButton.styleFrom(

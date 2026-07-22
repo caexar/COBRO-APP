@@ -14,6 +14,8 @@ import 'daos/cuotas_dao.dart';
 import 'daos/pagos_dao.dart';
 import 'daos/prestamos_dao.dart';
 import 'daos/prestamos_extras_dao.dart';
+import 'daos/ruta_items_dao.dart';
+import 'daos/rutas_dao.dart';
 import 'tables/cambios_pendientes_table.dart';
 import 'tables/cargas_capital_table.dart';
 import 'tables/cierre_caja_gastos_table.dart';
@@ -23,6 +25,8 @@ import 'tables/cuotas_table.dart';
 import 'tables/pagos_table.dart';
 import 'tables/prestamos_extras_table.dart';
 import 'tables/prestamos_table.dart';
+import 'tables/ruta_items_table.dart';
+import 'tables/rutas_table.dart';
 
 part 'app_database.g.dart';
 
@@ -40,6 +44,8 @@ part 'app_database.g.dart';
     CargasCapital,
     CierresCaja,
     CierreCajaGastos,
+    Rutas,
+    RutaItems,
   ],
   daos: [
     ClientesDao,
@@ -51,6 +57,8 @@ part 'app_database.g.dart';
     CargasCapitalDao,
     CierresCajaDao,
     CierreCajaGastosDao,
+    RutasDao,
+    RutaItemsDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -63,7 +71,7 @@ class AppDatabase extends _$AppDatabase {
   static final AppDatabase instance = AppDatabase();
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -131,6 +139,12 @@ class AppDatabase extends _$AppDatabase {
       if (from < 7) {
         await m.createTable(cierresCaja);
         await m.createTable(cierreCajaGastos);
+      }
+      // v7 -> v8: tablas rutas y ruta_items ("Rutas de cobro") — igual que el paso anterior,
+      // tablas enteramente nuevas, así que el `createTable` acá siempre es incondicional.
+      if (from < 8) {
+        await m.createTable(rutas);
+        await m.createTable(rutaItems);
       }
     },
   );

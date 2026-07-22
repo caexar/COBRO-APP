@@ -6191,6 +6191,1330 @@ class CierreCajaGastosCompanion extends UpdateCompanion<CierreCajaGasto> {
   }
 }
 
+class $RutasTable extends Rutas with TableInfo<$RutasTable, Ruta> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RutasTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _servidorIdMeta = const VerificationMeta(
+    'servidorId',
+  );
+  @override
+  late final GeneratedColumn<int> servidorId = GeneratedColumn<int>(
+    'servidor_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _uuidLocalMeta = const VerificationMeta(
+    'uuidLocal',
+  );
+  @override
+  late final GeneratedColumn<String> uuidLocal = GeneratedColumn<String>(
+    'uuid_local',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _usuarioIdMeta = const VerificationMeta(
+    'usuarioId',
+  );
+  @override
+  late final GeneratedColumn<int> usuarioId = GeneratedColumn<int>(
+    'usuario_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nombreMeta = const VerificationMeta('nombre');
+  @override
+  late final GeneratedColumn<String> nombre = GeneratedColumn<String>(
+    'nombre',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descripcionMeta = const VerificationMeta(
+    'descripcion',
+  );
+  @override
+  late final GeneratedColumn<String> descripcion = GeneratedColumn<String>(
+    'descripcion',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _fechaMeta = const VerificationMeta('fecha');
+  @override
+  late final GeneratedColumn<DateTime> fecha = GeneratedColumn<DateTime>(
+    'fecha',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ordenMeta = const VerificationMeta('orden');
+  @override
+  late final GeneratedColumn<int> orden = GeneratedColumn<int>(
+    'orden',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _creadoEnMeta = const VerificationMeta(
+    'creadoEn',
+  );
+  @override
+  late final GeneratedColumn<DateTime> creadoEn = GeneratedColumn<DateTime>(
+    'creado_en',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _actualizadoEnMeta = const VerificationMeta(
+    'actualizadoEn',
+  );
+  @override
+  late final GeneratedColumn<DateTime> actualizadoEn =
+      GeneratedColumn<DateTime>(
+        'actualizado_en',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+        defaultValue: currentDateAndTime,
+      );
+  static const VerificationMeta _sincronizadoMeta = const VerificationMeta(
+    'sincronizado',
+  );
+  @override
+  late final GeneratedColumn<bool> sincronizado = GeneratedColumn<bool>(
+    'sincronizado',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("sincronizado" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    servidorId,
+    uuidLocal,
+    usuarioId,
+    nombre,
+    descripcion,
+    fecha,
+    orden,
+    creadoEn,
+    actualizadoEn,
+    sincronizado,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'rutas';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Ruta> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('servidor_id')) {
+      context.handle(
+        _servidorIdMeta,
+        servidorId.isAcceptableOrUnknown(data['servidor_id']!, _servidorIdMeta),
+      );
+    }
+    if (data.containsKey('uuid_local')) {
+      context.handle(
+        _uuidLocalMeta,
+        uuidLocal.isAcceptableOrUnknown(data['uuid_local']!, _uuidLocalMeta),
+      );
+    }
+    if (data.containsKey('usuario_id')) {
+      context.handle(
+        _usuarioIdMeta,
+        usuarioId.isAcceptableOrUnknown(data['usuario_id']!, _usuarioIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_usuarioIdMeta);
+    }
+    if (data.containsKey('nombre')) {
+      context.handle(
+        _nombreMeta,
+        nombre.isAcceptableOrUnknown(data['nombre']!, _nombreMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nombreMeta);
+    }
+    if (data.containsKey('descripcion')) {
+      context.handle(
+        _descripcionMeta,
+        descripcion.isAcceptableOrUnknown(
+          data['descripcion']!,
+          _descripcionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fecha')) {
+      context.handle(
+        _fechaMeta,
+        fecha.isAcceptableOrUnknown(data['fecha']!, _fechaMeta),
+      );
+    }
+    if (data.containsKey('orden')) {
+      context.handle(
+        _ordenMeta,
+        orden.isAcceptableOrUnknown(data['orden']!, _ordenMeta),
+      );
+    }
+    if (data.containsKey('creado_en')) {
+      context.handle(
+        _creadoEnMeta,
+        creadoEn.isAcceptableOrUnknown(data['creado_en']!, _creadoEnMeta),
+      );
+    }
+    if (data.containsKey('actualizado_en')) {
+      context.handle(
+        _actualizadoEnMeta,
+        actualizadoEn.isAcceptableOrUnknown(
+          data['actualizado_en']!,
+          _actualizadoEnMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sincronizado')) {
+      context.handle(
+        _sincronizadoMeta,
+        sincronizado.isAcceptableOrUnknown(
+          data['sincronizado']!,
+          _sincronizadoMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Ruta map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Ruta(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      servidorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}servidor_id'],
+      ),
+      uuidLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid_local'],
+      ),
+      usuarioId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}usuario_id'],
+      )!,
+      nombre: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}nombre'],
+      )!,
+      descripcion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}descripcion'],
+      ),
+      fecha: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fecha'],
+      ),
+      orden: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}orden'],
+      )!,
+      creadoEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}creado_en'],
+      )!,
+      actualizadoEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}actualizado_en'],
+      )!,
+      sincronizado: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}sincronizado'],
+      )!,
+    );
+  }
+
+  @override
+  $RutasTable createAlias(String alias) {
+    return $RutasTable(attachedDatabase, alias);
+  }
+}
+
+class Ruta extends DataClass implements Insertable<Ruta> {
+  final int id;
+  final int? servidorId;
+
+  /// Generado al crear el registro localmente (no al sincronizar); ver nota
+  /// equivalente en `Clientes.uuidLocal`. Nulo en una ruta creada por
+  /// `autogenerarHoy()` (nace ya con `servidorId`, nunca se sube).
+  final String? uuidLocal;
+  final int usuarioId;
+  final String nombre;
+  final String? descripcion;
+  final DateTime? fecha;
+  final int orden;
+  final DateTime creadoEn;
+  final DateTime actualizadoEn;
+  final bool sincronizado;
+  const Ruta({
+    required this.id,
+    this.servidorId,
+    this.uuidLocal,
+    required this.usuarioId,
+    required this.nombre,
+    this.descripcion,
+    this.fecha,
+    required this.orden,
+    required this.creadoEn,
+    required this.actualizadoEn,
+    required this.sincronizado,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || servidorId != null) {
+      map['servidor_id'] = Variable<int>(servidorId);
+    }
+    if (!nullToAbsent || uuidLocal != null) {
+      map['uuid_local'] = Variable<String>(uuidLocal);
+    }
+    map['usuario_id'] = Variable<int>(usuarioId);
+    map['nombre'] = Variable<String>(nombre);
+    if (!nullToAbsent || descripcion != null) {
+      map['descripcion'] = Variable<String>(descripcion);
+    }
+    if (!nullToAbsent || fecha != null) {
+      map['fecha'] = Variable<DateTime>(fecha);
+    }
+    map['orden'] = Variable<int>(orden);
+    map['creado_en'] = Variable<DateTime>(creadoEn);
+    map['actualizado_en'] = Variable<DateTime>(actualizadoEn);
+    map['sincronizado'] = Variable<bool>(sincronizado);
+    return map;
+  }
+
+  RutasCompanion toCompanion(bool nullToAbsent) {
+    return RutasCompanion(
+      id: Value(id),
+      servidorId: servidorId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(servidorId),
+      uuidLocal: uuidLocal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uuidLocal),
+      usuarioId: Value(usuarioId),
+      nombre: Value(nombre),
+      descripcion: descripcion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(descripcion),
+      fecha: fecha == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fecha),
+      orden: Value(orden),
+      creadoEn: Value(creadoEn),
+      actualizadoEn: Value(actualizadoEn),
+      sincronizado: Value(sincronizado),
+    );
+  }
+
+  factory Ruta.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Ruta(
+      id: serializer.fromJson<int>(json['id']),
+      servidorId: serializer.fromJson<int?>(json['servidorId']),
+      uuidLocal: serializer.fromJson<String?>(json['uuidLocal']),
+      usuarioId: serializer.fromJson<int>(json['usuarioId']),
+      nombre: serializer.fromJson<String>(json['nombre']),
+      descripcion: serializer.fromJson<String?>(json['descripcion']),
+      fecha: serializer.fromJson<DateTime?>(json['fecha']),
+      orden: serializer.fromJson<int>(json['orden']),
+      creadoEn: serializer.fromJson<DateTime>(json['creadoEn']),
+      actualizadoEn: serializer.fromJson<DateTime>(json['actualizadoEn']),
+      sincronizado: serializer.fromJson<bool>(json['sincronizado']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'servidorId': serializer.toJson<int?>(servidorId),
+      'uuidLocal': serializer.toJson<String?>(uuidLocal),
+      'usuarioId': serializer.toJson<int>(usuarioId),
+      'nombre': serializer.toJson<String>(nombre),
+      'descripcion': serializer.toJson<String?>(descripcion),
+      'fecha': serializer.toJson<DateTime?>(fecha),
+      'orden': serializer.toJson<int>(orden),
+      'creadoEn': serializer.toJson<DateTime>(creadoEn),
+      'actualizadoEn': serializer.toJson<DateTime>(actualizadoEn),
+      'sincronizado': serializer.toJson<bool>(sincronizado),
+    };
+  }
+
+  Ruta copyWith({
+    int? id,
+    Value<int?> servidorId = const Value.absent(),
+    Value<String?> uuidLocal = const Value.absent(),
+    int? usuarioId,
+    String? nombre,
+    Value<String?> descripcion = const Value.absent(),
+    Value<DateTime?> fecha = const Value.absent(),
+    int? orden,
+    DateTime? creadoEn,
+    DateTime? actualizadoEn,
+    bool? sincronizado,
+  }) => Ruta(
+    id: id ?? this.id,
+    servidorId: servidorId.present ? servidorId.value : this.servidorId,
+    uuidLocal: uuidLocal.present ? uuidLocal.value : this.uuidLocal,
+    usuarioId: usuarioId ?? this.usuarioId,
+    nombre: nombre ?? this.nombre,
+    descripcion: descripcion.present ? descripcion.value : this.descripcion,
+    fecha: fecha.present ? fecha.value : this.fecha,
+    orden: orden ?? this.orden,
+    creadoEn: creadoEn ?? this.creadoEn,
+    actualizadoEn: actualizadoEn ?? this.actualizadoEn,
+    sincronizado: sincronizado ?? this.sincronizado,
+  );
+  Ruta copyWithCompanion(RutasCompanion data) {
+    return Ruta(
+      id: data.id.present ? data.id.value : this.id,
+      servidorId: data.servidorId.present
+          ? data.servidorId.value
+          : this.servidorId,
+      uuidLocal: data.uuidLocal.present ? data.uuidLocal.value : this.uuidLocal,
+      usuarioId: data.usuarioId.present ? data.usuarioId.value : this.usuarioId,
+      nombre: data.nombre.present ? data.nombre.value : this.nombre,
+      descripcion: data.descripcion.present
+          ? data.descripcion.value
+          : this.descripcion,
+      fecha: data.fecha.present ? data.fecha.value : this.fecha,
+      orden: data.orden.present ? data.orden.value : this.orden,
+      creadoEn: data.creadoEn.present ? data.creadoEn.value : this.creadoEn,
+      actualizadoEn: data.actualizadoEn.present
+          ? data.actualizadoEn.value
+          : this.actualizadoEn,
+      sincronizado: data.sincronizado.present
+          ? data.sincronizado.value
+          : this.sincronizado,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Ruta(')
+          ..write('id: $id, ')
+          ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
+          ..write('usuarioId: $usuarioId, ')
+          ..write('nombre: $nombre, ')
+          ..write('descripcion: $descripcion, ')
+          ..write('fecha: $fecha, ')
+          ..write('orden: $orden, ')
+          ..write('creadoEn: $creadoEn, ')
+          ..write('actualizadoEn: $actualizadoEn, ')
+          ..write('sincronizado: $sincronizado')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    servidorId,
+    uuidLocal,
+    usuarioId,
+    nombre,
+    descripcion,
+    fecha,
+    orden,
+    creadoEn,
+    actualizadoEn,
+    sincronizado,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Ruta &&
+          other.id == this.id &&
+          other.servidorId == this.servidorId &&
+          other.uuidLocal == this.uuidLocal &&
+          other.usuarioId == this.usuarioId &&
+          other.nombre == this.nombre &&
+          other.descripcion == this.descripcion &&
+          other.fecha == this.fecha &&
+          other.orden == this.orden &&
+          other.creadoEn == this.creadoEn &&
+          other.actualizadoEn == this.actualizadoEn &&
+          other.sincronizado == this.sincronizado);
+}
+
+class RutasCompanion extends UpdateCompanion<Ruta> {
+  final Value<int> id;
+  final Value<int?> servidorId;
+  final Value<String?> uuidLocal;
+  final Value<int> usuarioId;
+  final Value<String> nombre;
+  final Value<String?> descripcion;
+  final Value<DateTime?> fecha;
+  final Value<int> orden;
+  final Value<DateTime> creadoEn;
+  final Value<DateTime> actualizadoEn;
+  final Value<bool> sincronizado;
+  const RutasCompanion({
+    this.id = const Value.absent(),
+    this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
+    this.usuarioId = const Value.absent(),
+    this.nombre = const Value.absent(),
+    this.descripcion = const Value.absent(),
+    this.fecha = const Value.absent(),
+    this.orden = const Value.absent(),
+    this.creadoEn = const Value.absent(),
+    this.actualizadoEn = const Value.absent(),
+    this.sincronizado = const Value.absent(),
+  });
+  RutasCompanion.insert({
+    this.id = const Value.absent(),
+    this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
+    required int usuarioId,
+    required String nombre,
+    this.descripcion = const Value.absent(),
+    this.fecha = const Value.absent(),
+    this.orden = const Value.absent(),
+    this.creadoEn = const Value.absent(),
+    this.actualizadoEn = const Value.absent(),
+    this.sincronizado = const Value.absent(),
+  }) : usuarioId = Value(usuarioId),
+       nombre = Value(nombre);
+  static Insertable<Ruta> custom({
+    Expression<int>? id,
+    Expression<int>? servidorId,
+    Expression<String>? uuidLocal,
+    Expression<int>? usuarioId,
+    Expression<String>? nombre,
+    Expression<String>? descripcion,
+    Expression<DateTime>? fecha,
+    Expression<int>? orden,
+    Expression<DateTime>? creadoEn,
+    Expression<DateTime>? actualizadoEn,
+    Expression<bool>? sincronizado,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (servidorId != null) 'servidor_id': servidorId,
+      if (uuidLocal != null) 'uuid_local': uuidLocal,
+      if (usuarioId != null) 'usuario_id': usuarioId,
+      if (nombre != null) 'nombre': nombre,
+      if (descripcion != null) 'descripcion': descripcion,
+      if (fecha != null) 'fecha': fecha,
+      if (orden != null) 'orden': orden,
+      if (creadoEn != null) 'creado_en': creadoEn,
+      if (actualizadoEn != null) 'actualizado_en': actualizadoEn,
+      if (sincronizado != null) 'sincronizado': sincronizado,
+    });
+  }
+
+  RutasCompanion copyWith({
+    Value<int>? id,
+    Value<int?>? servidorId,
+    Value<String?>? uuidLocal,
+    Value<int>? usuarioId,
+    Value<String>? nombre,
+    Value<String?>? descripcion,
+    Value<DateTime?>? fecha,
+    Value<int>? orden,
+    Value<DateTime>? creadoEn,
+    Value<DateTime>? actualizadoEn,
+    Value<bool>? sincronizado,
+  }) {
+    return RutasCompanion(
+      id: id ?? this.id,
+      servidorId: servidorId ?? this.servidorId,
+      uuidLocal: uuidLocal ?? this.uuidLocal,
+      usuarioId: usuarioId ?? this.usuarioId,
+      nombre: nombre ?? this.nombre,
+      descripcion: descripcion ?? this.descripcion,
+      fecha: fecha ?? this.fecha,
+      orden: orden ?? this.orden,
+      creadoEn: creadoEn ?? this.creadoEn,
+      actualizadoEn: actualizadoEn ?? this.actualizadoEn,
+      sincronizado: sincronizado ?? this.sincronizado,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (servidorId.present) {
+      map['servidor_id'] = Variable<int>(servidorId.value);
+    }
+    if (uuidLocal.present) {
+      map['uuid_local'] = Variable<String>(uuidLocal.value);
+    }
+    if (usuarioId.present) {
+      map['usuario_id'] = Variable<int>(usuarioId.value);
+    }
+    if (nombre.present) {
+      map['nombre'] = Variable<String>(nombre.value);
+    }
+    if (descripcion.present) {
+      map['descripcion'] = Variable<String>(descripcion.value);
+    }
+    if (fecha.present) {
+      map['fecha'] = Variable<DateTime>(fecha.value);
+    }
+    if (orden.present) {
+      map['orden'] = Variable<int>(orden.value);
+    }
+    if (creadoEn.present) {
+      map['creado_en'] = Variable<DateTime>(creadoEn.value);
+    }
+    if (actualizadoEn.present) {
+      map['actualizado_en'] = Variable<DateTime>(actualizadoEn.value);
+    }
+    if (sincronizado.present) {
+      map['sincronizado'] = Variable<bool>(sincronizado.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RutasCompanion(')
+          ..write('id: $id, ')
+          ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
+          ..write('usuarioId: $usuarioId, ')
+          ..write('nombre: $nombre, ')
+          ..write('descripcion: $descripcion, ')
+          ..write('fecha: $fecha, ')
+          ..write('orden: $orden, ')
+          ..write('creadoEn: $creadoEn, ')
+          ..write('actualizadoEn: $actualizadoEn, ')
+          ..write('sincronizado: $sincronizado')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $RutaItemsTable extends RutaItems
+    with TableInfo<$RutaItemsTable, RutaItem> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RutaItemsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _servidorIdMeta = const VerificationMeta(
+    'servidorId',
+  );
+  @override
+  late final GeneratedColumn<int> servidorId = GeneratedColumn<int>(
+    'servidor_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _uuidLocalMeta = const VerificationMeta(
+    'uuidLocal',
+  );
+  @override
+  late final GeneratedColumn<String> uuidLocal = GeneratedColumn<String>(
+    'uuid_local',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rutaIdMeta = const VerificationMeta('rutaId');
+  @override
+  late final GeneratedColumn<int> rutaId = GeneratedColumn<int>(
+    'ruta_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES rutas (id)',
+    ),
+  );
+  static const VerificationMeta _prestamoIdMeta = const VerificationMeta(
+    'prestamoId',
+  );
+  @override
+  late final GeneratedColumn<int> prestamoId = GeneratedColumn<int>(
+    'prestamo_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES prestamos (id)',
+    ),
+  );
+  static const VerificationMeta _ordenMeta = const VerificationMeta('orden');
+  @override
+  late final GeneratedColumn<int> orden = GeneratedColumn<int>(
+    'orden',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _estadoMeta = const VerificationMeta('estado');
+  @override
+  late final GeneratedColumn<String> estado = GeneratedColumn<String>(
+    'estado',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pendiente'),
+  );
+  static const VerificationMeta _cobradoEnMeta = const VerificationMeta(
+    'cobradoEn',
+  );
+  @override
+  late final GeneratedColumn<DateTime> cobradoEn = GeneratedColumn<DateTime>(
+    'cobrado_en',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _creadoEnMeta = const VerificationMeta(
+    'creadoEn',
+  );
+  @override
+  late final GeneratedColumn<DateTime> creadoEn = GeneratedColumn<DateTime>(
+    'creado_en',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _actualizadoEnMeta = const VerificationMeta(
+    'actualizadoEn',
+  );
+  @override
+  late final GeneratedColumn<DateTime> actualizadoEn =
+      GeneratedColumn<DateTime>(
+        'actualizado_en',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+        defaultValue: currentDateAndTime,
+      );
+  static const VerificationMeta _sincronizadoMeta = const VerificationMeta(
+    'sincronizado',
+  );
+  @override
+  late final GeneratedColumn<bool> sincronizado = GeneratedColumn<bool>(
+    'sincronizado',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("sincronizado" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    servidorId,
+    uuidLocal,
+    rutaId,
+    prestamoId,
+    orden,
+    estado,
+    cobradoEn,
+    creadoEn,
+    actualizadoEn,
+    sincronizado,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ruta_items';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RutaItem> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('servidor_id')) {
+      context.handle(
+        _servidorIdMeta,
+        servidorId.isAcceptableOrUnknown(data['servidor_id']!, _servidorIdMeta),
+      );
+    }
+    if (data.containsKey('uuid_local')) {
+      context.handle(
+        _uuidLocalMeta,
+        uuidLocal.isAcceptableOrUnknown(data['uuid_local']!, _uuidLocalMeta),
+      );
+    }
+    if (data.containsKey('ruta_id')) {
+      context.handle(
+        _rutaIdMeta,
+        rutaId.isAcceptableOrUnknown(data['ruta_id']!, _rutaIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rutaIdMeta);
+    }
+    if (data.containsKey('prestamo_id')) {
+      context.handle(
+        _prestamoIdMeta,
+        prestamoId.isAcceptableOrUnknown(data['prestamo_id']!, _prestamoIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_prestamoIdMeta);
+    }
+    if (data.containsKey('orden')) {
+      context.handle(
+        _ordenMeta,
+        orden.isAcceptableOrUnknown(data['orden']!, _ordenMeta),
+      );
+    }
+    if (data.containsKey('estado')) {
+      context.handle(
+        _estadoMeta,
+        estado.isAcceptableOrUnknown(data['estado']!, _estadoMeta),
+      );
+    }
+    if (data.containsKey('cobrado_en')) {
+      context.handle(
+        _cobradoEnMeta,
+        cobradoEn.isAcceptableOrUnknown(data['cobrado_en']!, _cobradoEnMeta),
+      );
+    }
+    if (data.containsKey('creado_en')) {
+      context.handle(
+        _creadoEnMeta,
+        creadoEn.isAcceptableOrUnknown(data['creado_en']!, _creadoEnMeta),
+      );
+    }
+    if (data.containsKey('actualizado_en')) {
+      context.handle(
+        _actualizadoEnMeta,
+        actualizadoEn.isAcceptableOrUnknown(
+          data['actualizado_en']!,
+          _actualizadoEnMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sincronizado')) {
+      context.handle(
+        _sincronizadoMeta,
+        sincronizado.isAcceptableOrUnknown(
+          data['sincronizado']!,
+          _sincronizadoMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RutaItem map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RutaItem(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      servidorId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}servidor_id'],
+      ),
+      uuidLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}uuid_local'],
+      ),
+      rutaId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ruta_id'],
+      )!,
+      prestamoId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}prestamo_id'],
+      )!,
+      orden: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}orden'],
+      )!,
+      estado: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}estado'],
+      )!,
+      cobradoEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}cobrado_en'],
+      ),
+      creadoEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}creado_en'],
+      )!,
+      actualizadoEn: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}actualizado_en'],
+      )!,
+      sincronizado: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}sincronizado'],
+      )!,
+    );
+  }
+
+  @override
+  $RutaItemsTable createAlias(String alias) {
+    return $RutaItemsTable(attachedDatabase, alias);
+  }
+}
+
+class RutaItem extends DataClass implements Insertable<RutaItem> {
+  final int id;
+  final int? servidorId;
+
+  /// Generado al crear el registro localmente (no al sincronizar); nulo en
+  /// un ítem creado por `autogenerarHoy()` (nace ya con `servidorId`).
+  final String? uuidLocal;
+  final int rutaId;
+  final int prestamoId;
+  final int orden;
+
+  /// 'pendiente' | 'cobrado'.
+  final String estado;
+  final DateTime? cobradoEn;
+  final DateTime creadoEn;
+  final DateTime actualizadoEn;
+  final bool sincronizado;
+  const RutaItem({
+    required this.id,
+    this.servidorId,
+    this.uuidLocal,
+    required this.rutaId,
+    required this.prestamoId,
+    required this.orden,
+    required this.estado,
+    this.cobradoEn,
+    required this.creadoEn,
+    required this.actualizadoEn,
+    required this.sincronizado,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || servidorId != null) {
+      map['servidor_id'] = Variable<int>(servidorId);
+    }
+    if (!nullToAbsent || uuidLocal != null) {
+      map['uuid_local'] = Variable<String>(uuidLocal);
+    }
+    map['ruta_id'] = Variable<int>(rutaId);
+    map['prestamo_id'] = Variable<int>(prestamoId);
+    map['orden'] = Variable<int>(orden);
+    map['estado'] = Variable<String>(estado);
+    if (!nullToAbsent || cobradoEn != null) {
+      map['cobrado_en'] = Variable<DateTime>(cobradoEn);
+    }
+    map['creado_en'] = Variable<DateTime>(creadoEn);
+    map['actualizado_en'] = Variable<DateTime>(actualizadoEn);
+    map['sincronizado'] = Variable<bool>(sincronizado);
+    return map;
+  }
+
+  RutaItemsCompanion toCompanion(bool nullToAbsent) {
+    return RutaItemsCompanion(
+      id: Value(id),
+      servidorId: servidorId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(servidorId),
+      uuidLocal: uuidLocal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(uuidLocal),
+      rutaId: Value(rutaId),
+      prestamoId: Value(prestamoId),
+      orden: Value(orden),
+      estado: Value(estado),
+      cobradoEn: cobradoEn == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cobradoEn),
+      creadoEn: Value(creadoEn),
+      actualizadoEn: Value(actualizadoEn),
+      sincronizado: Value(sincronizado),
+    );
+  }
+
+  factory RutaItem.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RutaItem(
+      id: serializer.fromJson<int>(json['id']),
+      servidorId: serializer.fromJson<int?>(json['servidorId']),
+      uuidLocal: serializer.fromJson<String?>(json['uuidLocal']),
+      rutaId: serializer.fromJson<int>(json['rutaId']),
+      prestamoId: serializer.fromJson<int>(json['prestamoId']),
+      orden: serializer.fromJson<int>(json['orden']),
+      estado: serializer.fromJson<String>(json['estado']),
+      cobradoEn: serializer.fromJson<DateTime?>(json['cobradoEn']),
+      creadoEn: serializer.fromJson<DateTime>(json['creadoEn']),
+      actualizadoEn: serializer.fromJson<DateTime>(json['actualizadoEn']),
+      sincronizado: serializer.fromJson<bool>(json['sincronizado']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'servidorId': serializer.toJson<int?>(servidorId),
+      'uuidLocal': serializer.toJson<String?>(uuidLocal),
+      'rutaId': serializer.toJson<int>(rutaId),
+      'prestamoId': serializer.toJson<int>(prestamoId),
+      'orden': serializer.toJson<int>(orden),
+      'estado': serializer.toJson<String>(estado),
+      'cobradoEn': serializer.toJson<DateTime?>(cobradoEn),
+      'creadoEn': serializer.toJson<DateTime>(creadoEn),
+      'actualizadoEn': serializer.toJson<DateTime>(actualizadoEn),
+      'sincronizado': serializer.toJson<bool>(sincronizado),
+    };
+  }
+
+  RutaItem copyWith({
+    int? id,
+    Value<int?> servidorId = const Value.absent(),
+    Value<String?> uuidLocal = const Value.absent(),
+    int? rutaId,
+    int? prestamoId,
+    int? orden,
+    String? estado,
+    Value<DateTime?> cobradoEn = const Value.absent(),
+    DateTime? creadoEn,
+    DateTime? actualizadoEn,
+    bool? sincronizado,
+  }) => RutaItem(
+    id: id ?? this.id,
+    servidorId: servidorId.present ? servidorId.value : this.servidorId,
+    uuidLocal: uuidLocal.present ? uuidLocal.value : this.uuidLocal,
+    rutaId: rutaId ?? this.rutaId,
+    prestamoId: prestamoId ?? this.prestamoId,
+    orden: orden ?? this.orden,
+    estado: estado ?? this.estado,
+    cobradoEn: cobradoEn.present ? cobradoEn.value : this.cobradoEn,
+    creadoEn: creadoEn ?? this.creadoEn,
+    actualizadoEn: actualizadoEn ?? this.actualizadoEn,
+    sincronizado: sincronizado ?? this.sincronizado,
+  );
+  RutaItem copyWithCompanion(RutaItemsCompanion data) {
+    return RutaItem(
+      id: data.id.present ? data.id.value : this.id,
+      servidorId: data.servidorId.present
+          ? data.servidorId.value
+          : this.servidorId,
+      uuidLocal: data.uuidLocal.present ? data.uuidLocal.value : this.uuidLocal,
+      rutaId: data.rutaId.present ? data.rutaId.value : this.rutaId,
+      prestamoId: data.prestamoId.present
+          ? data.prestamoId.value
+          : this.prestamoId,
+      orden: data.orden.present ? data.orden.value : this.orden,
+      estado: data.estado.present ? data.estado.value : this.estado,
+      cobradoEn: data.cobradoEn.present ? data.cobradoEn.value : this.cobradoEn,
+      creadoEn: data.creadoEn.present ? data.creadoEn.value : this.creadoEn,
+      actualizadoEn: data.actualizadoEn.present
+          ? data.actualizadoEn.value
+          : this.actualizadoEn,
+      sincronizado: data.sincronizado.present
+          ? data.sincronizado.value
+          : this.sincronizado,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RutaItem(')
+          ..write('id: $id, ')
+          ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
+          ..write('rutaId: $rutaId, ')
+          ..write('prestamoId: $prestamoId, ')
+          ..write('orden: $orden, ')
+          ..write('estado: $estado, ')
+          ..write('cobradoEn: $cobradoEn, ')
+          ..write('creadoEn: $creadoEn, ')
+          ..write('actualizadoEn: $actualizadoEn, ')
+          ..write('sincronizado: $sincronizado')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    servidorId,
+    uuidLocal,
+    rutaId,
+    prestamoId,
+    orden,
+    estado,
+    cobradoEn,
+    creadoEn,
+    actualizadoEn,
+    sincronizado,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RutaItem &&
+          other.id == this.id &&
+          other.servidorId == this.servidorId &&
+          other.uuidLocal == this.uuidLocal &&
+          other.rutaId == this.rutaId &&
+          other.prestamoId == this.prestamoId &&
+          other.orden == this.orden &&
+          other.estado == this.estado &&
+          other.cobradoEn == this.cobradoEn &&
+          other.creadoEn == this.creadoEn &&
+          other.actualizadoEn == this.actualizadoEn &&
+          other.sincronizado == this.sincronizado);
+}
+
+class RutaItemsCompanion extends UpdateCompanion<RutaItem> {
+  final Value<int> id;
+  final Value<int?> servidorId;
+  final Value<String?> uuidLocal;
+  final Value<int> rutaId;
+  final Value<int> prestamoId;
+  final Value<int> orden;
+  final Value<String> estado;
+  final Value<DateTime?> cobradoEn;
+  final Value<DateTime> creadoEn;
+  final Value<DateTime> actualizadoEn;
+  final Value<bool> sincronizado;
+  const RutaItemsCompanion({
+    this.id = const Value.absent(),
+    this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
+    this.rutaId = const Value.absent(),
+    this.prestamoId = const Value.absent(),
+    this.orden = const Value.absent(),
+    this.estado = const Value.absent(),
+    this.cobradoEn = const Value.absent(),
+    this.creadoEn = const Value.absent(),
+    this.actualizadoEn = const Value.absent(),
+    this.sincronizado = const Value.absent(),
+  });
+  RutaItemsCompanion.insert({
+    this.id = const Value.absent(),
+    this.servidorId = const Value.absent(),
+    this.uuidLocal = const Value.absent(),
+    required int rutaId,
+    required int prestamoId,
+    this.orden = const Value.absent(),
+    this.estado = const Value.absent(),
+    this.cobradoEn = const Value.absent(),
+    this.creadoEn = const Value.absent(),
+    this.actualizadoEn = const Value.absent(),
+    this.sincronizado = const Value.absent(),
+  }) : rutaId = Value(rutaId),
+       prestamoId = Value(prestamoId);
+  static Insertable<RutaItem> custom({
+    Expression<int>? id,
+    Expression<int>? servidorId,
+    Expression<String>? uuidLocal,
+    Expression<int>? rutaId,
+    Expression<int>? prestamoId,
+    Expression<int>? orden,
+    Expression<String>? estado,
+    Expression<DateTime>? cobradoEn,
+    Expression<DateTime>? creadoEn,
+    Expression<DateTime>? actualizadoEn,
+    Expression<bool>? sincronizado,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (servidorId != null) 'servidor_id': servidorId,
+      if (uuidLocal != null) 'uuid_local': uuidLocal,
+      if (rutaId != null) 'ruta_id': rutaId,
+      if (prestamoId != null) 'prestamo_id': prestamoId,
+      if (orden != null) 'orden': orden,
+      if (estado != null) 'estado': estado,
+      if (cobradoEn != null) 'cobrado_en': cobradoEn,
+      if (creadoEn != null) 'creado_en': creadoEn,
+      if (actualizadoEn != null) 'actualizado_en': actualizadoEn,
+      if (sincronizado != null) 'sincronizado': sincronizado,
+    });
+  }
+
+  RutaItemsCompanion copyWith({
+    Value<int>? id,
+    Value<int?>? servidorId,
+    Value<String?>? uuidLocal,
+    Value<int>? rutaId,
+    Value<int>? prestamoId,
+    Value<int>? orden,
+    Value<String>? estado,
+    Value<DateTime?>? cobradoEn,
+    Value<DateTime>? creadoEn,
+    Value<DateTime>? actualizadoEn,
+    Value<bool>? sincronizado,
+  }) {
+    return RutaItemsCompanion(
+      id: id ?? this.id,
+      servidorId: servidorId ?? this.servidorId,
+      uuidLocal: uuidLocal ?? this.uuidLocal,
+      rutaId: rutaId ?? this.rutaId,
+      prestamoId: prestamoId ?? this.prestamoId,
+      orden: orden ?? this.orden,
+      estado: estado ?? this.estado,
+      cobradoEn: cobradoEn ?? this.cobradoEn,
+      creadoEn: creadoEn ?? this.creadoEn,
+      actualizadoEn: actualizadoEn ?? this.actualizadoEn,
+      sincronizado: sincronizado ?? this.sincronizado,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (servidorId.present) {
+      map['servidor_id'] = Variable<int>(servidorId.value);
+    }
+    if (uuidLocal.present) {
+      map['uuid_local'] = Variable<String>(uuidLocal.value);
+    }
+    if (rutaId.present) {
+      map['ruta_id'] = Variable<int>(rutaId.value);
+    }
+    if (prestamoId.present) {
+      map['prestamo_id'] = Variable<int>(prestamoId.value);
+    }
+    if (orden.present) {
+      map['orden'] = Variable<int>(orden.value);
+    }
+    if (estado.present) {
+      map['estado'] = Variable<String>(estado.value);
+    }
+    if (cobradoEn.present) {
+      map['cobrado_en'] = Variable<DateTime>(cobradoEn.value);
+    }
+    if (creadoEn.present) {
+      map['creado_en'] = Variable<DateTime>(creadoEn.value);
+    }
+    if (actualizadoEn.present) {
+      map['actualizado_en'] = Variable<DateTime>(actualizadoEn.value);
+    }
+    if (sincronizado.present) {
+      map['sincronizado'] = Variable<bool>(sincronizado.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RutaItemsCompanion(')
+          ..write('id: $id, ')
+          ..write('servidorId: $servidorId, ')
+          ..write('uuidLocal: $uuidLocal, ')
+          ..write('rutaId: $rutaId, ')
+          ..write('prestamoId: $prestamoId, ')
+          ..write('orden: $orden, ')
+          ..write('estado: $estado, ')
+          ..write('cobradoEn: $cobradoEn, ')
+          ..write('creadoEn: $creadoEn, ')
+          ..write('actualizadoEn: $actualizadoEn, ')
+          ..write('sincronizado: $sincronizado')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6208,6 +7532,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CierreCajaGastosTable cierreCajaGastos = $CierreCajaGastosTable(
     this,
   );
+  late final $RutasTable rutas = $RutasTable(this);
+  late final $RutaItemsTable rutaItems = $RutaItemsTable(this);
   late final ClientesDao clientesDao = ClientesDao(this as AppDatabase);
   late final PrestamosDao prestamosDao = PrestamosDao(this as AppDatabase);
   late final PrestamosExtrasDao prestamosExtrasDao = PrestamosExtrasDao(
@@ -6227,6 +7553,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final CierreCajaGastosDao cierreCajaGastosDao = CierreCajaGastosDao(
     this as AppDatabase,
   );
+  late final RutasDao rutasDao = RutasDao(this as AppDatabase);
+  late final RutaItemsDao rutaItemsDao = RutaItemsDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6241,6 +7569,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     cargasCapital,
     cierresCaja,
     cierreCajaGastos,
+    rutas,
+    rutaItems,
   ];
 }
 
@@ -6840,6 +8170,24 @@ final class $$PrestamosTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$RutaItemsTable, List<RutaItem>>
+  _rutaItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.rutaItems,
+    aliasName: 'prestamos__id__ruta_items__prestamo_id',
+  );
+
+  $$RutaItemsTableProcessedTableManager get rutaItemsRefs {
+    final manager = $$RutaItemsTableTableManager(
+      $_db,
+      $_db.rutaItems,
+    ).filter((f) => f.prestamoId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_rutaItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$PrestamosTableFilterComposer
@@ -7025,6 +8373,31 @@ class $$PrestamosTableFilterComposer
           }) => $$PagosTableFilterComposer(
             $db: $db,
             $table: $db.pagos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> rutaItemsRefs(
+    Expression<bool> Function($$RutaItemsTableFilterComposer f) f,
+  ) {
+    final $$RutaItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.rutaItems,
+      getReferencedColumn: (t) => t.prestamoId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RutaItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.rutaItems,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7334,6 +8707,31 @@ class $$PrestamosTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> rutaItemsRefs<T extends Object>(
+    Expression<T> Function($$RutaItemsTableAnnotationComposer a) f,
+  ) {
+    final $$RutaItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.rutaItems,
+      getReferencedColumn: (t) => t.prestamoId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RutaItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.rutaItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$PrestamosTableTableManager
@@ -7354,6 +8752,7 @@ class $$PrestamosTableTableManager
             bool prestamosExtrasRefs,
             bool cuotasRefs,
             bool pagosRefs,
+            bool rutaItemsRefs,
           })
         > {
   $$PrestamosTableTableManager(_$AppDatabase db, $PrestamosTable table)
@@ -7461,6 +8860,7 @@ class $$PrestamosTableTableManager
                 prestamosExtrasRefs = false,
                 cuotasRefs = false,
                 pagosRefs = false,
+                rutaItemsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -7468,6 +8868,7 @@ class $$PrestamosTableTableManager
                     if (prestamosExtrasRefs) db.prestamosExtras,
                     if (cuotasRefs) db.cuotas,
                     if (pagosRefs) db.pagos,
+                    if (rutaItemsRefs) db.rutaItems,
                   ],
                   addJoins:
                       <
@@ -7566,6 +8967,27 @@ class $$PrestamosTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (rutaItemsRefs)
+                        await $_getPrefetchedData<
+                          Prestamo,
+                          $PrestamosTable,
+                          RutaItem
+                        >(
+                          currentTable: table,
+                          referencedTable: $$PrestamosTableReferences
+                              ._rutaItemsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$PrestamosTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).rutaItemsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.prestamoId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7591,6 +9013,7 @@ typedef $$PrestamosTableProcessedTableManager =
         bool prestamosExtrasRefs,
         bool cuotasRefs,
         bool pagosRefs,
+        bool rutaItemsRefs,
       })
     >;
 typedef $$PrestamosExtrasTableCreateCompanionBuilder =
@@ -10427,6 +11850,929 @@ typedef $$CierreCajaGastosTableProcessedTableManager =
       CierreCajaGasto,
       PrefetchHooks Function({bool cierreCajaId})
     >;
+typedef $$RutasTableCreateCompanionBuilder =
+    RutasCompanion Function({
+      Value<int> id,
+      Value<int?> servidorId,
+      Value<String?> uuidLocal,
+      required int usuarioId,
+      required String nombre,
+      Value<String?> descripcion,
+      Value<DateTime?> fecha,
+      Value<int> orden,
+      Value<DateTime> creadoEn,
+      Value<DateTime> actualizadoEn,
+      Value<bool> sincronizado,
+    });
+typedef $$RutasTableUpdateCompanionBuilder =
+    RutasCompanion Function({
+      Value<int> id,
+      Value<int?> servidorId,
+      Value<String?> uuidLocal,
+      Value<int> usuarioId,
+      Value<String> nombre,
+      Value<String?> descripcion,
+      Value<DateTime?> fecha,
+      Value<int> orden,
+      Value<DateTime> creadoEn,
+      Value<DateTime> actualizadoEn,
+      Value<bool> sincronizado,
+    });
+
+final class $$RutasTableReferences
+    extends BaseReferences<_$AppDatabase, $RutasTable, Ruta> {
+  $$RutasTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$RutaItemsTable, List<RutaItem>>
+  _rutaItemsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.rutaItems,
+    aliasName: 'rutas__id__ruta_items__ruta_id',
+  );
+
+  $$RutaItemsTableProcessedTableManager get rutaItemsRefs {
+    final manager = $$RutaItemsTableTableManager(
+      $_db,
+      $_db.rutaItems,
+    ).filter((f) => f.rutaId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_rutaItemsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$RutasTableFilterComposer extends Composer<_$AppDatabase, $RutasTable> {
+  $$RutasTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get usuarioId => $composableBuilder(
+    column: $table.usuarioId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nombre => $composableBuilder(
+    column: $table.nombre,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get descripcion => $composableBuilder(
+    column: $table.descripcion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get fecha => $composableBuilder(
+    column: $table.fecha,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get orden => $composableBuilder(
+    column: $table.orden,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get creadoEn => $composableBuilder(
+    column: $table.creadoEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get actualizadoEn => $composableBuilder(
+    column: $table.actualizadoEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> rutaItemsRefs(
+    Expression<bool> Function($$RutaItemsTableFilterComposer f) f,
+  ) {
+    final $$RutaItemsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.rutaItems,
+      getReferencedColumn: (t) => t.rutaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RutaItemsTableFilterComposer(
+            $db: $db,
+            $table: $db.rutaItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$RutasTableOrderingComposer
+    extends Composer<_$AppDatabase, $RutasTable> {
+  $$RutasTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get usuarioId => $composableBuilder(
+    column: $table.usuarioId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nombre => $composableBuilder(
+    column: $table.nombre,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get descripcion => $composableBuilder(
+    column: $table.descripcion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get fecha => $composableBuilder(
+    column: $table.fecha,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get orden => $composableBuilder(
+    column: $table.orden,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get creadoEn => $composableBuilder(
+    column: $table.creadoEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get actualizadoEn => $composableBuilder(
+    column: $table.actualizadoEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RutasTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RutasTable> {
+  $$RutasTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get uuidLocal =>
+      $composableBuilder(column: $table.uuidLocal, builder: (column) => column);
+
+  GeneratedColumn<int> get usuarioId =>
+      $composableBuilder(column: $table.usuarioId, builder: (column) => column);
+
+  GeneratedColumn<String> get nombre =>
+      $composableBuilder(column: $table.nombre, builder: (column) => column);
+
+  GeneratedColumn<String> get descripcion => $composableBuilder(
+    column: $table.descripcion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get fecha =>
+      $composableBuilder(column: $table.fecha, builder: (column) => column);
+
+  GeneratedColumn<int> get orden =>
+      $composableBuilder(column: $table.orden, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get creadoEn =>
+      $composableBuilder(column: $table.creadoEn, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get actualizadoEn => $composableBuilder(
+    column: $table.actualizadoEn,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => column,
+  );
+
+  Expression<T> rutaItemsRefs<T extends Object>(
+    Expression<T> Function($$RutaItemsTableAnnotationComposer a) f,
+  ) {
+    final $$RutaItemsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.rutaItems,
+      getReferencedColumn: (t) => t.rutaId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RutaItemsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.rutaItems,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$RutasTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RutasTable,
+          Ruta,
+          $$RutasTableFilterComposer,
+          $$RutasTableOrderingComposer,
+          $$RutasTableAnnotationComposer,
+          $$RutasTableCreateCompanionBuilder,
+          $$RutasTableUpdateCompanionBuilder,
+          (Ruta, $$RutasTableReferences),
+          Ruta,
+          PrefetchHooks Function({bool rutaItemsRefs})
+        > {
+  $$RutasTableTableManager(_$AppDatabase db, $RutasTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RutasTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RutasTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RutasTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
+                Value<int> usuarioId = const Value.absent(),
+                Value<String> nombre = const Value.absent(),
+                Value<String?> descripcion = const Value.absent(),
+                Value<DateTime?> fecha = const Value.absent(),
+                Value<int> orden = const Value.absent(),
+                Value<DateTime> creadoEn = const Value.absent(),
+                Value<DateTime> actualizadoEn = const Value.absent(),
+                Value<bool> sincronizado = const Value.absent(),
+              }) => RutasCompanion(
+                id: id,
+                servidorId: servidorId,
+                uuidLocal: uuidLocal,
+                usuarioId: usuarioId,
+                nombre: nombre,
+                descripcion: descripcion,
+                fecha: fecha,
+                orden: orden,
+                creadoEn: creadoEn,
+                actualizadoEn: actualizadoEn,
+                sincronizado: sincronizado,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
+                required int usuarioId,
+                required String nombre,
+                Value<String?> descripcion = const Value.absent(),
+                Value<DateTime?> fecha = const Value.absent(),
+                Value<int> orden = const Value.absent(),
+                Value<DateTime> creadoEn = const Value.absent(),
+                Value<DateTime> actualizadoEn = const Value.absent(),
+                Value<bool> sincronizado = const Value.absent(),
+              }) => RutasCompanion.insert(
+                id: id,
+                servidorId: servidorId,
+                uuidLocal: uuidLocal,
+                usuarioId: usuarioId,
+                nombre: nombre,
+                descripcion: descripcion,
+                fecha: fecha,
+                orden: orden,
+                creadoEn: creadoEn,
+                actualizadoEn: actualizadoEn,
+                sincronizado: sincronizado,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) =>
+                    (e.readTable(table), $$RutasTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback: ({rutaItemsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (rutaItemsRefs) db.rutaItems],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (rutaItemsRefs)
+                    await $_getPrefetchedData<Ruta, $RutasTable, RutaItem>(
+                      currentTable: table,
+                      referencedTable: $$RutasTableReferences
+                          ._rutaItemsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$RutasTableReferences(db, table, p0).rutaItemsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.rutaId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$RutasTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RutasTable,
+      Ruta,
+      $$RutasTableFilterComposer,
+      $$RutasTableOrderingComposer,
+      $$RutasTableAnnotationComposer,
+      $$RutasTableCreateCompanionBuilder,
+      $$RutasTableUpdateCompanionBuilder,
+      (Ruta, $$RutasTableReferences),
+      Ruta,
+      PrefetchHooks Function({bool rutaItemsRefs})
+    >;
+typedef $$RutaItemsTableCreateCompanionBuilder =
+    RutaItemsCompanion Function({
+      Value<int> id,
+      Value<int?> servidorId,
+      Value<String?> uuidLocal,
+      required int rutaId,
+      required int prestamoId,
+      Value<int> orden,
+      Value<String> estado,
+      Value<DateTime?> cobradoEn,
+      Value<DateTime> creadoEn,
+      Value<DateTime> actualizadoEn,
+      Value<bool> sincronizado,
+    });
+typedef $$RutaItemsTableUpdateCompanionBuilder =
+    RutaItemsCompanion Function({
+      Value<int> id,
+      Value<int?> servidorId,
+      Value<String?> uuidLocal,
+      Value<int> rutaId,
+      Value<int> prestamoId,
+      Value<int> orden,
+      Value<String> estado,
+      Value<DateTime?> cobradoEn,
+      Value<DateTime> creadoEn,
+      Value<DateTime> actualizadoEn,
+      Value<bool> sincronizado,
+    });
+
+final class $$RutaItemsTableReferences
+    extends BaseReferences<_$AppDatabase, $RutaItemsTable, RutaItem> {
+  $$RutaItemsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $RutasTable _rutaIdTable(_$AppDatabase db) =>
+      db.rutas.createAlias('ruta_items__ruta_id__rutas__id');
+
+  $$RutasTableProcessedTableManager get rutaId {
+    final $_column = $_itemColumn<int>('ruta_id')!;
+
+    final manager = $$RutasTableTableManager(
+      $_db,
+      $_db.rutas,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_rutaIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $PrestamosTable _prestamoIdTable(_$AppDatabase db) =>
+      db.prestamos.createAlias('ruta_items__prestamo_id__prestamos__id');
+
+  $$PrestamosTableProcessedTableManager get prestamoId {
+    final $_column = $_itemColumn<int>('prestamo_id')!;
+
+    final manager = $$PrestamosTableTableManager(
+      $_db,
+      $_db.prestamos,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_prestamoIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$RutaItemsTableFilterComposer
+    extends Composer<_$AppDatabase, $RutaItemsTable> {
+  $$RutaItemsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get orden => $composableBuilder(
+    column: $table.orden,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get estado => $composableBuilder(
+    column: $table.estado,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get cobradoEn => $composableBuilder(
+    column: $table.cobradoEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get creadoEn => $composableBuilder(
+    column: $table.creadoEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get actualizadoEn => $composableBuilder(
+    column: $table.actualizadoEn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$RutasTableFilterComposer get rutaId {
+    final $$RutasTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.rutaId,
+      referencedTable: $db.rutas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RutasTableFilterComposer(
+            $db: $db,
+            $table: $db.rutas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PrestamosTableFilterComposer get prestamoId {
+    final $$PrestamosTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.prestamoId,
+      referencedTable: $db.prestamos,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PrestamosTableFilterComposer(
+            $db: $db,
+            $table: $db.prestamos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RutaItemsTableOrderingComposer
+    extends Composer<_$AppDatabase, $RutaItemsTable> {
+  $$RutaItemsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get uuidLocal => $composableBuilder(
+    column: $table.uuidLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get orden => $composableBuilder(
+    column: $table.orden,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get estado => $composableBuilder(
+    column: $table.estado,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get cobradoEn => $composableBuilder(
+    column: $table.cobradoEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get creadoEn => $composableBuilder(
+    column: $table.creadoEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get actualizadoEn => $composableBuilder(
+    column: $table.actualizadoEn,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$RutasTableOrderingComposer get rutaId {
+    final $$RutasTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.rutaId,
+      referencedTable: $db.rutas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RutasTableOrderingComposer(
+            $db: $db,
+            $table: $db.rutas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PrestamosTableOrderingComposer get prestamoId {
+    final $$PrestamosTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.prestamoId,
+      referencedTable: $db.prestamos,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PrestamosTableOrderingComposer(
+            $db: $db,
+            $table: $db.prestamos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RutaItemsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RutaItemsTable> {
+  $$RutaItemsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get servidorId => $composableBuilder(
+    column: $table.servidorId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get uuidLocal =>
+      $composableBuilder(column: $table.uuidLocal, builder: (column) => column);
+
+  GeneratedColumn<int> get orden =>
+      $composableBuilder(column: $table.orden, builder: (column) => column);
+
+  GeneratedColumn<String> get estado =>
+      $composableBuilder(column: $table.estado, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get cobradoEn =>
+      $composableBuilder(column: $table.cobradoEn, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get creadoEn =>
+      $composableBuilder(column: $table.creadoEn, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get actualizadoEn => $composableBuilder(
+    column: $table.actualizadoEn,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get sincronizado => $composableBuilder(
+    column: $table.sincronizado,
+    builder: (column) => column,
+  );
+
+  $$RutasTableAnnotationComposer get rutaId {
+    final $$RutasTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.rutaId,
+      referencedTable: $db.rutas,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RutasTableAnnotationComposer(
+            $db: $db,
+            $table: $db.rutas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$PrestamosTableAnnotationComposer get prestamoId {
+    final $$PrestamosTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.prestamoId,
+      referencedTable: $db.prestamos,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PrestamosTableAnnotationComposer(
+            $db: $db,
+            $table: $db.prestamos,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RutaItemsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RutaItemsTable,
+          RutaItem,
+          $$RutaItemsTableFilterComposer,
+          $$RutaItemsTableOrderingComposer,
+          $$RutaItemsTableAnnotationComposer,
+          $$RutaItemsTableCreateCompanionBuilder,
+          $$RutaItemsTableUpdateCompanionBuilder,
+          (RutaItem, $$RutaItemsTableReferences),
+          RutaItem,
+          PrefetchHooks Function({bool rutaId, bool prestamoId})
+        > {
+  $$RutaItemsTableTableManager(_$AppDatabase db, $RutaItemsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RutaItemsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RutaItemsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RutaItemsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
+                Value<int> rutaId = const Value.absent(),
+                Value<int> prestamoId = const Value.absent(),
+                Value<int> orden = const Value.absent(),
+                Value<String> estado = const Value.absent(),
+                Value<DateTime?> cobradoEn = const Value.absent(),
+                Value<DateTime> creadoEn = const Value.absent(),
+                Value<DateTime> actualizadoEn = const Value.absent(),
+                Value<bool> sincronizado = const Value.absent(),
+              }) => RutaItemsCompanion(
+                id: id,
+                servidorId: servidorId,
+                uuidLocal: uuidLocal,
+                rutaId: rutaId,
+                prestamoId: prestamoId,
+                orden: orden,
+                estado: estado,
+                cobradoEn: cobradoEn,
+                creadoEn: creadoEn,
+                actualizadoEn: actualizadoEn,
+                sincronizado: sincronizado,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> servidorId = const Value.absent(),
+                Value<String?> uuidLocal = const Value.absent(),
+                required int rutaId,
+                required int prestamoId,
+                Value<int> orden = const Value.absent(),
+                Value<String> estado = const Value.absent(),
+                Value<DateTime?> cobradoEn = const Value.absent(),
+                Value<DateTime> creadoEn = const Value.absent(),
+                Value<DateTime> actualizadoEn = const Value.absent(),
+                Value<bool> sincronizado = const Value.absent(),
+              }) => RutaItemsCompanion.insert(
+                id: id,
+                servidorId: servidorId,
+                uuidLocal: uuidLocal,
+                rutaId: rutaId,
+                prestamoId: prestamoId,
+                orden: orden,
+                estado: estado,
+                cobradoEn: cobradoEn,
+                creadoEn: creadoEn,
+                actualizadoEn: actualizadoEn,
+                sincronizado: sincronizado,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$RutaItemsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({rutaId = false, prestamoId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (rutaId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.rutaId,
+                                referencedTable: $$RutaItemsTableReferences
+                                    ._rutaIdTable(db),
+                                referencedColumn: $$RutaItemsTableReferences
+                                    ._rutaIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (prestamoId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.prestamoId,
+                                referencedTable: $$RutaItemsTableReferences
+                                    ._prestamoIdTable(db),
+                                referencedColumn: $$RutaItemsTableReferences
+                                    ._prestamoIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$RutaItemsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RutaItemsTable,
+      RutaItem,
+      $$RutaItemsTableFilterComposer,
+      $$RutaItemsTableOrderingComposer,
+      $$RutaItemsTableAnnotationComposer,
+      $$RutaItemsTableCreateCompanionBuilder,
+      $$RutaItemsTableUpdateCompanionBuilder,
+      (RutaItem, $$RutaItemsTableReferences),
+      RutaItem,
+      PrefetchHooks Function({bool rutaId, bool prestamoId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -10449,4 +12795,8 @@ class $AppDatabaseManager {
       $$CierresCajaTableTableManager(_db, _db.cierresCaja);
   $$CierreCajaGastosTableTableManager get cierreCajaGastos =>
       $$CierreCajaGastosTableTableManager(_db, _db.cierreCajaGastos);
+  $$RutasTableTableManager get rutas =>
+      $$RutasTableTableManager(_db, _db.rutas);
+  $$RutaItemsTableTableManager get rutaItems =>
+      $$RutaItemsTableTableManager(_db, _db.rutaItems);
 }

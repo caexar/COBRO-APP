@@ -9,7 +9,13 @@ import '../data/prestamos_repository.dart';
 /// Detalle de un préstamo ya guardado: capital, interés, extras y cuotas
 /// generadas con su estado (pendiente/pagada/en_mora).
 class PrestamoDetalleScreen extends StatefulWidget {
-  const PrestamoDetalleScreen({super.key, required this.prestamoId, this.repository, this.pagosRepository});
+  const PrestamoDetalleScreen({
+    super.key,
+    required this.prestamoId,
+    this.repository,
+    this.pagosRepository,
+    this.onPagoRegistrado,
+  });
 
   final int prestamoId;
 
@@ -17,6 +23,14 @@ class PrestamoDetalleScreen extends StatefulWidget {
   /// instancia por defecto.
   final PrestamosRepository? repository;
   final PagosRepository? pagosRepository;
+
+  /// Se llama justo después de que un pago se registra con éxito (antes de
+  /// que el usuario navegue de vuelta) — pensado para que `RutaDetalleScreen`
+  /// marque el ruta_item correspondiente como cobrado sin tener que
+  /// duplicar esta pantalla ni la de `RegistrarPagoScreen`. `null` (default)
+  /// para el resto de quienes navegan acá (`CobrosPendientesScreen`,
+  /// `HistorialPrestamosScreen`), que no necesitan enterarse.
+  final VoidCallback? onPagoRegistrado;
 
   @override
   State<PrestamoDetalleScreen> createState() => _PrestamoDetalleScreenState();
@@ -69,7 +83,10 @@ class _PrestamoDetalleScreenState extends State<PrestamoDetalleScreen> {
     final guardado = await Navigator.of(
       context,
     ).push<bool>(MaterialPageRoute(builder: (_) => RegistrarPagoScreen(prestamoId: widget.prestamoId)));
-    if (guardado == true) _cargar();
+    if (guardado == true) {
+      _cargar();
+      widget.onPagoRegistrado?.call();
+    }
   }
 
   void _verHistorialPagos() {

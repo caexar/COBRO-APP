@@ -8,6 +8,7 @@ use App\Models\CargaCapital;
 use App\Models\CierreCaja;
 use App\Models\Cuota;
 use App\Models\Prestamo;
+use App\Models\Ruta;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -86,6 +87,11 @@ class ExportarReporteService
                 'titulo' => 'Resumen de cierre de caja (rango)',
                 'columnas' => ['Cobrador', 'Capital inicio (primer día)', 'Capital cierre (último día)', 'Total gastos (rango)'],
                 'filas' => $this->filasCierreCajaResumen($cobradores, $desde, $hasta),
+            ],
+            'rutas' => [
+                'titulo' => 'Rutas de cobro',
+                'columnas' => ['Cobrador', 'Ruta', 'Fecha de la ruta', 'Orden', 'Cliente', 'Préstamo', 'Estado', 'Cobrado en', 'Monto pendiente'],
+                'filas' => $this->filasRutas($cobradores, $desde, $hasta),
             ],
         ];
     }
@@ -308,6 +314,55 @@ class ExportarReporteService
                 (float) $cierres->last()->capital_cierre,
                 round((float) $cierres->sum('gastos_total'), 2),
             ];
+        }
+
+        return $filas;
+    }
+
+    /**
+     * Una fila por ítem (préstamo dentro de una ruta) de los cobradores filtrados, en el orden
+     * en que quedaron dentro de cada ruta, dentro del rango — por `created_at` de la ruta
+     * (mismo campo que ya usa `filasMovimientosCapital()` para `cargas_capital`, no `fecha` de
+     * la ruta: esa es nullable en una ruta general/reutilizable y filtrar por ella dejaría esas
+     * rutas fuera del reporte por completo). "Monto pendiente" es el saldo del préstamo al
+     * momento de exportar (no un histórico congelado a la fecha del ítem) — misma fórmula que
+     * `monto_total - Σpagos.monto_aplicado` usada en el resto del reporte.
+     *
+     * @param  Collection<int, User>  $cobradores
+     * @return array<int, array<int, mixed>>
+     */
+    private function filasRutas(Collection $cobradores, ?Carbon $desde, ?Carbon $hasta): array
+    {
+        $nombresPorId = $cobradores->pluck('nombre', 'id');
+
+        $rutas = Ruta::whereIn('usuario_id', $cobradores->pluck('id'))
+            ->when($desde, fn ($query) => $query->where('created_at', '>=', $desde))
+            ->when($hasta, fn ($query) => $query->where('created_at', '<=', $hasta))
+            ->with(['items' => fn ($query) => $query->orderBy('orden'), 'items.prestamo.cliente', 'items.prestamo.pagos'])
+            ->orderBy('created_at')
+            ->get();
+
+        $filas = [];
+
+        foreach ($rutas as $ruta) {
+            foreach ($ruta->items as $item) {
+                $prestamo = $item->prestamo;
+                $saldoPendiente = $prestamo
+                    ? max(0, round((float) $prestamo->monto_total - (float) $prestamo->pagos->sum('monto_aplicado'), 2))
+                    : 0.0;
+
+                $filas[] = [
+                    $nombresPorId[$ruta->usuario_id] ?? '—',
+                    $ruta->nombre,
+                    $ruta->fecha?->format('d/m/Y') ?? '',
+                    $item->orden,
+                    $prestamo?->cliente?->nombre ?? '—',
+                    $prestamo?->referencia ?? ($prestamo ? "Préstamo #{$prestamo->id}" : '—'),
+                    $item->estado,
+                    $item->cobrado_en?->format('d/m/Y H:i') ?? '',
+                    $saldoPendiente,
+                ];
+            }
         }
 
         return $filas;

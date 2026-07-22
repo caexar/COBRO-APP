@@ -43,6 +43,15 @@ class PrestamosDao extends DatabaseAccessor<AppDatabase> with _$PrestamosDaoMixi
         .getSingleOrNull();
   }
 
+  /// Para resolver el id local de un préstamo a partir del id que devuelve
+  /// el servidor (ej. `RutasRepository.autogenerarHoy`, que recibe
+  /// préstamos referenciados por su id de servidor).
+  Future<Prestamo?> obtenerPorServidorId(int servidorId, int usuarioId) {
+    return (select(prestamos)
+          ..where((tbl) => tbl.servidorId.equals(servidorId) & tbl.usuarioId.equals(usuarioId)))
+        .getSingleOrNull();
+  }
+
   Future<List<Prestamo>> obtenerNoSincronizados() {
     return (select(prestamos)..where((tbl) => tbl.sincronizado.equals(false))).get();
   }

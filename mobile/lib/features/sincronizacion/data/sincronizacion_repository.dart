@@ -11,6 +11,8 @@ import '../../../data/daos/cuotas_dao.dart';
 import '../../../data/daos/pagos_dao.dart';
 import '../../../data/daos/prestamos_dao.dart';
 import '../../../data/daos/prestamos_extras_dao.dart';
+import '../../../data/daos/ruta_items_dao.dart';
+import '../../../data/daos/rutas_dao.dart';
 import '../../capital/data/cargas_capital_repository.dart';
 
 /// Resultado de un intento de sincronización, pensado para mostrarse
@@ -76,6 +78,8 @@ class SincronizacionRepository {
   CargasCapitalDao get _cargasCapitalDao => _database.cargasCapitalDao;
   CierresCajaDao get _cierresCajaDao => _database.cierresCajaDao;
   CierreCajaGastosDao get _cierreCajaGastosDao => _database.cierreCajaGastosDao;
+  RutasDao get _rutasDao => _database.rutasDao;
+  RutaItemsDao get _rutaItemsDao => _database.rutaItemsDao;
   CambiosPendientesDao get _cambiosPendientesDao => _database.cambiosPendientesDao;
 
   /// Última vez que `sincronizar()` terminó con éxito para el cobrador con
@@ -102,6 +106,8 @@ class SincronizacionRepository {
       'pagos': {},
       'cargas_capital': {},
       'cierres_caja': {},
+      'rutas': {},
+      'ruta_items': {},
     };
     for (final cambio in pendientes) {
       porTabla[cambio.tabla]?.putIfAbsent(cambio.registroId, () => []).add(cambio);
@@ -241,12 +247,62 @@ class SincronizacionRepository {
       });
     }
 
+    final rutasUuidARegistroId = <String, int>{};
+    final rutasItems = <Map<String, dynamic>>[];
+    for (final registroId in porTabla['rutas']!.keys) {
+      final ruta = await _rutasDao.obtenerPorId(registroId, usuarioId);
+      // uuidLocal nulo solo pasa en una ruta creada por `autogenerarHoy()`
+      // (nace ya sincronizada, nunca debería tener un cambio pendiente
+      // propio, pero el chequeo es defensivo, igual que en cargas_capital).
+      if (ruta == null || ruta.uuidLocal == null) continue;
+
+      rutasUuidARegistroId[ruta.uuidLocal!] = registroId;
+      rutasItems.add({
+        'uuid_local': ruta.uuidLocal,
+        'actualizado_en': ruta.actualizadoEn.toIso8601String(),
+        'nombre': ruta.nombre,
+        'descripcion': ruta.descripcion,
+        'fecha': ruta.fecha != null ? _soloFecha(ruta.fecha!) : null,
+        'orden': ruta.orden,
+      });
+    }
+
+    final rutaItemsUuidARegistroId = <String, int>{};
+    final rutaItemsItems = <Map<String, dynamic>>[];
+    for (final registroId in porTabla['ruta_items']!.keys) {
+      final item = await _rutaItemsDao.obtenerPorId(registroId);
+      if (item == null || item.uuidLocal == null) continue;
+
+      final ruta = await _rutasDao.obtenerPorId(item.rutaId, usuarioId);
+      // Sin el uuid_local de la ruta dueña no hay forma de que el servidor
+      // resuelva a qué ruta pertenece: se deja pendiente, se reintenta solo
+      // apenas la ruta tenga uuid_local (mismo criterio que prestamos con
+      // el cliente dueño).
+      if (ruta == null || ruta.uuidLocal == null) continue;
+
+      final prestamo = await _prestamosDao.obtenerPorId(item.prestamoId, usuarioId);
+      if (prestamo == null || prestamo.uuidLocal == null) continue;
+
+      rutaItemsUuidARegistroId[item.uuidLocal!] = registroId;
+      rutaItemsItems.add({
+        'uuid_local': item.uuidLocal,
+        'actualizado_en': item.actualizadoEn.toIso8601String(),
+        'ruta_uuid_local': ruta.uuidLocal,
+        'prestamo_uuid_local': prestamo.uuidLocal,
+        'orden': item.orden,
+        'estado': item.estado,
+        'cobrado_en': item.cobradoEn?.toIso8601String(),
+      });
+    }
+
     final batch = <String, dynamic>{
       if (clientesItems.isNotEmpty) 'clientes': clientesItems,
       if (prestamosItems.isNotEmpty) 'prestamos': prestamosItems,
       if (pagosItems.isNotEmpty) 'pagos': pagosItems,
       if (cargasItems.isNotEmpty) 'cargas_capital': cargasItems,
       if (cierresItems.isNotEmpty) 'cierres_caja': cierresItems,
+      if (rutasItems.isNotEmpty) 'rutas': rutasItems,
+      if (rutaItemsItems.isNotEmpty) 'ruta_items': rutaItemsItems,
     };
 
     Map<String, dynamic> respuesta;
@@ -329,6 +385,16 @@ class SincronizacionRepository {
       cierresUuidARegistroId,
       porTabla['cierres_caja']!,
       _cierresCajaDao.marcarSincronizado,
+    );
+    // rutas antes que ruta_items, mismo orden de procesamiento que el backend
+    // (ver `SyncService::sincronizar`): un ruta_item nuevo puede referenciar
+    // una ruta recién creada en este mismo batch.
+    await procesarResultados('rutas', rutasUuidARegistroId, porTabla['rutas']!, _rutasDao.marcarSincronizado);
+    await procesarResultados(
+      'ruta_items',
+      rutaItemsUuidARegistroId,
+      porTabla['ruta_items']!,
+      _rutaItemsDao.marcarSincronizado,
     );
 
     await _descargarConfiguracion(respuesta);
