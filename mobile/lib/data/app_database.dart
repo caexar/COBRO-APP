@@ -71,7 +71,7 @@ class AppDatabase extends _$AppDatabase {
   static final AppDatabase instance = AppDatabase();
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -145,6 +145,14 @@ class AppDatabase extends _$AppDatabase {
       if (from < 8) {
         await m.createTable(rutas);
         await m.createTable(rutaItems);
+      }
+      // v8 -> v9: rutas.incluyeVencidas (solo aplica a una ruta creada por autogenerarHoy(),
+      // null en una ruta manual). Mismo cuidado que ya existe en otros pasos de esta
+      // migración: solo hace falta el ALTER si la tabla ya existía sin esta columna
+      // (from >= 8) — si venía de antes de v8, el paso de arriba (`m.createTable(rutas)`) ya
+      // la crea con la definición *actual*, que ya la incluye.
+      if (from >= 8 && from < 9) {
+        await m.addColumn(rutas, rutas.incluyeVencidas);
       }
     },
   );

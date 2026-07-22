@@ -55,11 +55,12 @@ class RutaService
             })
             ->values();
 
-        return DB::transaction(function () use ($usuario, $fechaObjetivo, $esHoy, $prestamos) {
+        return DB::transaction(function () use ($usuario, $fechaObjetivo, $esHoy, $incluirVencidas, $prestamos) {
             $ruta = Ruta::create([
                 'usuario_id' => $usuario->id,
                 'nombre' => ($esHoy ? 'Ruta de hoy ' : 'Ruta del ').$fechaObjetivo->toDateString(),
                 'fecha' => $fechaObjetivo->toDateString(),
+                'incluye_vencidas' => $incluirVencidas,
                 'orden' => Ruta::where('usuario_id', $usuario->id)->count(),
             ]);
 

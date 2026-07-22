@@ -289,7 +289,23 @@ class _RutaTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: ListTile(
         onTap: onTap,
-        title: Text(ruta.nombre, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                ruta.nombre,
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // Solo aplica a una ruta autogenerada (ver RutasRepository.autogenerarHoy); una
+            // ruta manual tiene incluyeVencidas nulo y no muestra nada acá.
+            if (ruta.incluyeVencidas != null) ...[
+              const SizedBox(width: 8),
+              _EtiquetaIncluyeVencidas(incluyeVencidas: ruta.incluyeVencidas!),
+            ],
+          ],
+        ),
         subtitle: Text(partesSubtitulo.join(' · ')),
         trailing: PopupMenuButton<String>(
           onSelected: (accion) {
@@ -301,6 +317,31 @@ class _RutaTile extends StatelessWidget {
             PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Aviso sutil (fondo neutro, texto pequeño — no un `Chip` de color como el
+/// de "En mora") de qué opción eligió el cobrador al autogenerar esta ruta.
+class _EtiquetaIncluyeVencidas extends StatelessWidget {
+  const _EtiquetaIncluyeVencidas({required this.incluyeVencidas});
+
+  final bool incluyeVencidas;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        incluyeVencidas ? '+ vencidas' : 'Solo ese día',
+        style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
       ),
     );
   }

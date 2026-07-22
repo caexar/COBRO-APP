@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'nombre',
     'descripcion',
     'fecha',
+    'incluye_vencidas',
     'orden',
     'uuid_local',
 ])]
@@ -24,6 +25,7 @@ class Ruta extends Model
     {
         return [
             'fecha' => 'date',
+            'incluye_vencidas' => 'boolean',
         ];
     }
 

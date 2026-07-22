@@ -272,12 +272,15 @@ class RutaControllerTest extends TestCase
         // Sin incluir_vencidas (default): los atrasados quedan fuera.
         $sinVencidas = $this->postJson('/api/rutas/autogenerar-hoy');
         $sinVencidas->assertCreated();
+        $sinVencidas->assertJsonPath('data.incluye_vencidas', false);
         $idsSinVencidas = collect($sinVencidas->json('data.items'))->pluck('prestamo_id')->all();
         $this->assertEqualsCanonicalizing([$vencidoHoy->id], $idsSinVencidas);
 
-        // Con incluir_vencidas: los atrasados entran, cada préstamo una sola vez.
+        // Con incluir_vencidas: los atrasados entran, cada préstamo una sola vez, y la ruta
+        // queda marcada con la elección (para mostrarla luego en el listado).
         $conVencidas = $this->postJson('/api/rutas/autogenerar-hoy', ['incluir_vencidas' => true]);
         $conVencidas->assertCreated();
+        $conVencidas->assertJsonPath('data.incluye_vencidas', true);
         $idsConVencidas = collect($conVencidas->json('data.items'))->pluck('prestamo_id')->all();
 
         $this->assertEqualsCanonicalizing([$soloAtrasado->id, $atrasadoYHoy->id, $vencidoHoy->id], $idsConVencidas);

@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/secure_storage_service.dart';
+import '../../../core/utils/json_fecha.dart';
 import '../../../data/app_database.dart';
 import '../../../data/daos/cambios_pendientes_dao.dart';
 import '../../../data/daos/prestamos_dao.dart';
@@ -207,7 +208,8 @@ class RutasRepository {
         servidorId: Value(data['id'] as int),
         nombre: data['nombre'] as String,
         descripcion: Value(data['descripcion'] as String?),
-        fecha: Value(data['fecha'] != null ? DateTime.parse(data['fecha'] as String) : null),
+        fecha: Value(data['fecha'] != null ? comoFecha(data['fecha']) : null),
+        incluyeVencidas: Value(data['incluye_vencidas'] as bool?),
         orden: Value(data['orden'] as int),
         sincronizado: const Value(true),
       ),

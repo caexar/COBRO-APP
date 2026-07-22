@@ -153,6 +153,7 @@ void main() {
               'nombre': 'Ruta de hoy 2026-07-23',
               'descripcion': null,
               'fecha': '2026-07-23T00:00:00.000000Z',
+              'incluye_vencidas': false,
               'orden': 0,
               'items': [
                 {'id': 30, 'prestamo_id': 55, 'orden': 0, 'estado': 'pendiente'},
@@ -178,6 +179,12 @@ void main() {
       final ruta = await repositorioConMock.obtenerPorId(rutaId);
       expect(ruta?.nombre, 'Ruta de hoy 2026-07-23');
       expect(ruta?.sincronizado, isTrue);
+      expect(ruta?.incluyeVencidas, isFalse);
+      // Bug real: el backend serializa `fecha` como "2026-07-23T00:00:00.000000Z" (con hora y
+      // Z de UTC) aunque sea una fecha de calendario sin hora real — parsearlo con
+      // `DateTime.parse` directo y guardarlo en Drift corría el día un día hacia atrás en
+      // cualquier huso detrás de UTC (ver `comoFecha` en core/utils/json_fecha.dart).
+      expect(ruta?.fecha, DateTime(2026, 7, 23));
 
       final items = await repositorioConMock.listarItems(rutaId);
       expect(items, hasLength(1));
@@ -185,7 +192,7 @@ void main() {
       expect(items.first.sincronizado, isTrue);
     });
 
-    test('manda incluir_vencidas en el body cuando se pide incluir deudas de días anteriores', () async {
+    test('manda incluir_vencidas en el body y lo guarda en la ruta creada', () async {
       Map<String, dynamic>? cuerpoEnviado;
       final mock = MockClient((request) async {
         cuerpoEnviado = jsonDecode(request.body) as Map<String, dynamic>;
@@ -196,6 +203,7 @@ void main() {
               'nombre': 'Ruta de hoy 2026-07-22',
               'descripcion': null,
               'fecha': '2026-07-22T00:00:00.000000Z',
+              'incluye_vencidas': true,
               'orden': 0,
               'items': <Map<String, dynamic>>[],
             },
@@ -211,9 +219,15 @@ void main() {
         apiClient: ApiClient(httpClient: mock, baseUrl: 'http://test/api'),
       );
 
-      await repositorioConMock.autogenerarHoy(fecha: DateTime(2026, 7, 22), incluirVencidas: true);
+      final rutaId = await repositorioConMock.autogenerarHoy(
+        fecha: DateTime(2026, 7, 22),
+        incluirVencidas: true,
+      );
 
       expect(cuerpoEnviado, {'fecha': '2026-07-22', 'incluir_vencidas': true});
+
+      final ruta = await repositorioConMock.obtenerPorId(rutaId);
+      expect(ruta?.incluyeVencidas, isTrue);
     });
   });
 }

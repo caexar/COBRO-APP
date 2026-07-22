@@ -2,6 +2,7 @@ import 'package:cobro_app/core/storage/secure_storage_service.dart';
 import 'package:cobro_app/data/app_database.dart';
 import 'package:cobro_app/features/rutas/data/rutas_repository.dart';
 import 'package:cobro_app/features/rutas/presentation/rutas_list_screen.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,5 +68,28 @@ void main() {
       find.ancestor(of: find.text('Autogenerar ruta por día'), matching: find.byType(ListTile)),
     );
     expect(opcionAutogenerar.enabled, isTrue);
+  });
+
+  testWidgets('muestra un aviso sutil de "solo ese día" / "+ vencidas" solo en rutas autogeneradas', (tester) async {
+    await db.rutasDao.insertar(
+      RutasCompanion.insert(usuarioId: 1, nombre: 'Ruta manual'),
+    );
+    await db.rutasDao.insertar(
+      RutasCompanion.insert(usuarioId: 1, nombre: 'Ruta de hoy 2026-07-22', incluyeVencidas: const Value(false)),
+    );
+    await db.rutasDao.insertar(
+      RutasCompanion.insert(usuarioId: 1, nombre: 'Ruta de hoy 2026-07-21', incluyeVencidas: const Value(true)),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RutasListScreen(repository: rutasRepository, verificarConexion: () async => true),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // La ruta manual (incluyeVencidas nulo) no muestra ningún aviso.
+    expect(find.text('Solo ese día'), findsOneWidget);
+    expect(find.text('+ vencidas'), findsOneWidget);
   });
 }

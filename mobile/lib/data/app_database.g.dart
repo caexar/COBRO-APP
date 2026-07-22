@@ -6272,6 +6272,20 @@ class $RutasTable extends Rutas with TableInfo<$RutasTable, Ruta> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _incluyeVencidasMeta = const VerificationMeta(
+    'incluyeVencidas',
+  );
+  @override
+  late final GeneratedColumn<bool> incluyeVencidas = GeneratedColumn<bool>(
+    'incluye_vencidas',
+    aliasedName,
+    true,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("incluye_vencidas" IN (0, 1))',
+    ),
+  );
   static const VerificationMeta _ordenMeta = const VerificationMeta('orden');
   @override
   late final GeneratedColumn<int> orden = GeneratedColumn<int>(
@@ -6331,6 +6345,7 @@ class $RutasTable extends Rutas with TableInfo<$RutasTable, Ruta> {
     nombre,
     descripcion,
     fecha,
+    incluyeVencidas,
     orden,
     creadoEn,
     actualizadoEn,
@@ -6392,6 +6407,15 @@ class $RutasTable extends Rutas with TableInfo<$RutasTable, Ruta> {
       context.handle(
         _fechaMeta,
         fecha.isAcceptableOrUnknown(data['fecha']!, _fechaMeta),
+      );
+    }
+    if (data.containsKey('incluye_vencidas')) {
+      context.handle(
+        _incluyeVencidasMeta,
+        incluyeVencidas.isAcceptableOrUnknown(
+          data['incluye_vencidas']!,
+          _incluyeVencidasMeta,
+        ),
       );
     }
     if (data.containsKey('orden')) {
@@ -6461,6 +6485,10 @@ class $RutasTable extends Rutas with TableInfo<$RutasTable, Ruta> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}fecha'],
       ),
+      incluyeVencidas: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}incluye_vencidas'],
+      ),
       orden: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}orden'],
@@ -6498,6 +6526,12 @@ class Ruta extends DataClass implements Insertable<Ruta> {
   final String nombre;
   final String? descripcion;
   final DateTime? fecha;
+
+  /// Solo tiene sentido en una ruta creada por [RutasRepository.autogenerarHoy]: `null` en
+  /// una ruta manual (no aplica), `false`/`true` según la opción que eligió el cobrador al
+  /// autogenerar ("solo ese día" vs. "incluir vencidas también") — se muestra como un aviso
+  /// sutil junto al nombre en `RutasListScreen`.
+  final bool? incluyeVencidas;
   final int orden;
   final DateTime creadoEn;
   final DateTime actualizadoEn;
@@ -6510,6 +6544,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     required this.nombre,
     this.descripcion,
     this.fecha,
+    this.incluyeVencidas,
     required this.orden,
     required this.creadoEn,
     required this.actualizadoEn,
@@ -6532,6 +6567,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     }
     if (!nullToAbsent || fecha != null) {
       map['fecha'] = Variable<DateTime>(fecha);
+    }
+    if (!nullToAbsent || incluyeVencidas != null) {
+      map['incluye_vencidas'] = Variable<bool>(incluyeVencidas);
     }
     map['orden'] = Variable<int>(orden);
     map['creado_en'] = Variable<DateTime>(creadoEn);
@@ -6557,6 +6595,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
       fecha: fecha == null && nullToAbsent
           ? const Value.absent()
           : Value(fecha),
+      incluyeVencidas: incluyeVencidas == null && nullToAbsent
+          ? const Value.absent()
+          : Value(incluyeVencidas),
       orden: Value(orden),
       creadoEn: Value(creadoEn),
       actualizadoEn: Value(actualizadoEn),
@@ -6577,6 +6618,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
       nombre: serializer.fromJson<String>(json['nombre']),
       descripcion: serializer.fromJson<String?>(json['descripcion']),
       fecha: serializer.fromJson<DateTime?>(json['fecha']),
+      incluyeVencidas: serializer.fromJson<bool?>(json['incluyeVencidas']),
       orden: serializer.fromJson<int>(json['orden']),
       creadoEn: serializer.fromJson<DateTime>(json['creadoEn']),
       actualizadoEn: serializer.fromJson<DateTime>(json['actualizadoEn']),
@@ -6594,6 +6636,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
       'nombre': serializer.toJson<String>(nombre),
       'descripcion': serializer.toJson<String?>(descripcion),
       'fecha': serializer.toJson<DateTime?>(fecha),
+      'incluyeVencidas': serializer.toJson<bool?>(incluyeVencidas),
       'orden': serializer.toJson<int>(orden),
       'creadoEn': serializer.toJson<DateTime>(creadoEn),
       'actualizadoEn': serializer.toJson<DateTime>(actualizadoEn),
@@ -6609,6 +6652,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     String? nombre,
     Value<String?> descripcion = const Value.absent(),
     Value<DateTime?> fecha = const Value.absent(),
+    Value<bool?> incluyeVencidas = const Value.absent(),
     int? orden,
     DateTime? creadoEn,
     DateTime? actualizadoEn,
@@ -6621,6 +6665,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     nombre: nombre ?? this.nombre,
     descripcion: descripcion.present ? descripcion.value : this.descripcion,
     fecha: fecha.present ? fecha.value : this.fecha,
+    incluyeVencidas: incluyeVencidas.present
+        ? incluyeVencidas.value
+        : this.incluyeVencidas,
     orden: orden ?? this.orden,
     creadoEn: creadoEn ?? this.creadoEn,
     actualizadoEn: actualizadoEn ?? this.actualizadoEn,
@@ -6639,6 +6686,9 @@ class Ruta extends DataClass implements Insertable<Ruta> {
           ? data.descripcion.value
           : this.descripcion,
       fecha: data.fecha.present ? data.fecha.value : this.fecha,
+      incluyeVencidas: data.incluyeVencidas.present
+          ? data.incluyeVencidas.value
+          : this.incluyeVencidas,
       orden: data.orden.present ? data.orden.value : this.orden,
       creadoEn: data.creadoEn.present ? data.creadoEn.value : this.creadoEn,
       actualizadoEn: data.actualizadoEn.present
@@ -6660,6 +6710,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
           ..write('nombre: $nombre, ')
           ..write('descripcion: $descripcion, ')
           ..write('fecha: $fecha, ')
+          ..write('incluyeVencidas: $incluyeVencidas, ')
           ..write('orden: $orden, ')
           ..write('creadoEn: $creadoEn, ')
           ..write('actualizadoEn: $actualizadoEn, ')
@@ -6677,6 +6728,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
     nombre,
     descripcion,
     fecha,
+    incluyeVencidas,
     orden,
     creadoEn,
     actualizadoEn,
@@ -6693,6 +6745,7 @@ class Ruta extends DataClass implements Insertable<Ruta> {
           other.nombre == this.nombre &&
           other.descripcion == this.descripcion &&
           other.fecha == this.fecha &&
+          other.incluyeVencidas == this.incluyeVencidas &&
           other.orden == this.orden &&
           other.creadoEn == this.creadoEn &&
           other.actualizadoEn == this.actualizadoEn &&
@@ -6707,6 +6760,7 @@ class RutasCompanion extends UpdateCompanion<Ruta> {
   final Value<String> nombre;
   final Value<String?> descripcion;
   final Value<DateTime?> fecha;
+  final Value<bool?> incluyeVencidas;
   final Value<int> orden;
   final Value<DateTime> creadoEn;
   final Value<DateTime> actualizadoEn;
@@ -6719,6 +6773,7 @@ class RutasCompanion extends UpdateCompanion<Ruta> {
     this.nombre = const Value.absent(),
     this.descripcion = const Value.absent(),
     this.fecha = const Value.absent(),
+    this.incluyeVencidas = const Value.absent(),
     this.orden = const Value.absent(),
     this.creadoEn = const Value.absent(),
     this.actualizadoEn = const Value.absent(),
@@ -6732,6 +6787,7 @@ class RutasCompanion extends UpdateCompanion<Ruta> {
     required String nombre,
     this.descripcion = const Value.absent(),
     this.fecha = const Value.absent(),
+    this.incluyeVencidas = const Value.absent(),
     this.orden = const Value.absent(),
     this.creadoEn = const Value.absent(),
     this.actualizadoEn = const Value.absent(),
@@ -6746,6 +6802,7 @@ class RutasCompanion extends UpdateCompanion<Ruta> {
     Expression<String>? nombre,
     Expression<String>? descripcion,
     Expression<DateTime>? fecha,
+    Expression<bool>? incluyeVencidas,
     Expression<int>? orden,
     Expression<DateTime>? creadoEn,
     Expression<DateTime>? actualizadoEn,
@@ -6759,6 +6816,7 @@ class RutasCompanion extends UpdateCompanion<Ruta> {
       if (nombre != null) 'nombre': nombre,
       if (descripcion != null) 'descripcion': descripcion,
       if (fecha != null) 'fecha': fecha,
+      if (incluyeVencidas != null) 'incluye_vencidas': incluyeVencidas,
       if (orden != null) 'orden': orden,
       if (creadoEn != null) 'creado_en': creadoEn,
       if (actualizadoEn != null) 'actualizado_en': actualizadoEn,
@@ -6774,6 +6832,7 @@ class RutasCompanion extends UpdateCompanion<Ruta> {
     Value<String>? nombre,
     Value<String?>? descripcion,
     Value<DateTime?>? fecha,
+    Value<bool?>? incluyeVencidas,
     Value<int>? orden,
     Value<DateTime>? creadoEn,
     Value<DateTime>? actualizadoEn,
@@ -6787,6 +6846,7 @@ class RutasCompanion extends UpdateCompanion<Ruta> {
       nombre: nombre ?? this.nombre,
       descripcion: descripcion ?? this.descripcion,
       fecha: fecha ?? this.fecha,
+      incluyeVencidas: incluyeVencidas ?? this.incluyeVencidas,
       orden: orden ?? this.orden,
       creadoEn: creadoEn ?? this.creadoEn,
       actualizadoEn: actualizadoEn ?? this.actualizadoEn,
@@ -6818,6 +6878,9 @@ class RutasCompanion extends UpdateCompanion<Ruta> {
     if (fecha.present) {
       map['fecha'] = Variable<DateTime>(fecha.value);
     }
+    if (incluyeVencidas.present) {
+      map['incluye_vencidas'] = Variable<bool>(incluyeVencidas.value);
+    }
     if (orden.present) {
       map['orden'] = Variable<int>(orden.value);
     }
@@ -6843,6 +6906,7 @@ class RutasCompanion extends UpdateCompanion<Ruta> {
           ..write('nombre: $nombre, ')
           ..write('descripcion: $descripcion, ')
           ..write('fecha: $fecha, ')
+          ..write('incluyeVencidas: $incluyeVencidas, ')
           ..write('orden: $orden, ')
           ..write('creadoEn: $creadoEn, ')
           ..write('actualizadoEn: $actualizadoEn, ')
@@ -11859,6 +11923,7 @@ typedef $$RutasTableCreateCompanionBuilder =
       required String nombre,
       Value<String?> descripcion,
       Value<DateTime?> fecha,
+      Value<bool?> incluyeVencidas,
       Value<int> orden,
       Value<DateTime> creadoEn,
       Value<DateTime> actualizadoEn,
@@ -11873,6 +11938,7 @@ typedef $$RutasTableUpdateCompanionBuilder =
       Value<String> nombre,
       Value<String?> descripcion,
       Value<DateTime?> fecha,
+      Value<bool?> incluyeVencidas,
       Value<int> orden,
       Value<DateTime> creadoEn,
       Value<DateTime> actualizadoEn,
@@ -11942,6 +12008,11 @@ class $$RutasTableFilterComposer extends Composer<_$AppDatabase, $RutasTable> {
 
   ColumnFilters<DateTime> get fecha => $composableBuilder(
     column: $table.fecha,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get incluyeVencidas => $composableBuilder(
+    column: $table.incluyeVencidas,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12035,6 +12106,11 @@ class $$RutasTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get incluyeVencidas => $composableBuilder(
+    column: $table.incluyeVencidas,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get orden => $composableBuilder(
     column: $table.orden,
     builder: (column) => ColumnOrderings(column),
@@ -12089,6 +12165,11 @@ class $$RutasTableAnnotationComposer
 
   GeneratedColumn<DateTime> get fecha =>
       $composableBuilder(column: $table.fecha, builder: (column) => column);
+
+  GeneratedColumn<bool> get incluyeVencidas => $composableBuilder(
+    column: $table.incluyeVencidas,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get orden =>
       $composableBuilder(column: $table.orden, builder: (column) => column);
@@ -12167,6 +12248,7 @@ class $$RutasTableTableManager
                 Value<String> nombre = const Value.absent(),
                 Value<String?> descripcion = const Value.absent(),
                 Value<DateTime?> fecha = const Value.absent(),
+                Value<bool?> incluyeVencidas = const Value.absent(),
                 Value<int> orden = const Value.absent(),
                 Value<DateTime> creadoEn = const Value.absent(),
                 Value<DateTime> actualizadoEn = const Value.absent(),
@@ -12179,6 +12261,7 @@ class $$RutasTableTableManager
                 nombre: nombre,
                 descripcion: descripcion,
                 fecha: fecha,
+                incluyeVencidas: incluyeVencidas,
                 orden: orden,
                 creadoEn: creadoEn,
                 actualizadoEn: actualizadoEn,
@@ -12193,6 +12276,7 @@ class $$RutasTableTableManager
                 required String nombre,
                 Value<String?> descripcion = const Value.absent(),
                 Value<DateTime?> fecha = const Value.absent(),
+                Value<bool?> incluyeVencidas = const Value.absent(),
                 Value<int> orden = const Value.absent(),
                 Value<DateTime> creadoEn = const Value.absent(),
                 Value<DateTime> actualizadoEn = const Value.absent(),
@@ -12205,6 +12289,7 @@ class $$RutasTableTableManager
                 nombre: nombre,
                 descripcion: descripcion,
                 fecha: fecha,
+                incluyeVencidas: incluyeVencidas,
                 orden: orden,
                 creadoEn: creadoEn,
                 actualizadoEn: actualizadoEn,

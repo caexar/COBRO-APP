@@ -332,7 +332,7 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 8);
+    expect(version, 9);
 
     final dbReabierta = AppDatabase.paraPruebas(NativeDatabase(archivoDb));
     addTearDown(dbReabierta.close);
@@ -495,7 +495,7 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 8);
+    expect(version, 9);
   });
 
   /// Crea el archivo con el esquema "v5": clientes/prestamos/pagos/cargas_capital
@@ -592,7 +592,7 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 8);
+    expect(version, 9);
   });
 
   /// Crea el archivo con el esquema "v6": clientes/prestamos/pagos/cargas_capital ya con su
@@ -652,7 +652,7 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 8);
+    expect(version, 9);
   });
 
   /// Crea el archivo con el esquema "v7": clientes/prestamos/pagos/cargas_capital en su forma
@@ -717,6 +717,109 @@ void main() {
     final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
     final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
     rawDespues.close();
-    expect(version, 8);
+    expect(version, 9);
+  });
+
+  /// `ruta_items` no cambió entre v8 y v9 (solo `rutas` ganó `incluyeVencidas`).
+  const crearRutaItemsV8 = '''
+    CREATE TABLE "ruta_items" (
+      "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "servidor_id" INTEGER NULL UNIQUE,
+      "uuid_local" TEXT NULL,
+      "ruta_id" INTEGER NOT NULL REFERENCES rutas (id),
+      "prestamo_id" INTEGER NOT NULL REFERENCES prestamos (id),
+      "orden" INTEGER NOT NULL DEFAULT 0,
+      "estado" TEXT NOT NULL DEFAULT 'pendiente',
+      "cobrado_en" INTEGER NULL,
+      "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+      "actualizado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+      "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1))
+    );
+  ''';
+
+  /// `rutas` tal como quedó en v8: sin `incluye_vencidas`, agregada recién en v9.
+  const crearRutasV8 = '''
+    CREATE TABLE "rutas" (
+      "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "servidor_id" INTEGER NULL UNIQUE,
+      "uuid_local" TEXT NULL,
+      "usuario_id" INTEGER NOT NULL,
+      "nombre" TEXT NOT NULL,
+      "descripcion" TEXT NULL,
+      "fecha" INTEGER NULL,
+      "orden" INTEGER NOT NULL DEFAULT 0,
+      "creado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+      "actualizado_en" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)),
+      "sincronizado" INTEGER NOT NULL DEFAULT 0 CHECK ("sincronizado" IN (0, 1))
+    );
+  ''';
+
+  /// Crea el archivo con el esquema "v8": rutas/ruta_items ya existen, pero `rutas` todavía no
+  /// tiene `incluye_vencidas` (agregada recién en v9), con una ruta y un ítem ya guardados.
+  void crearBaseDeDatosV8() {
+    final db = sqlite3.sqlite3.open(archivoDb.path);
+    db.execute(_crearCambiosPendientesV4masAdelante);
+    db.execute(_crearClientesV6);
+    db.execute(_crearPrestamosV6);
+    db.execute(_crearPagosV6);
+    db.execute(_crearCargasCapitalV6);
+    db.execute(_crearCierresCajaV7);
+    db.execute(_crearCierreCajaGastosV7);
+    db.execute(crearRutasV8);
+    db.execute(crearRutaItemsV8);
+
+    db.execute('''
+      INSERT INTO clientes (usuario_id, nombre, cedula, telefono, direccion, creado_en, actualizado_en, uuid_local)
+      VALUES (1, 'Juan Perez', '111', '3000000001', 'Calle 1', 1752192000, 1752192000, 'uuid-cliente-1');
+    ''');
+    db.execute('''
+      INSERT INTO prestamos
+        (id, cliente_id, usuario_id, monto_capital, porcentaje_interes, frecuencia_pago, plazo_cuotas, fecha_inicio, creado_en, actualizado_en, uuid_local)
+      VALUES
+        (1, 1, 1, 100000.0, 20.0, 'diario', 10, 1752192000, 1752192000, 1752192000, 'uuid-prestamo-1');
+    ''');
+    db.execute('''
+      INSERT INTO rutas (id, usuario_id, nombre, orden, creado_en, actualizado_en, uuid_local)
+      VALUES (1, 1, 'Ruta barrio Centro', 0, 1752192000, 1752192000, 'uuid-ruta-1');
+    ''');
+    db.execute('''
+      INSERT INTO ruta_items (id, ruta_id, prestamo_id, orden, creado_en, actualizado_en, uuid_local)
+      VALUES (1, 1, 1, 0, 1752192000, 1752192000, 'uuid-item-1');
+    ''');
+    db.execute('PRAGMA user_version = 8;');
+    db.close();
+  }
+
+  test('agrega rutas.incluyeVencidas sin perder las rutas ya guardadas', () async {
+    crearBaseDeDatosV8();
+
+    final db = AppDatabase.paraPruebas(NativeDatabase(archivoDb));
+    addTearDown(db.close);
+
+    final rutas = await db.rutasDao.obtenerTodas(1);
+    expect(rutas, hasLength(1));
+    expect(rutas.first.nombre, 'Ruta barrio Centro');
+    // Fila vieja: la columna nueva llega en null (no existía el concepto todavía).
+    expect(rutas.first.incluyeVencidas, isNull);
+
+    final items = await db.rutaItemsDao.obtenerPorRuta(1);
+    expect(items, hasLength(1));
+    expect(items.first.prestamoId, 1);
+
+    // La columna nueva queda utilizable para rutas nuevas.
+    final rutaId = await db.rutasDao.insertar(
+      RutasCompanion.insert(
+        usuarioId: 1,
+        nombre: 'Ruta de hoy 2026-07-22',
+        incluyeVencidas: const Value(true),
+      ),
+    );
+    final rutaNueva = await db.rutasDao.obtenerPorId(rutaId, 1);
+    expect(rutaNueva?.incluyeVencidas, isTrue);
+
+    final rawDespues = sqlite3.sqlite3.open(archivoDb.path);
+    final version = rawDespues.select('PRAGMA user_version;').first['user_version'] as int;
+    rawDespues.close();
+    expect(version, 9);
   });
 }

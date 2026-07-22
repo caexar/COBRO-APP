@@ -20,6 +20,12 @@ class Rutas extends Table {
   TextColumn get nombre => text()();
   TextColumn get descripcion => text().nullable()();
   DateTimeColumn get fecha => dateTime().nullable()();
+
+  /// Solo tiene sentido en una ruta creada por [RutasRepository.autogenerarHoy]: `null` en
+  /// una ruta manual (no aplica), `false`/`true` según la opción que eligió el cobrador al
+  /// autogenerar ("solo ese día" vs. "incluir vencidas también") — se muestra como un aviso
+  /// sutil junto al nombre en `RutasListScreen`.
+  BoolColumn get incluyeVencidas => boolean().nullable()();
   IntColumn get orden => integer().withDefault(const Constant(0))();
   DateTimeColumn get creadoEn => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get actualizadoEn => dateTime().withDefault(currentDateAndTime)();
