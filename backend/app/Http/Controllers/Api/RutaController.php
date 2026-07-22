@@ -83,7 +83,9 @@ class RutaController extends Controller
     /**
      * `fecha` es opcional (hoy por defecto, ver `RutaService::autogenerarHoy`) — el cobrador
      * puede pedir la ruta de otro día (ej. planificar mañana con anticipación) desde el mismo
-     * endpoint, sin uno nuevo.
+     * endpoint, sin uno nuevo. `incluir_vencidas` (opcional, `false` por defecto) agrega también
+     * los préstamos cuya próxima cuota pendiente ya venció antes de `fecha`, no solo los que
+     * vencen justo ese día — ver `RutaService::autogenerarHoy`.
      */
     public function autogenerarHoy(Request $request): JsonResponse
     {
@@ -91,11 +93,13 @@ class RutaController extends Controller
 
         $datos = $request->validate([
             'fecha' => ['nullable', 'date'],
+            'incluir_vencidas' => ['nullable', 'boolean'],
         ]);
 
         $fecha = filled($datos['fecha'] ?? null) ? Carbon::parse($datos['fecha']) : null;
+        $incluirVencidas = (bool) ($datos['incluir_vencidas'] ?? false);
 
-        $ruta = $this->rutaService->autogenerarHoy($request->user(), $fecha);
+        $ruta = $this->rutaService->autogenerarHoy($request->user(), $fecha, $incluirVencidas);
 
         return response()->json(['data' => $ruta], 201);
     }

@@ -18,15 +18,22 @@ class RutaService
      *
      * "Próxima cuota pendiente" es exactamente el mismo criterio que ya usa `PagoProcessor`
      * para decidir contra qué cuota se aplica un pago: la de menor `numero_cuota` con
-     * `estado != pagada`. No es "cualquier cuota del préstamo vence ese día" — un préstamo en
-     * mora cuya cuota atrasada más vieja vence ese día sí entra, pero uno cuya cuota atrasada es
-     * de hace varios días (y la de esa fecha es una futura, todavía no la que toca cobrar) no
+     * `estado != pagada`. Con [$incluirVencidas] en `false` (default) no es "cualquier cuota
+     * del préstamo vence ese día" — un préstamo en mora cuya cuota atrasada más vieja es de días
+     * anteriores a [$fecha] (y la de esa fecha es una futura, todavía no la que toca cobrar) no
      * entra hasta que se ponga al día.
+     *
+     * Con [$incluirVencidas] en `true`, además de los que vencen justo en [$fecha] entran los
+     * que ya estén atrasados de días anteriores (próxima cuota pendiente con
+     * `fecha_esperada <= $fecha`). Un préstamo que deba varios días atrás (ej. 21 y 22 de julio,
+     * generando la ruta del 22) aparece **una sola vez** — nunca se agregan dos ruta_items por
+     * el mismo préstamo, porque siempre se evalúa (y se agrega, si corresponde) solo su próxima
+     * cuota pendiente, la más antigua sin pagar.
      *
      * Los ruta_items quedan en el mismo orden en que se encontraron los préstamos (el cobrador
      * los reordena después manualmente vía `PUT /rutas/{ruta}/items/reordenar`).
      */
-    public function autogenerarHoy(User $usuario, ?Carbon $fecha = null): Ruta
+    public function autogenerarHoy(User $usuario, ?Carbon $fecha = null, bool $incluirVencidas = false): Ruta
     {
         $fechaObjetivo = ($fecha ?? Carbon::today())->startOfDay();
         $esHoy = $fechaObjetivo->isToday();
@@ -35,10 +42,16 @@ class RutaService
             ->whereIn('estado', ['activo', 'en_mora'])
             ->with(['cuotas' => fn ($query) => $query->orderBy('numero_cuota')])
             ->get()
-            ->filter(function (Prestamo $prestamo) use ($fechaObjetivo) {
+            ->filter(function (Prestamo $prestamo) use ($fechaObjetivo, $incluirVencidas) {
                 $proximaCuota = $prestamo->cuotas->first(fn (Cuota $cuota) => $cuota->estado !== 'pagada');
 
-                return $proximaCuota !== null && $proximaCuota->fecha_esperada->isSameDay($fechaObjetivo);
+                if ($proximaCuota === null) {
+                    return false;
+                }
+
+                return $incluirVencidas
+                    ? $proximaCuota->fecha_esperada->lte($fechaObjetivo)
+                    : $proximaCuota->fecha_esperada->isSameDay($fechaObjetivo);
             })
             ->values();
 

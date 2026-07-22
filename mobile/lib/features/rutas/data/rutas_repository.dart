@@ -181,15 +181,23 @@ class RutasRepository {
   ///
   /// [fecha] es opcional (hoy por defecto, tanto acá como del lado del
   /// servidor si se omite) — permite generar la ruta de otro día, ej. para
-  /// planificar con anticipación.
-  Future<int> autogenerarHoy({DateTime? fecha}) async {
+  /// planificar con anticipación. [incluirVencidas] (`false` por defecto)
+  /// agrega también los préstamos cuya próxima cuota pendiente ya venció
+  /// antes de [fecha] (mora de días anteriores), no solo los que vencen
+  /// justo ese día — cada préstamo aparece una sola vez sin importar cuántos
+  /// días atrás deba, ver `App\Services\RutaService::autogenerarHoy` en el
+  /// backend.
+  Future<int> autogenerarHoy({DateTime? fecha, bool incluirVencidas = false}) async {
     final usuarioId = await _usuarioIdActual();
     final token = await _tokenActual();
 
     final respuesta = await _apiClient.post(
       '/rutas/autogenerar-hoy',
       token: token,
-      body: fecha != null ? {'fecha': _soloFecha(fecha)} : null,
+      body: {
+        if (fecha != null) 'fecha': _soloFecha(fecha),
+        'incluir_vencidas': incluirVencidas,
+      },
     );
     final data = (respuesta['data'] as Map).cast<String, dynamic>();
 

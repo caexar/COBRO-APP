@@ -184,5 +184,36 @@ void main() {
       expect(items.first.prestamoId, prestamoId);
       expect(items.first.sincronizado, isTrue);
     });
+
+    test('manda incluir_vencidas en el body cuando se pide incluir deudas de días anteriores', () async {
+      Map<String, dynamic>? cuerpoEnviado;
+      final mock = MockClient((request) async {
+        cuerpoEnviado = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(
+          jsonEncode({
+            'data': {
+              'id': 9,
+              'nombre': 'Ruta de hoy 2026-07-22',
+              'descripcion': null,
+              'fecha': '2026-07-22T00:00:00.000000Z',
+              'orden': 0,
+              'items': <Map<String, dynamic>>[],
+            },
+          }),
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+
+      final repositorioConMock = RutasRepository(
+        database: db,
+        secureStorage: _SecureStorageFalso(),
+        apiClient: ApiClient(httpClient: mock, baseUrl: 'http://test/api'),
+      );
+
+      await repositorioConMock.autogenerarHoy(fecha: DateTime(2026, 7, 22), incluirVencidas: true);
+
+      expect(cuerpoEnviado, {'fecha': '2026-07-22', 'incluir_vencidas': true});
+    });
   });
 }

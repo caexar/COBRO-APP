@@ -92,9 +92,10 @@ class _RutasListScreenState extends State<RutasListScreen> {
   }
 
   /// Pide el día a generar (hoy por defecto, pero cambiable — no asume
-  /// "hoy" a ciegas) antes de llamar a `POST /rutas/autogenerar-hoy`. Si el
-  /// cobrador cancela el selector, no pasa nada (ni siquiera se intenta la
-  /// llamada).
+  /// "hoy" a ciegas) y luego si se deben incluir también las deudas
+  /// vencidas de días anteriores, antes de llamar a
+  /// `POST /rutas/autogenerar-hoy`. Si el cobrador cancela cualquiera de
+  /// los dos pasos, no pasa nada (ni siquiera se intenta la llamada).
   Future<void> _elegirFechaYAutogenerar() async {
     Navigator.of(context).pop();
 
@@ -107,10 +108,13 @@ class _RutasListScreenState extends State<RutasListScreen> {
     );
     if (fecha == null || !mounted) return;
 
+    final incluirVencidas = await _preguntarIncluirVencidas();
+    if (incluirVencidas == null || !mounted) return;
+
     setState(() => _generandoRuta = true);
 
     try {
-      await _repository.autogenerarHoy(fecha: fecha);
+      await _repository.autogenerarHoy(fecha: fecha, incluirVencidas: incluirVencidas);
       if (!mounted) return;
       await _cargar();
     } on ApiException catch (e) {
@@ -124,6 +128,26 @@ class _RutasListScreenState extends State<RutasListScreen> {
     } finally {
       if (mounted) setState(() => _generandoRuta = false);
     }
+  }
+
+  /// Un préstamo que deba de varios días atrás aparece una sola vez en la
+  /// ruta (por su cuota pendiente más antigua) sin importar la respuesta —
+  /// ver `RutasRepository.autogenerarHoy`.
+  Future<bool?> _preguntarIncluirVencidas() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Incluir deudas vencidas?'),
+        content: const Text(
+          'Además de los préstamos cuya próxima cuota vence ese día, ¿también quieres incluir '
+          'los que ya estén atrasados de días anteriores?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Solo ese día')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Incluir vencidas')),
+        ],
+      ),
+    );
   }
 
   Future<void> _mostrarOpcionesCrear() async {

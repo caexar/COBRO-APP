@@ -237,4 +237,53 @@ class RutaControllerTest extends TestCase
 
         $this->travelBack();
     }
+
+    public function test_incluir_vencidas_agrega_deudas_de_dias_anteriores_sin_duplicar_por_prestamo(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-07-22 09:00:00'));
+
+        $cobrador = User::factory()->create();
+        $cliente = $this->crearCliente($cobrador);
+
+        // Debe únicamente del 21 (atrasado): sin incluir_vencidas no entraría a la ruta de hoy.
+        $soloAtrasado = $this->crearPrestamoConCuotas($cobrador, $cliente, [
+            ['fecha' => '2026-07-21'],
+        ], estado: 'en_mora');
+
+        // Debe del 21 (sin pagar) Y tiene una cuota del 22: la próxima pendiente sigue siendo la
+        // del 21 — debe aparecer UNA sola vez (la del 21), nunca dos ruta_items.
+        $atrasadoYHoy = $this->crearPrestamoConCuotas($cobrador, $cliente, [
+            ['fecha' => '2026-07-21'],
+            ['fecha' => '2026-07-22'],
+        ], estado: 'en_mora');
+
+        // Vence justo hoy, sin nada atrasado antes: debe entrar igual (con o sin la opción).
+        $vencidoHoy = $this->crearPrestamoConCuotas($cobrador, $cliente, [
+            ['fecha' => '2026-07-22'],
+        ]);
+
+        // Vence mañana: nunca debe entrar en la ruta de hoy.
+        $vencidoManana = $this->crearPrestamoConCuotas($cobrador, $cliente, [
+            ['fecha' => '2026-07-23'],
+        ]);
+
+        Sanctum::actingAs($cobrador);
+
+        // Sin incluir_vencidas (default): los atrasados quedan fuera.
+        $sinVencidas = $this->postJson('/api/rutas/autogenerar-hoy');
+        $sinVencidas->assertCreated();
+        $idsSinVencidas = collect($sinVencidas->json('data.items'))->pluck('prestamo_id')->all();
+        $this->assertEqualsCanonicalizing([$vencidoHoy->id], $idsSinVencidas);
+
+        // Con incluir_vencidas: los atrasados entran, cada préstamo una sola vez.
+        $conVencidas = $this->postJson('/api/rutas/autogenerar-hoy', ['incluir_vencidas' => true]);
+        $conVencidas->assertCreated();
+        $idsConVencidas = collect($conVencidas->json('data.items'))->pluck('prestamo_id')->all();
+
+        $this->assertEqualsCanonicalizing([$soloAtrasado->id, $atrasadoYHoy->id, $vencidoHoy->id], $idsConVencidas);
+        $this->assertCount(3, $idsConVencidas);
+        $this->assertNotContains($vencidoManana->id, $idsConVencidas);
+
+        $this->travelBack();
+    }
 }
